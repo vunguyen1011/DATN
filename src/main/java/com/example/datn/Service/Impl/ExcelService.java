@@ -1,0 +1,284 @@
+package com.example.datn.Service.Impl;
+
+import com.example.datn.ENUM.Gender;
+import com.example.datn.ENUM.StudentStatus;
+import com.example.datn.Exception.AppException;
+import com.example.datn.Exception.ErrorCode;
+import com.example.datn.Model.*;
+import com.example.datn.Repository.*;
+import com.example.datn.Service.Interface.IExcelService;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddressList;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class ExcelService implements IExcelService {
+
+    private final UserRepository userRepository;
+    private final StudentRepository studentRepository;
+    private final MajorRepository majorRepository;
+    private final AdminClassRepository adminClassRepository;
+    private final CohortRepository cohortRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final RoleRepository roleRepository;
+    private final UserRoleRepository userRoleRepository;
+
+    private static final String[] HEADERS = {
+            "STT", "Mã sinh viên", "Họ và tên", "Giới tính", "Số điện thoại", "Địa chỉ", "Tên Lớp", "Mã Ngành", "Tên Khóa"
+    };
+    private static final String SHEET_NAME = "Danh_Sach_Sinh_Vien";
+
+    @Override
+    public void downloadTemplate(HttpServletResponse response) throws IOException {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet hiddenSheet = workbook.createSheet("HiddenData");
+            List<String> classes = adminClassRepository.findAll().stream().map(AdminClass::getName).collect(Collectors.toList());
+            List<String> majors = majorRepository.findAll().stream().map(Major::getCode).collect(Collectors.toList());
+            List<String> cohorts = cohortRepository.findAll().stream().map(Cohort::getName).collect(Collectors.toList());
+            List<String> genders = Arrays.asList("Nam", "Nữ", "Khác");
+
+            if (classes.isEmpty()) classes.add("CHUA_CO_LOP");
+            if (majors.isEmpty()) majors.add("CHUA_CO_NGANH");
+            if (cohorts.isEmpty()) cohorts.add("CHUA_CO_KHOA");
+
+            int maxRows = Math.max(Math.max(classes.size(), majors.size()), Math.max(genders.size(), cohorts.size()));
+            for (int i = 0; i < maxRows; i++) {
+                Row row = hiddenSheet.createRow(i);
+                if (i < classes.size()) row.createCell(0).setCellValue(classes.get(i));
+                if (i < majors.size()) row.createCell(1).setCellValue(majors.get(i));
+                if (i < genders.size()) row.createCell(2).setCellValue(genders.get(i));
+                if (i < cohorts.size()) row.createCell(3).setCellValue(cohorts.get(i));
+            }
+
+            createNamedRange(workbook, "ClassList", 0, classes.size());
+            createNamedRange(workbook, "MajorList", 1, majors.size());
+            createNamedRange(workbook, "GenderList", 2, genders.size());
+            createNamedRange(workbook, "CohortList", 3, cohorts.size());
+
+            workbook.setSheetVisibility(workbook.getSheetIndex("HiddenData"), SheetVisibility.VERY_HIDDEN);
+
+            Sheet sheet = workbook.createSheet(SHEET_NAME);
+            workbook.setActiveSheet(workbook.getSheetIndex(SHEET_NAME));
+
+            CellStyle headerStyle = createHeaderStyle(workbook);
+            CellStyle unlockedStyle = workbook.createCellStyle();
+            unlockedStyle.setLocked(false);
+
+            CellStyle unlockedTextStyle = workbook.createCellStyle();
+            unlockedTextStyle.setLocked(false);
+            unlockedTextStyle.setDataFormat(workbook.createDataFormat().getFormat("@"));
+
+            CellStyle lockedSTTStyle = workbook.createCellStyle();
+            lockedSTTStyle.setLocked(true);
+            lockedSTTStyle.setAlignment(HorizontalAlignment.CENTER);
+            lockedSTTStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            lockedSTTStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < HEADERS.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(HEADERS[i]);
+                cell.setCellStyle(headerStyle);
+                if (i == 0) sheet.setColumnWidth(i, 6 * 256);
+                else if (i == 5) sheet.setColumnWidth(i, 40 * 256);
+                else sheet.setColumnWidth(i, 18 * 256);
+            }
+
+            for (int i = 1; i <= 5000; i++) {
+                Row row = sheet.createRow(i);
+                for (int j = 0; j < HEADERS.length; j++) {
+                    Cell cell = row.createCell(j);
+                    if (j == 0) {
+                        cell.setCellStyle(lockedSTTStyle);
+                        cell.setCellValue(i);
+                    } else if (j == 1 || j == 4) {
+                        cell.setCellStyle(unlockedTextStyle);
+                    } else {
+                        cell.setCellStyle(unlockedStyle);
+                    }
+                }
+            }
+
+            DataValidationHelper helper = sheet.getDataValidationHelper();
+            addValidation(sheet, helper, "GenderList", 3);
+            addValidation(sheet, helper, "ClassList", 6);
+            addValidation(sheet, helper, "MajorList", 7);
+            addValidation(sheet, helper, "CohortList", 8);
+
+            sheet.protectSheet("admin_datn_2026");
+            workbook.write(response.getOutputStream());
+        }
+    }
+
+    @Override
+    @Transactional
+    public String saveUsersFromExcel(MultipartFile file) {
+        if (!hasExcelFormat(file)) throw new AppException(ErrorCode.INVALID_FILE_FORMAT);
+
+        try (InputStream is = file.getInputStream(); Workbook workbook = new XSSFWorkbook(is)) {
+            Sheet sheet = workbook.getSheet(SHEET_NAME);
+            if (sheet == null) throw new AppException(ErrorCode.EXCEL_HEADER_MISMATCH);
+
+            DataFormatter formatter = new DataFormatter();
+            if (!isValidHeader(sheet.getRow(0))) throw new AppException(ErrorCode.EXCEL_HEADER_MISMATCH);
+
+            List<String> usernamesInExcel = new ArrayList<>();
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null || isRowEmpty(row)) continue;
+                String code = formatter.formatCellValue(row.getCell(1)).trim().toUpperCase();
+                if (!code.isEmpty()) usernamesInExcel.add(code);
+            }
+
+            Set<String> existingUsernames = new HashSet<>(userRepository.findUsernamesByUsernameIn(usernamesInExcel));
+            Map<String, Major> majorMap = majorRepository.findAll().stream().collect(Collectors.toMap(Major::getCode, m -> m, (e, r) -> e));
+            Map<String, AdminClass> classMap = adminClassRepository.findAll().stream().collect(Collectors.toMap(AdminClass::getName, c -> c, (e, r) -> e));
+            Map<String, Cohort> cohortMap = cohortRepository.findAll().stream().collect(Collectors.toMap(Cohort::getName, c -> c, (e, r) -> e));
+
+            Role studentRole = roleRepository.findByName("ROLE_USER").orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
+
+            List<User> usersToSave = new ArrayList<>();
+            List<Student> studentsToSave = new ArrayList<>();
+            List<UserRole> userRolesToSave = new ArrayList<>();
+            List<String> skippedStudents = new ArrayList<>();
+
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null || isRowEmpty(row)) continue;
+
+                String studentCode = formatter.formatCellValue(row.getCell(1)).trim().toUpperCase();
+                if (studentCode.isEmpty()) break;
+
+                if (existingUsernames.contains(studentCode)) {
+                    skippedStudents.add(studentCode + " (Trùng mã)");
+                    continue;
+                }
+
+                String fullName = formatter.formatCellValue(row.getCell(2)).trim();
+                String genderStr = formatter.formatCellValue(row.getCell(3)).trim();
+                String phone = formatter.formatCellValue(row.getCell(4)).trim();
+
+                if (phone.length() == 9 && !phone.startsWith("0")) phone = "0" + phone;
+
+                String address = formatter.formatCellValue(row.getCell(5)).trim();
+                String className = formatter.formatCellValue(row.getCell(6)).trim();
+                String majorCode = formatter.formatCellValue(row.getCell(7)).trim();
+                String cohortName = formatter.formatCellValue(row.getCell(8)).trim();
+
+                Major major = majorMap.get(majorCode);
+                AdminClass adminClass = classMap.get(className);
+                Cohort cohort = cohortMap.get(cohortName);
+
+                if (major == null || adminClass == null || cohort == null) {
+                    skippedStudents.add(studentCode + " (Lỗi Lớp/Ngành/Khóa)");
+                    continue;
+                }
+
+                Gender genderEnum = genderStr.equalsIgnoreCase("Nam") ? Gender.MALE : (genderStr.equalsIgnoreCase("Nữ") ? Gender.FEMALE : Gender.OTHER);
+
+                User newUser = User.builder()
+                        .username(studentCode)
+                        .fullName(fullName)
+                        .email(studentCode.toLowerCase() + "@thanglong.edu.vn")
+                        .password(passwordEncoder.encode(studentCode))
+                        .isActive(true)
+                        .isLocked(false)
+                        .build();
+
+                Student newStudent = Student.builder()
+                        .studentCode(studentCode)
+                        .fullName(fullName)
+                        .gender(genderEnum)
+                        .phone(phone)
+                        .address(address)
+                        .status(StudentStatus.STUDYING)
+                        .major(major)
+                        .adminClass(adminClass)
+                        .cohort(cohort)
+                        .user(newUser)
+                        .build();
+
+                UserRole roleMap = UserRole.builder().user(newUser).role(studentRole).build();
+
+                usersToSave.add(newUser);
+                studentsToSave.add(newStudent);
+                userRolesToSave.add(roleMap);
+                existingUsernames.add(studentCode);
+            }
+
+            if (!usersToSave.isEmpty()) {
+                userRepository.saveAll(usersToSave);
+                userRoleRepository.saveAll(userRolesToSave);
+                studentRepository.saveAll(studentsToSave);
+            }
+
+            return skippedStudents.isEmpty() ?
+                    "Import thành công " + studentsToSave.size() + " sinh viên." :
+                    "Thành công " + studentsToSave.size() + ". Bỏ qua " + skippedStudents.size() + ": " + String.join(", ", skippedStudents);
+
+        } catch (Exception e) {
+            log.error("Lỗi Import: ", e);
+            throw new AppException(ErrorCode.EXCEL_READ_ERROR);
+        }
+    }
+
+    private void createNamedRange(Workbook wb, String name, int col, int size) {
+        Name namedRange = wb.createName();
+        namedRange.setNameName(name);
+        String colLetter = String.valueOf((char)('A' + col));
+        namedRange.setRefersToFormula("HiddenData!$" + colLetter + "$1:$" + colLetter + "$" + size);
+    }
+
+    private void addValidation(Sheet sheet, DataValidationHelper helper, String formula, int col) {
+        DataValidationConstraint constraint = helper.createFormulaListConstraint(formula);
+        DataValidation validation = helper.createValidation(constraint, new CellRangeAddressList(1, 5000, col, col));
+        validation.setShowErrorBox(true);
+        sheet.addValidationData(validation);
+    }
+
+    private CellStyle createHeaderStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        Font font = workbook.createFont(); font.setBold(true); font.setColor(IndexedColors.WHITE.getIndex());
+        style.setFont(font); style.setFillForegroundColor(IndexedColors.BLUE_GREY.getIndex());
+        style.setFillPattern(FillPatternType.SOLID_FOREGROUND); style.setAlignment(HorizontalAlignment.CENTER);
+        return style;
+    }
+
+    private boolean isRowEmpty(Row row) {
+        if (row == null) return true;
+        for (int c = row.getFirstCellNum(); c < row.getLastCellNum(); c++) {
+            Cell cell = row.getCell(c);
+            if (cell != null && cell.getCellType() != CellType.BLANK) return false;
+        }
+        return true;
+    }
+
+    private boolean isValidHeader(Row row) {
+        if (row == null) return false;
+        DataFormatter formatter = new DataFormatter();
+        for (int i = 0; i < HEADERS.length; i++) {
+            if (!HEADERS[i].equalsIgnoreCase(formatter.formatCellValue(row.getCell(i)).trim())) return false;
+        }
+        return true;
+    }
+
+    public boolean hasExcelFormat(MultipartFile file) {
+        String type = file.getContentType();
+        return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".equals(type)
+                || "application/vnd.ms-excel".equals(type);
+    }
+}

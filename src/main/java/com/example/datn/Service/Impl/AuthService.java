@@ -1,0 +1,160 @@
+package com.example.datn.Service.Impl;
+
+import com.example.datn.Config.JwtProvider;
+import com.example.datn.DTO.Request.ChangePasswordRequest;
+import com.example.datn.DTO.Request.ForgotPasswordRequest;
+import com.example.datn.DTO.Request.ResetPasswordRequest;
+import com.example.datn.DTO.Response.TokenResponse;
+import com.example.datn.Exception.AppException;
+import com.example.datn.Exception.ErrorCode;
+import com.example.datn.Model.User;
+import com.example.datn.Pattern.Stragery.ILoginStrategy;
+import com.example.datn.Repository.UserRepository;
+import com.example.datn.Service.Interface.IAuthService;
+import com.example.datn.Service.Interface.IEmailService;
+import com.example.datn.Service.Interface.IRedisService;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Service
+@Slf4j
+@RequiredArgsConstructor
+public class AuthService implements IAuthService {
+
+    private final Map<String, ILoginStrategy> strategyMap;
+    private final JwtProvider jwtTokenProvider;
+    private final IRedisService redisService;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private  final IEmailService emailService;
+
+    @Value("${jwt.refreshTokenExpiration}")
+    private long refreshExpiration;
+
+
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> TokenResponse executeLogin(String loginMethod, T requestData, HttpServletResponse response) {
+        ILoginStrategy<T> strategy = strategyMap.get(loginMethod.toUpperCase());
+
+        if (strategy == null) {
+            throw new AppException(ErrorCode.METHOD_NOT_SUPPORTED);
+        }
+
+        return strategy.authenticate(requestData, response);
+    }
+
+    @Override
+    public TokenResponse refreshToken(String refreshToken, HttpServletResponse response) {
+        String username;
+        try {
+            username = jwtTokenProvider.extractUsername(refreshToken);
+        } catch (Exception e) {
+            log.error("Refresh token error", e);
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        String tokenInRedis = redisService.getRefreshToken(username);
+        if (tokenInRedis == null || !tokenInRedis.equals(refreshToken)) {
+            log.warn("Refresh token mismatch: {}", username);
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        String newAccessToken = jwtTokenProvider.genAccessToken(username);
+        String newRefreshToken = jwtTokenProvider.genRefreshToken(username);
+
+        redisService.saveRefreshToken(
+                username,
+                newRefreshToken,
+                Duration.ofSeconds(refreshExpiration)
+        );
+
+        ResponseCookie springCookie = ResponseCookie.from("refresh_token", newRefreshToken)
+                .httpOnly(true)
+                .secure(false)
+                .path("/")
+                .maxAge(refreshExpiration)
+                .sameSite("Lax")
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, springCookie.toString());
+
+        return TokenResponse.builder()
+                .accessToken(newAccessToken)
+                .build();
+    }
+    public void logout(String username, HttpServletResponse response) {
+        redisService.deleteRefreshToken(username);
+
+        ResponseCookie deleteCookie = ResponseCookie.from("refresh_token", "")
+                .httpOnly(true)
+                .secure(false)
+                .path("/")
+                .maxAge(0)
+                .sameSite("Lax")
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, deleteCookie.toString());
+    }
+    @Override
+    public void changePassword(String username, ChangePasswordRequest request) {
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new AppException(ErrorCode.PASSWORD_NOT_MATCH);
+        }
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
+            throw new AppException(ErrorCode.INVALID_CREDENTIALS);
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+    }
+
+    @Override
+    public void forgotPassword(ForgotPasswordRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        String otp = String.format("%06d", new java.util.Random().nextInt(999999));
+
+        redisService.saveOtp(user.getEmail(), otp);
+
+        emailService.sendOtpEmail(user.getEmail(), otp);
+    }
+
+    @Override
+    public void resetPassword(ResetPasswordRequest request) {
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new AppException(ErrorCode.PASSWORD_NOT_MATCH);
+        }
+
+        String savedOtp = redisService.getOtp(request.getEmail());
+        if (savedOtp == null || !savedOtp.equals(request.getOtp())) {
+            throw new AppException(ErrorCode.INVALID_OTP);
+        }
+
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        redisService.deleteOtp(request.getEmail());
+    }
+
+}
