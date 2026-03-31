@@ -34,10 +34,10 @@ public class StartConfig implements CommandLineRunner {
         if (!roleRepository.existsByName("ROLE_ADMIN")) {
             roleRepository.save(Role.builder().name("ROLE_ADMIN").build());
         }
-        if (!roleRepository.existsByName("LECTURER")) {
-            roleRepository.save(Role.builder().name("LECTURER").build());
+        if (!roleRepository.existsByName("ROLE_LECTURER")) {
+            roleRepository.save(Role.builder().name("ROLE_LECTURER").build());
         }
-        if (!roleRepository.existsByName("HOD")) {
+        if (!roleRepository.existsByName("ROLE_HOD")) {
             roleRepository.save(Role.builder().name("HOD").build());
         }
 
