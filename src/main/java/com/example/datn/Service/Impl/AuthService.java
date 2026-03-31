@@ -4,6 +4,7 @@ import com.example.datn.Config.JwtProvider;
 import com.example.datn.DTO.Request.ChangePasswordRequest;
 import com.example.datn.DTO.Request.ForgotPasswordRequest;
 import com.example.datn.DTO.Request.ResetPasswordRequest;
+import com.example.datn.DTO.Request.VerifyOtpRequest;
 import com.example.datn.DTO.Response.TokenResponse;
 import com.example.datn.Exception.AppException;
 import com.example.datn.Exception.ErrorCode;
@@ -21,10 +22,12 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -138,14 +141,31 @@ public class AuthService implements IAuthService {
     }
 
     @Override
+    public String verifyOtp(VerifyOtpRequest request) {
+        String savedOtp = redisService.getOtp(request.getEmail());
+        if (savedOtp == null || !savedOtp.equals(request.getOtp())) {
+            throw new AppException(ErrorCode.INVALID_OTP);
+        }
+
+        String resetToken = UUID.randomUUID().toString();
+
+        redisService.deleteOtp(request.getEmail());
+
+        redisService.saveResetToken(request.getEmail(), resetToken, Duration.ofMinutes(10));
+
+        return resetToken;
+    }
+
+    @Override
+    @Transactional
     public void resetPassword(ResetPasswordRequest request) {
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
             throw new AppException(ErrorCode.PASSWORD_NOT_MATCH);
         }
 
-        String savedOtp = redisService.getOtp(request.getEmail());
-        if (savedOtp == null || !savedOtp.equals(request.getOtp())) {
-            throw new AppException(ErrorCode.INVALID_OTP);
+        String savedToken = redisService.getResetToken(request.getEmail());
+        if (savedToken == null || !savedToken.equals(request.getResetToken())) {
+            throw new AppException(ErrorCode.INVALID_TOKEN);
         }
 
         User user = userRepository.findByEmail(request.getEmail())
@@ -154,7 +174,6 @@ public class AuthService implements IAuthService {
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
 
-        redisService.deleteOtp(request.getEmail());
+        redisService.deleteResetToken(request.getEmail());
     }
-
 }

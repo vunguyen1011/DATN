@@ -13,24 +13,20 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class RedisService implements IRedisService {
 
-    // Sử dụng StringRedisTemplate vì cả key (username) và value (token) đều là chuỗi (String)
     private final StringRedisTemplate redisTemplate;
 
-    // Tiền tố (prefix) để phân biệt các key của Refresh Token với các dữ liệu khác trong Redis
     private static final String REFRESH_TOKEN_PREFIX = "RT:";
     private static final String OTP_PREFIX = "OTP:";
+    private static final String RESET_TOKEN_PREFIX = "RESET_TOKEN:";
 
     @Override
     public void saveRefreshToken(String username, String refreshToken, Duration duration) {
         String key = buildKey(username);
         try {
-            // Lưu token vào Redis và thiết lập thời gian hết hạn (TTL)
             redisTemplate.opsForValue().set(key, refreshToken, duration);
             log.info("Đã lưu Refresh Token vào Redis cho user: {}", username);
         } catch (Exception e) {
             log.error("Lỗi khi lưu Refresh Token vào Redis cho user: {}", username, e);
-            // Tùy thuộc vào thiết kế, bạn có thể ném ra một Custom Exception ở đây
-            // throw new AppException(ErrorCode.REDIS_CONNECTION_ERROR);
         }
     }
 
@@ -60,10 +56,8 @@ public class RedisService implements IRedisService {
 
     @Override
     public boolean isValidRefreshToken(String username, String refreshToken) {
-        // Lấy token đang lưu trong Redis
         String storedToken = getRefreshToken(username);
 
-        // Kiểm tra xem token có tồn tại và có khớp với token client gửi lên không
         if (storedToken == null) {
             log.warn("Không tìm thấy Refresh Token trong Redis cho user: {}", username);
             return false;
@@ -75,6 +69,7 @@ public class RedisService implements IRedisService {
         }
         return true;
     }
+
     @Override
     public void saveOtp(String email, String otp) {
         String key = OTP_PREFIX + email;
@@ -107,6 +102,41 @@ public class RedisService implements IRedisService {
             }
         } catch (Exception e) {
             log.error("Lỗi khi xóa OTP trong Redis của email: {}", email, e);
+        }
+    }
+
+    @Override
+    public void saveResetToken(String email, String resetToken, Duration duration) {
+        String key = RESET_TOKEN_PREFIX + email;
+        try {
+            redisTemplate.opsForValue().set(key, resetToken, duration);
+            log.info("Đã lưu Reset Token vào Redis cho email: {}", email);
+        } catch (Exception e) {
+            log.error("Lỗi khi lưu Reset Token vào Redis cho email: {}", email, e);
+        }
+    }
+
+    @Override
+    public String getResetToken(String email) {
+        String key = RESET_TOKEN_PREFIX + email;
+        try {
+            return redisTemplate.opsForValue().get(key);
+        } catch (Exception e) {
+            log.error("Lỗi khi lấy Reset Token từ Redis cho email: {}", email, e);
+            return null;
+        }
+    }
+
+    @Override
+    public void deleteResetToken(String email) {
+        String key = RESET_TOKEN_PREFIX + email;
+        try {
+            Boolean deleted = redisTemplate.delete(key);
+            if (Boolean.TRUE.equals(deleted)) {
+                log.info("Đã xóa Reset Token trong Redis của email: {}", email);
+            }
+        } catch (Exception e) {
+            log.error("Lỗi khi xóa Reset Token trong Redis của email: {}", email, e);
         }
     }
 

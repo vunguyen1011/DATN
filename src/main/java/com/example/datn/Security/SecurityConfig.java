@@ -14,21 +14,23 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @RequiredArgsConstructor
-@EnableMethodSecurity // Cho phép dùng @PreAuthorize("hasRole('ADMIN')") ở Controller
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
     private final CustomOAuth2SuccessHandler customOAuth2SuccessHandler;
     private final CustomAuthEntryPoint customAuthEntryPoint;
 
-    // Danh sách các URL không cần check Token
     private final String[] WHITE_LIST = {
-            "/api/auth/login",          // API đăng nhập nội bộ
-            "/api/auth/refresh-token",  // API cấp lại Access Token
-            "/oauth2/**",               // Luồng OAuth2 mặc định của Spring
-            "/login/oauth2/**",         // Callback từ Google/Teams
-            "/v3/api-docs/**",          // Swagger docs
-            "/swagger-ui/**",           // Swagger UI
+            "/api/auths/login",
+            "/api/auths/refresh-token",
+            "/api/auths/forgot-password",
+            "/api/auths/verify-otp",
+            "/api/auths/reset-password",
+            "/oauth2/**",
+            "/login/oauth2/**",
+            "/v3/api-docs/**",
+            "/swagger-ui/**",
             "/swagger-ui.html",
             "/api/test/**"
     };
@@ -36,27 +38,17 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity
-                .csrf(AbstractHttpConfigurer::disable) // Tắt CSRF vì dùng JWT
-
-                // Cấu hình Stateless (không lưu Session trên Server)
+                .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // Phân quyền request
                 .authorizeHttpRequests(request -> request
-                        .requestMatchers(WHITE_LIST).permitAll() // Cho phép White List
-                        .anyRequest().authenticated()          // Tất cả các API còn lại phải có Token
+                        .requestMatchers(WHITE_LIST).permitAll()
+                        .anyRequest().authenticated()
                 )
-
-                // Cấu hình đăng nhập bằng Google/Teams
                 .oauth2Login(oauth2 -> oauth2
-                        .successHandler(customOAuth2SuccessHandler) // Gọi Handler điều hướng về FE
+                        .successHandler(customOAuth2SuccessHandler)
                 )
-
-                // Gắn bộ lọc kiểm tra JWT vào trước bộ lọc xác thực mặc định
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
-
-                // Xử lý lỗi khi Token sai hoặc không có quyền truy cập
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint(customAuthEntryPoint)
                 );

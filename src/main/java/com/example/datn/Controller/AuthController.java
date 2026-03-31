@@ -4,6 +4,7 @@ import com.example.datn.DTO.Request.ChangePasswordRequest;
 import com.example.datn.DTO.Request.ForgotPasswordRequest;
 import com.example.datn.DTO.Request.LoginRequest;
 import com.example.datn.DTO.Request.ResetPasswordRequest;
+import com.example.datn.DTO.Request.VerifyOtpRequest;
 import com.example.datn.DTO.Response.ApiResponse;
 import com.example.datn.DTO.Response.TokenResponse;
 import com.example.datn.Exception.AppException;
@@ -55,6 +56,7 @@ public class AuthController {
                 .result(tokenResponse)
                 .build();
     }
+
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/import-excel")
     public ApiResponse<String> importStudentsFromExcel(@RequestParam("file") MultipartFile file) {
@@ -65,6 +67,7 @@ public class AuthController {
                 .result(resultMessage)
                 .build();
     }
+
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/excel-template")
     public void downloadTemplate(HttpServletResponse response) throws IOException {
@@ -72,6 +75,7 @@ public class AuthController {
         response.setHeader("Content-Disposition", "attachment; filename=template_sinh_vien.xlsx");
         excelService.downloadTemplate(response);
     }
+
     @PostMapping("/logout")
     public ApiResponse<Void> logout(HttpServletResponse response) {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -98,6 +102,16 @@ public class AuthController {
         return ApiResponse.<Void>builder()
                 .code(1000)
                 .message("Mã OTP đã được gửi đến email của bạn")
+                .build();
+    }
+
+    @PostMapping("/verify-otp")
+    public ApiResponse<String> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
+        String resetToken = authService.verifyOtp(request);
+        return ApiResponse.<String>builder()
+                .code(1000)
+                .message("Xác thực OTP thành công")
+                .result(resetToken)
                 .build();
     }
 

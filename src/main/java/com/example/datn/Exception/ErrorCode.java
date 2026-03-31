@@ -16,6 +16,7 @@ public enum ErrorCode {
     METHOD_NOT_SUPPORTED(1009, "Phương thức xác thực không được hỗ trợ"),
     PASSWORD_NOT_MATCH(1010, "Mật khẩu không khớp"),
     INVALID_OTP(1011, "Mã OTP không hợp lệ"),
+    INVALID_TOKEN(1112, "Token không hợp lệ hoặc đã hết hạn"),
 
     // 11xx: Major
     MAJOR_CODE_EXISTED(1101, "Mã ngành đã tồn tại"),

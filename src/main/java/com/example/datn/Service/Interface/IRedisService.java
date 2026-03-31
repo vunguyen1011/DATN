@@ -4,9 +4,7 @@ import java.time.Duration;
 
 public interface IRedisService {
 
-
     void saveRefreshToken(String username, String refreshToken, Duration duration);
-
 
     String getRefreshToken(String username);
 
@@ -19,4 +17,10 @@ public interface IRedisService {
     String getOtp(String email);
 
     void deleteOtp(String email);
+
+    void saveResetToken(String email, String resetToken, Duration duration);
+
+    String getResetToken(String email);
+
+    void deleteResetToken(String email);
 }
