@@ -24,11 +24,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -40,12 +39,10 @@ public class AuthService implements IAuthService {
     private final IRedisService redisService;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private  final IEmailService emailService;
+    private final IEmailService emailService;
 
     @Value("${jwt.refreshTokenExpiration}")
     private long refreshExpiration;
-
-
 
     @Override
     @SuppressWarnings("unchecked")
@@ -70,8 +67,14 @@ public class AuthService implements IAuthService {
         }
 
         String tokenInRedis = redisService.getRefreshToken(username);
-        if (tokenInRedis == null || !tokenInRedis.equals(refreshToken)) {
-            log.warn("Refresh token mismatch: {}", username);
+
+        if (tokenInRedis != null && !tokenInRedis.equals(refreshToken)) {
+            log.warn("Security warning: Token reuse detected for user: {}", username);
+            redisService.deleteRefreshToken(username);
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        if (tokenInRedis == null) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
@@ -86,10 +89,10 @@ public class AuthService implements IAuthService {
 
         ResponseCookie springCookie = ResponseCookie.from("refresh_token", newRefreshToken)
                 .httpOnly(true)
-                .secure(false)
+                .secure(true)
                 .path("/")
                 .maxAge(refreshExpiration)
-                .sameSite("Lax")
+                .sameSite("None")
                 .build();
 
         response.addHeader(HttpHeaders.SET_COOKIE, springCookie.toString());
@@ -98,20 +101,24 @@ public class AuthService implements IAuthService {
                 .accessToken(newAccessToken)
                 .build();
     }
+
+    @Override
     public void logout(String username, HttpServletResponse response) {
         redisService.deleteRefreshToken(username);
 
         ResponseCookie deleteCookie = ResponseCookie.from("refresh_token", "")
                 .httpOnly(true)
-                .secure(false)
+                .secure(true)
                 .path("/")
                 .maxAge(0)
-                .sameSite("Lax")
+                .sameSite("None")
                 .build();
 
         response.addHeader(HttpHeaders.SET_COOKIE, deleteCookie.toString());
     }
+
     @Override
+    @Transactional
     public void changePassword(String username, ChangePasswordRequest request) {
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
             throw new AppException(ErrorCode.PASSWORD_NOT_MATCH);
@@ -133,10 +140,10 @@ public class AuthService implements IAuthService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        String otp = String.format("%06d", new java.util.Random().nextInt(999999));
+        SecureRandom random = new SecureRandom();
+        String otp = String.format("%06d", random.nextInt(1000000));
 
         redisService.saveOtp(user.getEmail(), otp);
-
         emailService.sendOtpEmail(user.getEmail(), otp);
     }
 
@@ -148,9 +155,7 @@ public class AuthService implements IAuthService {
         }
 
         String resetToken = UUID.randomUUID().toString();
-
         redisService.deleteOtp(request.getEmail());
-
         redisService.saveResetToken(request.getEmail(), resetToken, Duration.ofMinutes(10));
 
         return resetToken;
