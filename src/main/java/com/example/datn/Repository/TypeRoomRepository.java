@@ -5,7 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.UUID;
 
-public interface TypeRoomService extends JpaRepository<RoomType, UUID> {
+public interface TypeRoomRepository extends JpaRepository<RoomType, UUID> {
         boolean existsByName(String name);
         boolean existsByCode(String code);
 }

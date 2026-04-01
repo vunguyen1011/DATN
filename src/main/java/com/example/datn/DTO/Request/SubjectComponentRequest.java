@@ -35,7 +35,4 @@ public class SubjectComponentRequest {
 
     @Min(value = 0, message = "Trọng số phần trăm không được nhỏ hơn 0")
     private Double weightPercent;
-
-    @Min(value = 1, message = "Số tín chỉ phải lớn hơn 0")
-    private Integer numberCredit;
 }

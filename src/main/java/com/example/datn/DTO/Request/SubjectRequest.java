@@ -34,5 +34,5 @@ public class SubjectRequest {
     private Integer practicePeriod;
     @NotNull(message = "Hệ số không được để trống")
     @Min(value =0, message = "Hệ số phải lớn hơn hoặc bằng 0")
-    private  Double coffe;
+    private  Double coefficient;
 }

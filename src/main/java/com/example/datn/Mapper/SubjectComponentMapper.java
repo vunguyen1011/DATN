@@ -2,37 +2,19 @@ package com.example.datn.Mapper;
 
 import com.example.datn.DTO.Request.SubjectComponentRequest;
 import com.example.datn.DTO.Response.SubjectComponentResponse;
-import com.example.datn.Exception.AppException;
-import com.example.datn.Exception.ErrorCode;
 import com.example.datn.Model.RoomType;
 import com.example.datn.Model.Subject;
 import com.example.datn.Model.SubjectComponent;
-import com.example.datn.Repository.SubjectRepository;
-import com.example.datn.Repository.TypeRoomService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
-@RequiredArgsConstructor
 public class SubjectComponentMapper {
 
-    private final SubjectRepository subjectRepository;
-    private final TypeRoomService roomTypeRepository;
-
-    public SubjectComponent toEntity(SubjectComponentRequest request) {
+    public SubjectComponent toEntity(SubjectComponentRequest request, Subject subject, RoomType roomType) {
         if (request == null) return null;
-
-        Subject subject = subjectRepository.findById(request.getSubjectId())
-                .orElseThrow(() -> new AppException(ErrorCode.SUBJECT_NOT_FOUND));
-
-        RoomType roomType = null;
-        if (request.getRequiredRoomTypeId() != null) {
-            roomType = roomTypeRepository.findById(request.getRequiredRoomTypeId())
-                    .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_NOT_FOUND));
-        }
 
         return SubjectComponent.builder()
                 .subject(subject)
@@ -42,21 +24,11 @@ public class SubjectComponentMapper {
                 .periodsPerSession(request.getPeriodsPerSession())
                 .totalPeriods(request.getTotalPeriods())
                 .weightPercent(request.getWeightPercent())
-                .numberCredit(request.getNumberCredit())
                 .build();
     }
 
-    public void updateEntityFromRequest(SubjectComponent entity, SubjectComponentRequest request) {
+    public void updateEntityFromRequest(SubjectComponent entity, SubjectComponentRequest request, Subject subject, RoomType roomType) {
         if (request == null || entity == null) return;
-
-        Subject subject = subjectRepository.findById(request.getSubjectId())
-                .orElseThrow(() -> new AppException(ErrorCode.SUBJECT_NOT_FOUND));
-
-        RoomType roomType = null;
-        if (request.getRequiredRoomTypeId() != null) {
-            roomType = roomTypeRepository.findById(request.getRequiredRoomTypeId())
-                    .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_NOT_FOUND));
-        }
 
         entity.setSubject(subject);
         entity.setType(request.getType());
@@ -65,7 +37,6 @@ public class SubjectComponentMapper {
         entity.setPeriodsPerSession(request.getPeriodsPerSession());
         entity.setTotalPeriods(request.getTotalPeriods());
         entity.setWeightPercent(request.getWeightPercent());
-        entity.setNumberCredit(request.getNumberCredit());
     }
 
     public SubjectComponentResponse toResponse(SubjectComponent entity) {
@@ -83,7 +54,6 @@ public class SubjectComponentMapper {
                 .periodsPerSession(entity.getPeriodsPerSession())
                 .totalPeriods(entity.getTotalPeriods())
                 .weightPercent(entity.getWeightPercent())
-                .numberCredit(entity.getNumberCredit())
                 .build();
     }
 

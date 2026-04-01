@@ -25,5 +25,5 @@ public class SubjectResponse {
     private Integer practicePeriod;
 
     private Boolean isActive;
-    private Double coffee;
+    private Double coefficient;
 }

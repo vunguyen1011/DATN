@@ -7,6 +7,7 @@ import com.example.datn.DTO.Response.SubjectResponse;
 import com.example.datn.Service.Interface.ISubjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,7 +19,7 @@ import java.util.UUID;
 public class SubjectController {
 
     private final ISubjectService subjectService;
-
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ApiResponse<SubjectResponse> createSubject(@RequestBody @Valid SubjectRequest request) {
         return ApiResponse.<SubjectResponse>builder()
@@ -26,7 +27,7 @@ public class SubjectController {
                 .message("Tạo môn học thành công")
                 .build();
     }
-
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ApiResponse<SubjectResponse> updateSubject(
             @PathVariable UUID id,
@@ -69,7 +70,7 @@ public class SubjectController {
                 .message("Lấy danh sách điều kiện tiên quyết thành công")
                 .build();
     }
-
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}/prerequisites")
     public ApiResponse<Void> updatePrerequisites(
             @PathVariable UUID id,
@@ -88,14 +89,15 @@ public class SubjectController {
                 .result(subjectService.getDependentSubjects(id))
                 .build();
     }
-    @GetMapping("/{id}/")
-    public ApiResponse<List<SubjectResponse>> getPrerequisiteTree(@PathVariable UUID id) {
-        return ApiResponse.<List<SubjectResponse>>builder()
-                .code(1000)
-                .message("Lấy cây điều kiện tiên quyết thành công")
-                .result(subjectService.getPrerequisiteTree(id))
-                .build();
-    }
+
+//    @GetMapping("/{id}/prerequisites")
+//    public ApiResponse<List<SubjectResponse>> getPrerequisiteTree(@PathVariable UUID id) {
+//        return ApiResponse.<List<SubjectResponse>>builder()
+//                .code(1000)
+//                .message("Lấy cây điều kiện tiên quyết thành công")
+//                .result(subjectService.getPrerequisiteTree(id))
+//                .build();
+//    }
 
 
 }

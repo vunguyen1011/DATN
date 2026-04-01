@@ -16,10 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,9 +32,22 @@ public class SubjectService implements ISubjectService {
     @Override
     @Transactional
     public SubjectResponse createSubject(SubjectRequest request) {
-        if (subjectRepository.existsByCodeAndIsActiveTrue(request.getCode())) {
-            throw new AppException(ErrorCode.SUBJECT_EXISTED);
+        Optional<Subject> existingSubjectOpt = subjectRepository.findByCode(request.getCode());
+
+        if (existingSubjectOpt.isPresent()) {
+            Subject existingSubject = existingSubjectOpt.get();
+
+            if (existingSubject.getIsActive()) {
+                throw new AppException(ErrorCode.SUBJECT_EXISTED);
+            }
+
+            // Khôi phục record đã xóa mềm và cập nhật thông tin mới
+            subjectMapper.updateEntityFromRequest(existingSubject, request);
+            existingSubject.setIsActive(true);
+            return subjectMapper.toResponse(subjectRepository.save(existingSubject));
         }
+
+        // Kiểm tra trùng tên (chỉ check những môn đang active)
         if (subjectRepository.existsByNameAndIsActiveTrue(request.getName())) {
             throw new AppException(ErrorCode.SUBJECT_EXISTED);
         }
@@ -46,7 +56,6 @@ public class SubjectService implements ISubjectService {
         subject.setIsActive(true);
         return subjectMapper.toResponse(subjectRepository.save(subject));
     }
-
     @Override
     @Transactional
     public SubjectResponse updateSubject(UUID id, SubjectRequest request) {
@@ -91,7 +100,11 @@ public class SubjectService implements ISubjectService {
         Subject subject = subjectRepository.findByIdAndIsActiveTrue(id)
                 .orElseThrow(() -> new AppException(ErrorCode.SUBJECT_NOT_FOUND));
 
-        if (!prerequisiteRepository.findByPrerequisiteSubjectId(id).isEmpty()) {
+        boolean hasActiveDependent = prerequisiteRepository.findByPrerequisiteSubjectId(id)
+                .stream()
+                .anyMatch(p -> Boolean.TRUE.equals(p.getSubject().getIsActive()));
+
+        if (hasActiveDependent) {
             throw new AppException(ErrorCode.SUBJECT_IS_PREREQUISITE_CANNOT_DELETE);
         }
 

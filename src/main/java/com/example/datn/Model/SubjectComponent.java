@@ -41,6 +41,5 @@ public class SubjectComponent {
     @Column(name = "weight_percent")
     private Double weightPercent;
 
-    @Column(name = "number_credit")
-    private Integer numberCredit;
+
 }

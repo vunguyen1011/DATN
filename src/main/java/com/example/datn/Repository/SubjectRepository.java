@@ -47,4 +47,5 @@ public interface SubjectRepository extends JpaRepository<Subject, UUID> {
     boolean existsByCodeAndIsActiveTrue(String code);
 
     boolean existsByNameAndIsActiveTrue(String name);
+    Optional<Subject>findByCode(String code);
 }

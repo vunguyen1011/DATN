@@ -5,8 +5,12 @@ import com.example.datn.DTO.Response.SubjectComponentResponse;
 import com.example.datn.Exception.AppException;
 import com.example.datn.Exception.ErrorCode;
 import com.example.datn.Mapper.SubjectComponentMapper;
+import com.example.datn.Model.RoomType;
+import com.example.datn.Model.Subject;
 import com.example.datn.Model.SubjectComponent;
 import com.example.datn.Repository.SubjectComponentRepository;
+import com.example.datn.Repository.SubjectRepository;
+import com.example.datn.Repository.TypeRoomRepository;
 import com.example.datn.Service.Interface.ISubjectComponentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,22 +24,26 @@ import java.util.UUID;
 public class SubjectComponentServiceImpl implements ISubjectComponentService {
 
     private final SubjectComponentRepository subjectComponentRepository;
+    private final SubjectRepository subjectRepository;
+    private final TypeRoomRepository roomTypeRepository;
     private final SubjectComponentMapper subjectComponentMapper;
 
     @Override
     @Transactional
     public SubjectComponentResponse createSubjectComponent(SubjectComponentRequest request) {
-        // Calculate totalPeriods automatically if not provided or valid
-        if (request.getTotalPeriods() == null || request.getTotalPeriods() <= 0) {
-            if (request.getSessionsPerWeek() != null && request.getPeriodsPerSession() != null) {
-                // Assuming standard 15 weeks if missing. Can be adjusted.
-                request.setTotalPeriods(request.getSessionsPerWeek() * request.getPeriodsPerSession() * 15);
-            }
+        calculateTotalPeriods(request);
+
+        Subject subject = subjectRepository.findByIdAndIsActiveTrue(request.getSubjectId())
+                .orElseThrow(() -> new AppException(ErrorCode.SUBJECT_NOT_FOUND));
+
+        RoomType roomType = null;
+        if (request.getRequiredRoomTypeId() != null) {
+            roomType = roomTypeRepository.findById(request.getRequiredRoomTypeId())
+                    .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_NOT_FOUND));
         }
-        
-        SubjectComponent entity = subjectComponentMapper.toEntity(request);
-        SubjectComponent savedEntity = subjectComponentRepository.save(entity);
-        return subjectComponentMapper.toResponse(savedEntity);
+
+        SubjectComponent entity = subjectComponentMapper.toEntity(request, subject, roomType);
+        return subjectComponentMapper.toResponse(subjectComponentRepository.save(entity));
     }
 
     @Override
@@ -44,9 +52,19 @@ public class SubjectComponentServiceImpl implements ISubjectComponentService {
         SubjectComponent entity = subjectComponentRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.SUBJECT_COMPONENT_NOT_FOUND));
 
-        subjectComponentMapper.updateEntityFromRequest(entity, request);
-        SubjectComponent updatedEntity = subjectComponentRepository.save(entity);
-        return subjectComponentMapper.toResponse(updatedEntity);
+        calculateTotalPeriods(request);
+
+        Subject subject = subjectRepository.findByIdAndIsActiveTrue(request.getSubjectId())
+                .orElseThrow(() -> new AppException(ErrorCode.SUBJECT_NOT_FOUND));
+
+        RoomType roomType = null;
+        if (request.getRequiredRoomTypeId() != null) {
+            roomType = roomTypeRepository.findById(request.getRequiredRoomTypeId())
+                    .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_NOT_FOUND));
+        }
+
+        subjectComponentMapper.updateEntityFromRequest(entity, request, subject, roomType);
+        return subjectComponentMapper.toResponse(subjectComponentRepository.save(entity));
     }
 
     @Override
@@ -69,7 +87,14 @@ public class SubjectComponentServiceImpl implements ISubjectComponentService {
     public void deleteSubjectComponent(UUID id) {
         SubjectComponent entity = subjectComponentRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.SUBJECT_COMPONENT_NOT_FOUND));
-        // Hard delete for components as they don't have isActive flag in model
         subjectComponentRepository.delete(entity);
+    }
+
+    private void calculateTotalPeriods(SubjectComponentRequest request) {
+        if (request.getTotalPeriods() == null || request.getTotalPeriods() <= 0) {
+            if (request.getSessionsPerWeek() != null && request.getPeriodsPerSession() != null) {
+                request.setTotalPeriods(request.getSessionsPerWeek() * request.getPeriodsPerSession() * 15);
+            }
+        }
     }
 }
