@@ -53,6 +53,8 @@ public enum ErrorCode {
     SUBJECT_IS_PREREQUISITE_CANNOT_DELETE(1609, "Môn học đang là điều kiện tiên quyết cho môn khác, không thể xóa"),
     SECTION_DEFAULT_SUBJECT_NOT_FOUND(1610, "Môn học trong nhóm lớp học mặc định không tồn tại"),
     SUBJECT_IN_USE_IN_PROGRAM(1611, "Môn học đang được sử dụng trong chương trình đào tạo, không thể xóa"),
+    SUBJECT_COMPONENT_NOT_FOUND(1612, "Thành phần môn học không tồn tại"),
+    ROOM_TYPE_NOT_FOUND(1613, "Loại phòng không tồn tại"),
     // 17xx: Education Program & Sections
     SECTION_NOT_FOUND(1701, "Nhóm lớp học không tồn tại"),
     PROGRAM_SUBJECT_NOT_FOUND(1702, "Môn học trong chương trình đào tạo không tồn tại"),
