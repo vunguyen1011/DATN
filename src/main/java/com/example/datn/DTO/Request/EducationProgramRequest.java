@@ -21,8 +21,8 @@ public class EducationProgramRequest {
     @NotNull(message = "Thời gian đào tạo không được để trống")
     private Float durationYears;
 
-    @NotNull(message = "Cờ Template không được để trống")
-    private Boolean isTemplate;
+//    @NotNull(message = "Cờ Template không được để trống")
+//    private Boolean isTemplate;
 
     @NotNull(message = "ID của Ngành học không được để trống")
     private UUID majorId;

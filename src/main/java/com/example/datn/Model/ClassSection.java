@@ -1,12 +1,14 @@
 package com.example.datn.Model;
 
+import com.example.datn.ENUM.SectionStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.UUID;
 
 @Entity
 @Table(name = "class_sections")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -37,9 +39,23 @@ public class ClassSection {
     @Column(nullable = false)
     private Integer capacity;
 
-    @Column(name = "enrolled_count", nullable = false)
-    private Integer enrolledCount = 0;
+    @Column(name = "min_students")
+    private Integer minStudents;
 
+    @Column(name = "enrolled_count", nullable = false)
+    private Integer enrolledCount;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private String status;
+    private SectionStatus status;
+
+    @PrePersist
+    public void prePersist() {
+        if (this.enrolledCount == null) {
+            this.enrolledCount = 0;
+        }
+        if (this.status == null) {
+            this.status = SectionStatus.PENDING;
+        }
+    }
 }

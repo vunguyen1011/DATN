@@ -29,4 +29,13 @@ public class GlobalException {
                         .build()
                 );
     }
+    @ExceptionHandler(value = org.springframework.security.access.AccessDeniedException.class)
+    ResponseEntity<ApiResponse> handleAccessDeniedException(org.springframework.security.access.AccessDeniedException exception) {
+        return ResponseEntity.status(403)
+                .body(ApiResponse.builder()
+                        .code(403)
+                        .message("Bạn không có quyền truy cập tài nguyên này")
+                        .build()
+                );
+    }
 }

@@ -14,7 +14,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/cohorts")
 @RequiredArgsConstructor
-public class CohortController {
+public class    CohortController {
 
     private final ICohortService cohortService;
 

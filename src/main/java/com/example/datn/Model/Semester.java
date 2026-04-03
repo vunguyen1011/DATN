@@ -14,6 +14,8 @@ public class Semester {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+    @Column(nullable = false, unique = true)
+    private String code; // VD: 20261
     @Column(nullable = false)
     private String name; // VD: Học kỳ 1
     @ManyToOne(fetch = FetchType.LAZY)

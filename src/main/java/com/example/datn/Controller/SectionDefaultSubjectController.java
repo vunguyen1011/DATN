@@ -14,7 +14,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/section-default-subjects")
 @RequiredArgsConstructor
-public class SectionDefaultSubjectController {
+public class    SectionDefaultSubjectController {
 
     private final ISectionDefaultSubjectService service;
 

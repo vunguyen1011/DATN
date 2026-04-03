@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -20,7 +21,9 @@ public class UserProfileResponse {
     private String fullName;
     private String avatarUrl;
     private Boolean isActive;
-    private String role;
+
+    // Đổi String role thành List<String> roles để chứa được nhiều quyền
+    private List<String> roles;
 
     private LecturerProfile lecturerInfo;
     private StudentProfile studentInfo;

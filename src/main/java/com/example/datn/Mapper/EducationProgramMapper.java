@@ -23,7 +23,7 @@ public class EducationProgramMapper {
                 .name(request.getName())
                 .totalCredits(request.getTotalCredits())
                 .durationYears(request.getDurationYears())
-                .isTemplate(request.getIsTemplate())
+//                .isTemplate(request.getIsTemplate())
                 .major(major) // Lắp Object Major đã được Service tìm thấy vào đây
                 .isActive(true) // Mặc định khi tạo mới là true
                 .build();
