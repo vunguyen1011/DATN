@@ -32,20 +32,26 @@ public class SectionDefaultService implements ISectionDefaultService {
         SubjectGroup subjectGroup = subjectGroupRepository.findById(request.getSubjectGroupId())
                 .orElseThrow(() -> new AppException(ErrorCode.SUBJECT_GROUP_NOT_FOUND));
 
-        // Logic chuẩn: Nếu KHÔNG bắt buộc (Tự chọn) mà tín chỉ = 0 thì báo lỗi
-        if (request.getIsMandatory() && (request.getRequiredCredits() !=0)) {
+        if (request.getIsMandatory() && request.getRequiredCredits() != 0) {
             throw new AppException(ErrorCode.REQUIRED_CREDITS_MISSING);
         }
-        if(sectionDefaultRepository.existsByTitleAndSubjectGroupId(request.getTitle(),request.getSubjectGroupId())) {
+        if (!request.getIsMandatory() && (request.getRequiredCredits() == null || request.getRequiredCredits() == 0)) {
+            throw new AppException(ErrorCode.REQUIRED_CREDITS_MISSING);
+        }
+
+        if (sectionDefaultRepository.existsByTitleAndSubjectGroupId(request.getTitle(), request.getSubjectGroupId())) {
             throw new AppException(ErrorCode.SECTION_DEFAULT_TITLE_ALREADY_EXISTS);
         }
-        SectionDefault sectionDefault = sectionDefaultMapper.toEntity(request, subjectGroup);
-        if(sectionDefault.getIsMandatory() == false) {
-            String note = "Chọn tối thiểu " + sectionDefault.getRequiredCredits() + " tín chỉ trong khối này";
-              sectionDefault.setNote(note);
-        }
-         return sectionDefaultMapper.toResponse(sectionDefaultRepository.save(sectionDefault));
 
+        SectionDefault sectionDefault = sectionDefaultMapper.toEntity(request, subjectGroup);
+
+        if (!sectionDefault.getIsMandatory()) {
+            sectionDefault.setNote("Chọn tối thiểu " + sectionDefault.getRequiredCredits() + " tín chỉ trong khối này");
+        } else {
+            sectionDefault.setNote(null);
+        }
+
+        return sectionDefaultMapper.toResponse(sectionDefaultRepository.save(sectionDefault));
     }
 
     @Override
@@ -60,7 +66,10 @@ public class SectionDefaultService implements ISectionDefaultService {
             sectionDefault.setSubjectGroup(subjectGroup);
         }
 
-        if (request.getTitle() != null) {
+        if (request.getTitle() != null && !request.getTitle().equals(sectionDefault.getTitle())) {
+            if (sectionDefaultRepository.existsByTitleAndSubjectGroupId(request.getTitle(), sectionDefault.getSubjectGroup().getId())) {
+                throw new AppException(ErrorCode.SECTION_DEFAULT_TITLE_ALREADY_EXISTS);
+            }
             sectionDefault.setTitle(request.getTitle());
         }
 
@@ -76,9 +85,17 @@ public class SectionDefaultService implements ISectionDefaultService {
             sectionDefault.setIndex(request.getIndex());
         }
 
-        // Validate lại toàn vẹn dữ liệu sau khi map các trường update
-        if (!sectionDefault.getIsMandatory() && sectionDefault.getRequiredCredits() == 0) {
+        if (sectionDefault.getIsMandatory() && sectionDefault.getRequiredCredits() != 0) {
             throw new AppException(ErrorCode.REQUIRED_CREDITS_MISSING);
+        }
+        if (!sectionDefault.getIsMandatory() && (sectionDefault.getRequiredCredits() == null || sectionDefault.getRequiredCredits() == 0)) {
+            throw new AppException(ErrorCode.REQUIRED_CREDITS_MISSING);
+        }
+
+        if (!sectionDefault.getIsMandatory()) {
+            sectionDefault.setNote("Chọn tối thiểu " + sectionDefault.getRequiredCredits() + " tín chỉ trong khối này");
+        } else {
+            sectionDefault.setNote(null);
         }
 
         return sectionDefaultMapper.toResponse(sectionDefaultRepository.save(sectionDefault));
@@ -89,13 +106,16 @@ public class SectionDefaultService implements ISectionDefaultService {
     public void deleteSectionDefault(UUID id) {
         SectionDefault sectionDefault = sectionDefaultRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.SECTION_DEFAULT_NOT_FOUND));
-        sectionDefaultRepository.delete(sectionDefault);
+
+        sectionDefault.setIsActive(false);
+        sectionDefaultRepository.save(sectionDefault);
     }
 
     @Override
     public List<SectionDefaultResponse> getBySubjectGroupId(UUID subjectGroupId) {
         return sectionDefaultRepository.findBySubjectGroupIdOrderByIndexAsc(subjectGroupId)
                 .stream()
+                .filter(SectionDefault::getIsActive)
                 .map(sectionDefaultMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -103,6 +123,7 @@ public class SectionDefaultService implements ISectionDefaultService {
     @Override
     public SectionDefaultResponse getById(UUID id) {
         SectionDefault sectionDefault = sectionDefaultRepository.findById(id)
+                .filter(SectionDefault::getIsActive)
                 .orElseThrow(() -> new AppException(ErrorCode.SECTION_DEFAULT_NOT_FOUND));
         return sectionDefaultMapper.toResponse(sectionDefault);
     }

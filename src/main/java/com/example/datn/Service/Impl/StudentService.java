@@ -6,10 +6,8 @@ import com.example.datn.Exception.AppException;
 import com.example.datn.Exception.ErrorCode;
 import com.example.datn.Mapper.StudentMapper;
 import com.example.datn.Model.Student;
-import com.example.datn.Repository.AdminClassRepository;
-import com.example.datn.Repository.CohortRepository;
-import com.example.datn.Repository.MajorRepository;
-import com.example.datn.Repository.StudentRepository;
+import com.example.datn.Model.User;
+import com.example.datn.Repository.*;
 import com.example.datn.Service.Interface.IStudentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,11 +23,13 @@ public class StudentService implements IStudentService {
     private final CohortRepository cohortRepository;
     private final MajorRepository majorRepository;
     private final AdminClassRepository adminClassRepository;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional
     public UserProfileResponse.StudentProfile updateStudentProfile(UUID studentId, StudentUpdateRequest request) {
-        Student student = studentRepository.findById(studentId)
+        User user =userRepository.findById(studentId).orElseThrow(()->new AppException(ErrorCode.USER_NOT_FOUND));
+        Student student = studentRepository.findByUser(user)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND)); 
         
         if (request.getFullName() != null && !request.getFullName().trim().isEmpty()) {

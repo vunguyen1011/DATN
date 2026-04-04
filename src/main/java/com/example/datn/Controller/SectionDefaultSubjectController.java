@@ -3,9 +3,11 @@ package com.example.datn.Controller;
 import com.example.datn.DTO.Request.SectionDefaultSubjectRequest;
 import com.example.datn.DTO.Response.ApiResponse;
 import com.example.datn.DTO.Response.SectionDefaultSubjectResponse;
+import com.example.datn.DTO.Response.TemplateTreeResponse;
 import com.example.datn.Service.Interface.ISectionDefaultSubjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -14,7 +16,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/section-default-subjects")
 @RequiredArgsConstructor
-public class    SectionDefaultSubjectController {
+public class SectionDefaultSubjectController {
 
     private final ISectionDefaultSubjectService service;
 
@@ -54,6 +56,15 @@ public class    SectionDefaultSubjectController {
         return ApiResponse.<List<SectionDefaultSubjectResponse>>builder()
                 .code(1000)
                 .result(service.getBySectionDefaultId(sectionDefaultId))
+                .build();
+    }
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/template-tree")
+    public ApiResponse<TemplateTreeResponse> getTemplateTree() {
+        return ApiResponse.<TemplateTreeResponse>builder()
+                .code(1000)
+                .message("Lấy cây chương trình mẫu thành công")
+                .result(service.getTemplateTree())
                 .build();
     }
 }
