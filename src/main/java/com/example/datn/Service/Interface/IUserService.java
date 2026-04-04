@@ -9,7 +9,7 @@ import java.util.UUID;
 
 public interface IUserService {
     UserProfileResponse getMyInfo(String username);
-    Page<UserResponse> getAllUsers(String searchKeyword, Pageable pageable);
-    UserResponse getUserById(UUID id);
-    UserResponse toggleUserStatus(UUID id);
+    Page<UserProfileResponse> getAllUsers(String searchKeyword, Pageable pageable);
+    UserProfileResponse getUserById(UUID id);
+    UserProfileResponse toggleUserStatus(UUID id);
 }

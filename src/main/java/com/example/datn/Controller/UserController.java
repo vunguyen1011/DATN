@@ -2,7 +2,6 @@ package com.example.datn.Controller;
 
 import com.example.datn.DTO.Response.ApiResponse;
 import com.example.datn.DTO.Response.UserProfileResponse;
-import com.example.datn.DTO.Response.UserResponse;
 import com.example.datn.Service.Interface.IUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -45,14 +44,14 @@ public class UserController {
     }
 
     @GetMapping
-    public ApiResponse<Page<UserResponse>> getAllUsers(
+    public ApiResponse<Page<UserProfileResponse>> getAllUsers(
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<UserResponse> response = userService.getAllUsers(search, pageable);
-        return ApiResponse.<Page<UserResponse>>builder()
+        Page<UserProfileResponse> response = userService.getAllUsers(search, pageable);
+        return ApiResponse.<Page<UserProfileResponse>>builder()
                 .code(1000)
                 .message("Lấy danh sách người dùng thành công")
                 .result(response)
@@ -60,9 +59,9 @@ public class UserController {
     }
 
     @GetMapping("/id/{id}")
-    public ApiResponse<UserResponse> getUserById(@PathVariable UUID id) {
-        UserResponse response = userService.getUserById(id);
-        return ApiResponse.<UserResponse>builder()
+    public ApiResponse<UserProfileResponse> getUserById(@PathVariable UUID id) {
+        UserProfileResponse response = userService.getUserById(id);
+        return ApiResponse.<UserProfileResponse>builder()
                 .code(1000)
                 .message("Lấy thông tin người dùng thành công")
                 .result(response)
@@ -70,9 +69,9 @@ public class UserController {
     }
 
     @PutMapping("/{id}/toggle-status")
-    public ApiResponse<UserResponse> toggleUserStatus(@PathVariable UUID id) {
-        UserResponse response = userService.toggleUserStatus(id);
-        return ApiResponse.<UserResponse>builder()
+    public ApiResponse<UserProfileResponse> toggleUserStatus(@PathVariable UUID id) {
+        UserProfileResponse response = userService.toggleUserStatus(id);
+        return ApiResponse.<UserProfileResponse>builder()
                 .code(1000)
                 .message("Thay đổi trạng thái người dùng thành công")
                 .result(response)
