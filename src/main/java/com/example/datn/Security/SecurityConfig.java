@@ -26,6 +26,7 @@ public class SecurityConfig {
     private final JwtFilter jwtFilter;
     private final CustomOAuth2SuccessHandler customOAuth2SuccessHandler;
     private final CustomAuthEntryPoint customAuthEntryPoint;
+    private final HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository;
 
     private final String[] WHITE_LIST = {
             "/api/auths/login",
@@ -47,12 +48,14 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(request -> request
                         .requestMatchers(WHITE_LIST).permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(authEndpoint -> authEndpoint
+                                .authorizationRequestRepository(cookieAuthorizationRequestRepository))
                         .successHandler(customOAuth2SuccessHandler)
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
