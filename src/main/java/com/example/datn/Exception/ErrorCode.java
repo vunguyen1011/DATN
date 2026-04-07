@@ -67,6 +67,12 @@ public enum ErrorCode {
     SECTION_DEFAULT_NOT_FOUND(1709, "Không tìm thấy nhóm lớp học mặc định cho chương trình đào tạo"),
     PROGRAM_NOT_FOUND(1710, "Chương trình đào tạo không tồn tại"),
     SECTION_DEFAULT_TITLE_ALREADY_EXISTS(1711, "Tiêu đề nhóm lớp học mặc định đã tồn tại trong chương trình đào tạo này"),
+    PROGRAM_COHORT_ALREADY_EXISTS(1712, "Chương trình đào tạo đã được gắn với khóa học này"),
+    PROGRAM_COHORT_NOT_FOUND(1713, "Liên kết chương trình đào tạo - khóa học không tồn tại"),
+    PROGRAM_HAS_STUDENTS_CANNOT_DELETE(1714, "Chương trình đào tạo đang có sinh viên theo học, không thể xóa"),
+    PROGRAM_IS_LOCKED(1715, "Chương trình đào tạo đã được khóa (published), không thể thêm/sửa/xóa môn học"),
+    PROGRAM_ALREADY_PUBLISHED(1716, "Chương trình đào tạo đã được publish trước đó"),
+    PROGRAM_HAS_NO_COHORTS_CANNOT_PUBLISH(1717, "Chương trình đào tạo chưa có khóa học nào, không thể publish"),
     // 19xx: System Errors
     UNCATEGORIZED_EXCEPTION(1901, "Lỗi không xác định"),
 

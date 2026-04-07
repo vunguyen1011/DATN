@@ -8,7 +8,7 @@ import lombok.Data;
 import java.util.UUID;
 
 @Data
-public class SubjectGroupRequest {
+public class    SubjectGroupRequest {
 
     @NotBlank(message = "Tên nhóm môn học không được để trống")
     private String name;

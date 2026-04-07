@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -29,4 +30,6 @@ public interface ProgramSubjectRepository extends JpaRepository<ProgramSubject, 
     List<ProgramSubject> findAllByProgramIdFetchSubject(@Param("programId") UUID programId);
     @Query("SELECT COALESCE(SUM(ps.subject.credits), 0) FROM ProgramSubject ps WHERE ps.section.id = :sectionId AND ps.isActive = true")
     Integer sumCreditsBySectionId(@Param("sectionId") UUID sectionId);
+    Optional<ProgramSubject> findBySectionIdAndSubjectIdAndIsActiveTrue(UUID sectionId, UUID subjectId);
+
 }

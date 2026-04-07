@@ -11,5 +11,5 @@ public interface IProgramSubjectService {
     ProgramSubjectResponse update(UUID id, ProgramSubjectRequest request);
     ProgramSubjectResponse getById(UUID id);
     List<ProgramSubjectResponse> getBySectionId(UUID sectionId);
-    void delete(UUID id);
+    void delete(UUID sectionId, UUID subjectId);
 }

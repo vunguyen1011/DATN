@@ -6,6 +6,7 @@ import com.example.datn.DTO.Response.ProgramSubjectResponse;
 import com.example.datn.Service.Interface.IProgramSubjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,7 +18,7 @@ import java.util.UUID;
 public class ProgramSubjectController {
 
     private final IProgramSubjectService service;
-
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ApiResponse<ProgramSubjectResponse> create(@Valid @RequestBody ProgramSubjectRequest request) {
         return ApiResponse.<ProgramSubjectResponse>builder()
@@ -26,7 +27,7 @@ public class ProgramSubjectController {
                 .result(service.create(request))
                 .build();
     }
-
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ApiResponse<ProgramSubjectResponse> update(
             @PathVariable UUID id,
@@ -53,10 +54,12 @@ public class ProgramSubjectController {
                 .result(service.getBySectionId(sectionId))
                 .build();
     }
-
-    @DeleteMapping("/{id}")
-    public ApiResponse<Void> delete(@PathVariable UUID id) {
-        service.delete(id);
+    @PreAuthorize("hasRole('ADMIN')")
+    @DeleteMapping
+    public ApiResponse<Void> delete(
+            @RequestParam UUID sectionId,
+            @RequestParam UUID subjectId) {
+        service.delete(sectionId, subjectId);
         return ApiResponse.<Void>builder()
                 .code(1000)
                 .message("Xóa môn học khỏi chương trình đào tạo thành công")

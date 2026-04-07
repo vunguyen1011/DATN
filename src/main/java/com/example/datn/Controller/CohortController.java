@@ -2,8 +2,10 @@ package com.example.datn.Controller;
 
 import com.example.datn.DTO.Request.CohortRequest;
 import com.example.datn.DTO.Response.ApiResponse;
+import com.example.datn.DTO.Response.ProgramCohortResponse;
 import com.example.datn.Model.Cohort;
 import com.example.datn.Service.Interface.ICohortService;
+import com.example.datn.Service.Interface.IEducationProgramService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -14,9 +16,10 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/cohorts")
 @RequiredArgsConstructor
-public class    CohortController {
+public class CohortController {
 
     private final ICohortService cohortService;
+    private final IEducationProgramService programService;
 
     @PostMapping
     public ApiResponse<Cohort> createCohort(@Valid @RequestBody CohortRequest request) {
@@ -69,6 +72,18 @@ public class    CohortController {
         return ApiResponse.<Void>builder()
                 .code(1000)
                 .message("Xóa khóa học thành công")
+                .build();
+    }
+
+    /**
+     * Lấy danh sách chương trình đào tạo đã gắn vào một khóa học cụ thể
+     */
+    @GetMapping("/{id}/programs")
+    public ApiResponse<List<ProgramCohortResponse>> getProgramsByCohort(@PathVariable UUID id) {
+        return ApiResponse.<List<ProgramCohortResponse>>builder()
+                .code(1000)
+                .message("Lấy danh sách chương trình đào tạo theo khóa học thành công")
+                .result(programService.getProgramsByCohort(id))
                 .build();
     }
 }
