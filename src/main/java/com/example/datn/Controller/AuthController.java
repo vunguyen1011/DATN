@@ -1,10 +1,6 @@
 package com.example.datn.Controller;
 
-import com.example.datn.DTO.Request.ChangePasswordRequest;
-import com.example.datn.DTO.Request.ForgotPasswordRequest;
-import com.example.datn.DTO.Request.LoginRequest;
-import com.example.datn.DTO.Request.ResetPasswordRequest;
-import com.example.datn.DTO.Request.VerifyOtpRequest;
+import com.example.datn.DTO.Request.*;
 import com.example.datn.DTO.Response.ApiResponse;
 import com.example.datn.DTO.Response.TokenResponse;
 import com.example.datn.Exception.AppException;
@@ -75,6 +71,14 @@ public class AuthController {
         response.setHeader("Content-Disposition", "attachment; filename=template_sinh_vien.xlsx");
         excelService.downloadTemplate(response);
     }
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/excel-template-lecturer")
+    public void downloadTemplateLecturer(HttpServletResponse response) throws IOException {
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setHeader("Content-Disposition", "attachment; filename=template_giang_vien.xlsx");
+        excelService.downloadTemplateLecturer(response);
+    }
+
 
     @PostMapping("/logout")
     public ApiResponse<Void> logout(HttpServletResponse response) {
@@ -121,6 +125,26 @@ public class AuthController {
         return ApiResponse.<Void>builder()
                 .code(1000)
                 .message("Khôi phục mật khẩu thành công")
+                .build();
+    }
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/import-lecturers-excel")
+    public ApiResponse<String> importLecturersFromExcel(@RequestParam("file") MultipartFile file) {
+        String resultMessage = excelService.saveLecturersFromExcel(file);
+        return ApiResponse.<String>builder()
+                .code(1000)
+                .message("Xử lý file Excel giảng viên hoàn tất!")
+                .result(resultMessage)
+                .build();
+    }
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/assign")
+    public ApiResponse<Void> assignRoleToUser(
+            @RequestBody AssignRoleRequest request){
+        authService.assignRoleToUser(request);
+        return ApiResponse.<Void>builder()
+                .code(1000)
+                .message("Gán vai trò cho người dùng thành công")
                 .build();
     }
 }

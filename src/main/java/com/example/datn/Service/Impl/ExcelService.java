@@ -1,6 +1,7 @@
 package com.example.datn.Service.Impl;
 
 import com.example.datn.ENUM.Gender;
+import com.example.datn.ENUM.LecturerStatus;
 import com.example.datn.ENUM.StudentStatus;
 import com.example.datn.Exception.AppException;
 import com.example.datn.Exception.ErrorCode;
@@ -20,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -36,10 +38,17 @@ public class ExcelService implements IExcelService {
     private final PasswordEncoder passwordEncoder;
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
+    private final FacultyRepository facultyRepository;
+    private   final LecturerRepository lecturerRepository;
 
     private static final String[] HEADERS = {
             "STT", "Mã sinh viên", "Họ và tên", "Giới tính", "Số điện thoại", "Địa chỉ", "Tên Lớp", "Mã Ngành", "Tên Khóa"
     };
+    private static final String[] LECTURER_HEADERS = {
+            "STT", "Mã giảng viên", "Họ và tên", "Ngày sinh (dd/MM/yyyy)", "Giới tính",
+            "Số điện thoại", "Địa chỉ", "Học vị", "Mã Khoa", "Mã Ngành"
+    };
+    private static final String LECTURER_SHEET_NAME = "Danh_Sach_Giang_Vien";
     private static final String SHEET_NAME = "Danh_Sach_Sinh_Vien";
 
     @Override
@@ -235,7 +244,245 @@ public class ExcelService implements IExcelService {
             throw new AppException(ErrorCode.EXCEL_READ_ERROR);
         }
     }
+@Override
+    public void downloadTemplateLecturer(HttpServletResponse response) throws IOException {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet hiddenSheet = workbook.createSheet("HiddenData");
+            List<String> faculties = facultyRepository.findAll().stream().map(Faculty::getCode).collect(Collectors.toList());
+            List<String> majors = majorRepository.findAll().stream().map(Major::getCode).collect(Collectors.toList());
+            List<String> degrees = Arrays.asList("Cử nhân", "Thạc sĩ", "Tiến sĩ", "PGS.TS", "GS.TS");
+            List<String> genders = Arrays.asList("Nam", "Nữ", "Khác");
+            if (faculties.isEmpty()) faculties.add("CHUA_CO_KHOA");
+            if (majors.isEmpty()) majors.add("CHUA_CO_NGANH");
+            int maxRows = Math.max(Math.max(faculties.size(), majors.size()), Math.max(degrees.size(), genders.size()));
+            for (int i = 0; i < maxRows; i++) {
+                Row row = hiddenSheet.createRow(i);
+                if (i < faculties.size()) row.createCell(0).setCellValue(faculties.get(i));
+                if (i < majors.size()) row.createCell(1).setCellValue(majors.get(i));
+                if (i < degrees.size()) row.createCell(2).setCellValue(degrees.get(i));
+                if (i < genders.size()) row.createCell(3).setCellValue(genders.get(i));
+            }
+            createNamedRange(workbook, "FacultyList", 0, faculties.size());
+            createNamedRange(workbook, "MajorList_Lec", 1, majors.size());
+            createNamedRange(workbook, "DegreeList", 2, degrees.size());
+            createNamedRange(workbook, "GenderList_Lec", 3, genders.size());
+            workbook.setSheetVisibility(workbook.getSheetIndex("HiddenData"), SheetVisibility.VERY_HIDDEN);
 
+            Sheet sheet = workbook.createSheet(LECTURER_SHEET_NAME);
+            workbook.setActiveSheet(workbook.getSheetIndex(LECTURER_SHEET_NAME));
+
+            CellStyle headerStyle = createHeaderStyle(workbook);
+            CellStyle unlockedStyle = workbook.createCellStyle();
+            unlockedStyle.setLocked(false);
+
+            CellStyle unlockedTextStyle = workbook.createCellStyle();
+            unlockedTextStyle.setLocked(false);
+            unlockedTextStyle.setDataFormat(workbook.createDataFormat().getFormat("@"));
+
+            // Format cột ngày sinh
+            CellStyle unlockedDateStyle = workbook.createCellStyle();
+            unlockedDateStyle.setLocked(false);
+            unlockedDateStyle.setDataFormat(workbook.createDataFormat().getFormat("dd/mm/yyyy"));
+
+            CellStyle lockedSTTStyle = workbook.createCellStyle();
+            lockedSTTStyle.setLocked(true);
+            lockedSTTStyle.setAlignment(HorizontalAlignment.CENTER);
+            lockedSTTStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            lockedSTTStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < LECTURER_HEADERS.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(LECTURER_HEADERS[i]);
+                cell.setCellStyle(headerStyle);
+                if (i == 0) sheet.setColumnWidth(i, 6 * 256);
+                else if (i == 3) sheet.setColumnWidth(i, 20 * 256); // Ngày sinh
+                else if (i == 6) sheet.setColumnWidth(i, 40 * 256); // Địa chỉ
+                else sheet.setColumnWidth(i, 18 * 256);
+            }
+
+            for (int i = 1; i <= 1000; i++) {
+                Row row = sheet.createRow(i);
+                for (int j = 0; j < LECTURER_HEADERS.length; j++) {
+                    Cell cell = row.createCell(j);
+                    if (j == 0) {
+                        cell.setCellStyle(lockedSTTStyle);
+                        cell.setCellValue(i);
+                    } else if (j == 1 || j == 5) {
+                        cell.setCellStyle(unlockedTextStyle);
+                    } else if (j == 3) { // Cột ngày sinh
+                        cell.setCellStyle(unlockedDateStyle);
+                    } else {
+                        cell.setCellStyle(unlockedStyle);
+                    }
+                }
+            }
+
+            DataValidationHelper helper = sheet.getDataValidationHelper();
+            addValidation(sheet, helper, "GenderList_Lec", 4); // Cột E
+            addValidation(sheet, helper, "DegreeList", 7);     // Cột H
+            addValidation(sheet, helper, "FacultyList", 8);    // Cột I
+            addValidation(sheet, helper, "MajorList_Lec", 9);  // Cột J
+
+            sheet.protectSheet("admin_datn_2026");
+            workbook.write(response.getOutputStream());
+
+        }
+    }
+    @Override
+    @Transactional
+    public String saveLecturersFromExcel(MultipartFile file) {
+        if (!hasExcelFormat(file)) throw new AppException(ErrorCode.INVALID_FILE_FORMAT);
+
+        try (InputStream is = file.getInputStream(); Workbook workbook = new XSSFWorkbook(is)) {
+            Sheet sheet = workbook.getSheet(LECTURER_SHEET_NAME);
+            if (sheet == null) throw new AppException(ErrorCode.EXCEL_HEADER_MISMATCH);
+
+            DataFormatter formatter = new DataFormatter();
+            if (!isValidLecturerHeader(sheet.getRow(0))) throw new AppException(ErrorCode.EXCEL_HEADER_MISMATCH);
+
+            // Lấy danh sách username để check trùng
+            List<String> usernamesInExcel = new ArrayList<>();
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null || isRowEmpty(row)) continue;
+                String code = formatter.formatCellValue(row.getCell(1)).trim().toUpperCase();
+                if (!code.isEmpty()) usernamesInExcel.add(code);
+            }
+
+            Set<String> existingUsernames = new HashSet<>(userRepository.findUsernamesByUsernameIn(usernamesInExcel));
+
+            // Map dữ liệu Khoa và Ngành
+            Map<String, Faculty> facultyMap = facultyRepository.findAll().stream()
+                    .collect(Collectors.toMap(Faculty::getCode, f -> f, (e, r) -> e));
+            Map<String, Major> majorMap = majorRepository.findAll().stream()
+                    .collect(Collectors.toMap(Major::getCode, m -> m, (e, r) -> e));
+
+            // Lấy Role cho Giảng viên (Chú ý: tên Role trong DB của bạn phải khớp, ví dụ: ROLE_LECTURER hoặc ROLE_TEACHER)
+            Role lecturerRole = roleRepository.findByName("ROLE_LECTURER")
+                    .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
+
+            List<User> usersToSave = new ArrayList<>();
+            List<Lecturer> lecturersToSave = new ArrayList<>();
+            List<UserRole> userRolesToSave = new ArrayList<>();
+            List<String> skippedLecturers = new ArrayList<>();
+
+            java.time.format.DateTimeFormatter dateFormatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null || isRowEmpty(row)) continue;
+
+                String lecturerCode = formatter.formatCellValue(row.getCell(1)).trim().toUpperCase();
+                if (lecturerCode.isEmpty()) break;
+
+                if (existingUsernames.contains(lecturerCode)) {
+                    skippedLecturers.add(lecturerCode + " (Trùng mã)");
+                    continue;
+                }
+
+                String fullName = formatter.formatCellValue(row.getCell(2)).trim();
+
+                // Xử lý Ngày sinh
+                LocalDate dateOfBirth = null;
+                Cell dobCell = row.getCell(3);
+                if (dobCell != null) {
+                    try {
+                        if (DateUtil.isCellDateFormatted(dobCell)) {
+                            dateOfBirth = dobCell.getLocalDateTimeCellValue().toLocalDate();
+                        } else {
+                            String dobStr = formatter.formatCellValue(dobCell).trim();
+                            if (!dobStr.isEmpty()) {
+                                dateOfBirth = LocalDate.parse(dobStr, dateFormatter);
+                            }
+                        }
+                    } catch (Exception e) {
+                        skippedLecturers.add(lecturerCode + " (Sai format Ngày sinh)");
+                        continue; // Bỏ qua GV này nếu format ngày sinh sai
+                    }
+                }
+
+                String genderStr = formatter.formatCellValue(row.getCell(4)).trim();
+                String phone = formatter.formatCellValue(row.getCell(5)).trim();
+                String address = formatter.formatCellValue(row.getCell(6)).trim();
+                String degree = formatter.formatCellValue(row.getCell(7)).trim();
+                String facultyCode = formatter.formatCellValue(row.getCell(8)).trim();
+                String majorCode = formatter.formatCellValue(row.getCell(9)).trim();
+
+                if (phone.length() == 9 && !phone.startsWith("0")) phone = "0" + phone;
+
+                Faculty faculty = facultyMap.get(facultyCode);
+                Major major = majorMap.get(majorCode);
+
+                if (faculty == null || major == null) {
+                    skippedLecturers.add(lecturerCode + " (Lỗi mã Khoa/Ngành)");
+                    continue;
+                }
+
+                Gender genderEnum = genderStr.equalsIgnoreCase("Nam") ? Gender.MALE : (genderStr.equalsIgnoreCase("Nữ") ? Gender.FEMALE : Gender.OTHER);
+
+                // Mật khẩu gốc để gửi email
+                String rawPassword = lecturerCode;
+
+                User newUser = User.builder()
+                        .username(lecturerCode)
+                        .fullName(fullName)
+                        .email(lecturerCode.toLowerCase() + "@thanglong.edu.vn") // Domain email GV
+                        .password(passwordEncoder.encode(rawPassword))
+                        .isActive(true)
+                        .isLocked(false)
+                        .build();
+
+                Lecturer newLecturer = Lecturer.builder()
+                        .lecturerCode(lecturerCode)
+                        .user(newUser)
+                        .fullName(fullName)
+                        .phone(phone)
+                        .address(address)
+                        .degree(degree)
+                        .gender(genderEnum)
+                        .dateOfBirth(dateOfBirth)
+                        .status(LecturerStatus.WORKING)
+                        .faculty(faculty)
+                        .major(major)
+                        .build();
+
+                UserRole roleMap = UserRole.builder().user(newUser).role(lecturerRole).build();
+
+                usersToSave.add(newUser);
+                lecturersToSave.add(newLecturer);
+                userRolesToSave.add(roleMap);
+                existingUsernames.add(lecturerCode);
+            }
+
+            if (!usersToSave.isEmpty()) {
+                userRepository.saveAll(usersToSave);
+                userRoleRepository.saveAll(userRolesToSave);
+                lecturerRepository.saveAll(lecturersToSave);
+
+
+                }
+
+
+            return skippedLecturers.isEmpty() ?
+                    "Import thành công " + lecturersToSave.size() + " giảng viên." :
+                    "Thành công " + lecturersToSave.size() + ". Bỏ qua " + skippedLecturers.size() + ": " + String.join(", ", skippedLecturers);
+
+        } catch (Exception e) {
+            log.error("Lỗi Import Giảng viên: ", e);
+            throw new AppException(ErrorCode.EXCEL_READ_ERROR);
+        }
+    }
+
+    // Cần thêm hàm này vì hàm isValidHeader cũ đang cứng bằng biến HEADERS của sinh viên
+    private boolean isValidLecturerHeader(Row row) {
+        if (row == null) return false;
+        DataFormatter formatter = new DataFormatter();
+        for (int i = 0; i < LECTURER_HEADERS.length; i++) {
+            if (!LECTURER_HEADERS[i].equalsIgnoreCase(formatter.formatCellValue(row.getCell(i)).trim())) return false;
+        }
+        return true;
+    }
     private void createNamedRange(Workbook wb, String name, int col, int size) {
         Name namedRange = wb.createName();
         namedRange.setNameName(name);

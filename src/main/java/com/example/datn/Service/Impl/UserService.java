@@ -5,13 +5,11 @@ import com.example.datn.Exception.AppException;
 import com.example.datn.Exception.ErrorCode;
 import com.example.datn.Mapper.UserMapper;
 import com.example.datn.Model.*;
-import com.example.datn.Repository.LecturerRepository;
-import com.example.datn.Repository.StudentRepository;
-import com.example.datn.Repository.UserRepository;
-import com.example.datn.Repository.UserRoleRepository;
+import com.example.datn.Repository.*;
 import com.example.datn.Service.Interface.IUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +27,7 @@ public class UserService implements IUserService {
     private final LecturerRepository lecturerRepository;
     private final StudentRepository studentRepository;
     private final UserRoleRepository userRoleRepository;
+    private final RoleRepository repository;
 
     // Hàm private dùng chung để lấy thông tin chi tiết Profile
     private UserProfileResponse getUserProfileDetail(User user) {
@@ -76,5 +75,11 @@ public class UserService implements IUserService {
         user = userRepository.save(user);
 
         return getUserProfileDetail(user);
+    }
+
+    @Override
+    public Page<UserProfileResponse> getAllUsersByRole(String roleName, Pageable pageable) {
+        Page<User> users=userRepository.findByRoleNameAndIsActiveTrue(roleName, pageable);
+        return users.map(this::getUserProfileDetail);
     }
 }

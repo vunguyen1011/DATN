@@ -6,6 +6,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 
 public interface IExcelService {
-    public void downloadTemplate(HttpServletResponse response) throws IOException;
+     void downloadTemplate(HttpServletResponse response) throws IOException;
     String  saveUsersFromExcel(MultipartFile file);
+    void downloadTemplateLecturer(HttpServletResponse response) throws IOException;
+    String saveLecturersFromExcel(MultipartFile file);
+
 }

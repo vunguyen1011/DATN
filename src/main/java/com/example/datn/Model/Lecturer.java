@@ -1,5 +1,6 @@
 package com.example.datn.Model;
 
+import com.example.datn.ENUM.Gender;
 import com.example.datn.ENUM.LecturerStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -7,6 +8,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Entity
@@ -35,6 +37,11 @@ public class Lecturer {
 
     @Column(name = "degree")
     private String degree;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "gender", nullable = false)
+    private Gender gender;
+    @Column(name = "date_of_birth")
+    private LocalDate dateOfBirth;
 
     // (WORKING, RETIRED...)
     @Enumerated(EnumType.STRING)
@@ -44,4 +51,10 @@ public class Lecturer {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "faculty_id", nullable = false)
     private Faculty faculty;
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "major", nullable = false)
+    private Major major;
+
+
+
 }

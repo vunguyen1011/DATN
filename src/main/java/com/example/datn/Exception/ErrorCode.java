@@ -17,6 +17,7 @@ public enum ErrorCode {
     PASSWORD_NOT_MATCH(1010, "Mật khẩu không khớp"),
     INVALID_OTP(1011, "Mã OTP không hợp lệ"),
     INVALID_TOKEN(1112, "Token không hợp lệ hoặc đã hết hạn"),
+    USER_ALREADY_HAS_ROLE(1013, "User đã có role này"),
 
     // 11xx: Major
     MAJOR_CODE_EXISTED(1101, "Mã ngành đã tồn tại"),
@@ -72,6 +73,7 @@ public enum ErrorCode {
     PROGRAM_HAS_STUDENTS_CANNOT_DELETE(1714, "Chương trình đào tạo đang có sinh viên theo học, không thể xóa"),
     PROGRAM_IS_LOCKED(1715, "Chương trình đào tạo đã được khóa (published), không thể thêm/sửa/xóa môn học"),
     PROGRAM_ALREADY_PUBLISHED(1716, "Chương trình đào tạo đã được publish trước đó"),
+    PROGRAM_NOT_PUBLISHED_CANNOT_ASSIGN(1718, "Chương trình đào tạo chưa được publish, không thể gán cho khóa học"),
     PROGRAM_HAS_NO_COHORTS_CANNOT_PUBLISH(1717, "Chương trình đào tạo chưa có khóa học nào, không thể publish"),
     // 19xx: System Errors
     UNCATEGORIZED_EXCEPTION(1901, "Lỗi không xác định"),

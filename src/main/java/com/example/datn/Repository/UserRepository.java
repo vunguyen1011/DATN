@@ -27,4 +27,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
            "LOWER(u.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%'))")
     Page<User> searchUsers(@Param("keyword") String keyword, Pageable pageable);
+    Optional<User> findByUsernameAndIsActiveTrue(String username);
+    @Query("SELECT ur.user FROM UserRole ur WHERE ur.role.name = :roleName AND ur.user.isActive = true")
+    Page<User> findByRoleNameAndIsActiveTrue(@Param("roleName") String roleName, Pageable pageable);
 }

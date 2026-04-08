@@ -5,6 +5,7 @@ import com.example.datn.DTO.Response.UserResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface IUserService {
@@ -12,4 +13,5 @@ public interface IUserService {
     Page<UserProfileResponse> getAllUsers(String searchKeyword, Pageable pageable);
     UserProfileResponse getUserById(UUID id);
     UserProfileResponse toggleUserStatus(UUID id);
+    Page<UserProfileResponse> getAllUsersByRole(String roleName, Pageable pageable);
 }

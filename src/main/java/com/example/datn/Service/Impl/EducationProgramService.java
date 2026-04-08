@@ -143,9 +143,9 @@ public class EducationProgramService implements IEducationProgramService {
         if (Boolean.TRUE.equals(program.getIsTemplate())) {
             throw new AppException(ErrorCode.PROGRAM_ALREADY_PUBLISHED);
         }
-        if(!programCohortRepository.existsByProgramId(id)){
-            throw new AppException(ErrorCode.PROGRAM_HAS_NO_COHORTS_CANNOT_PUBLISH);
-        }
+//        if(!programCohortRepository.existsByProgramId(id)){
+//            throw new AppException(ErrorCode.PROGRAM_HAS_NO_COHORTS_CANNOT_PUBLISH);
+//        }
 
         program.setIsTemplate(true);
         programRepository.save(program);
@@ -225,6 +225,9 @@ public class EducationProgramService implements IEducationProgramService {
     public ProgramCohortResponse assignProgramToCohort(ProgramCohortRequest request) {
         EducationProgram program = programRepository.findByIdAndIsActiveTrue(request.getProgramId())
                 .orElseThrow(() -> new AppException(ErrorCode.PROGRAM_NOT_FOUND));
+        if(!program.getIsTemplate()){
+            throw new AppException(ErrorCode.PROGRAM_NOT_PUBLISHED_CANNOT_ASSIGN);
+        }
 
         Cohort cohort = cohortRepository.findById(request.getCohortId())
                 .orElseThrow(() -> new AppException(ErrorCode.COHORT_NOT_FOUND));

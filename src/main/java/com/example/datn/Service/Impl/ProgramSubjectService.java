@@ -137,7 +137,6 @@ public class ProgramSubjectService implements IProgramSubjectService {
             int updatedCredits = currentCredits - subject.getCredits();
             section.setRequiredCredits(Math.max(0, updatedCredits));
         }
-
         ps.setIsActive(false);
         psRepository.save(ps);
     }

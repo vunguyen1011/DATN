@@ -77,4 +77,18 @@ public class UserController {
                 .result(response)
                 .build();
     }
+    @GetMapping("/get-by-role")
+    public ApiResponse<Page<UserProfileResponse>> getUsersByRole(
+            @RequestParam String role,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<UserProfileResponse> response = userService.getAllUsersByRole(role, pageable);
+        return ApiResponse.<Page<UserProfileResponse>>builder()
+                .code(1000)
+                .message("Lấy danh sách người dùng theo vai trò thành công")
+                .result(response)
+                .build();
+    }
 }

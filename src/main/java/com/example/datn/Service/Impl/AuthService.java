@@ -1,16 +1,17 @@
 package com.example.datn.Service.Impl;
 
 import com.example.datn.Config.JwtProvider;
-import com.example.datn.DTO.Request.ChangePasswordRequest;
-import com.example.datn.DTO.Request.ForgotPasswordRequest;
-import com.example.datn.DTO.Request.ResetPasswordRequest;
-import com.example.datn.DTO.Request.VerifyOtpRequest;
+import com.example.datn.DTO.Request.*;
 import com.example.datn.DTO.Response.TokenResponse;
 import com.example.datn.Exception.AppException;
 import com.example.datn.Exception.ErrorCode;
+import com.example.datn.Model.Role;
 import com.example.datn.Model.User;
+import com.example.datn.Model.UserRole;
 import com.example.datn.Pattern.Stragery.ILoginStrategy;
+import com.example.datn.Repository.RoleRepository;
 import com.example.datn.Repository.UserRepository;
+import com.example.datn.Repository.UserRoleRepository;
 import com.example.datn.Service.Interface.IAuthService;
 import com.example.datn.Service.Interface.IEmailService;
 import com.example.datn.Service.Interface.IRedisService;
@@ -43,6 +44,8 @@ public class AuthService implements IAuthService {
 
     @Value("${jwt.refreshTokenExpiration}")
     private long refreshExpiration;
+    private final RoleRepository roleRepository;
+    private final UserRoleRepository userRoleRepository;
 
     @Override
     @SuppressWarnings("unchecked")
@@ -180,5 +183,33 @@ public class AuthService implements IAuthService {
         userRepository.save(user);
 
         redisService.deleteResetToken(request.getEmail());
+    }
+
+    @Override
+    public void assignRoleToUser(AssignRoleRequest request) {
+        User user = userRepository.findByUsernameAndIsActiveTrue(request.getUsername())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        // 2. Tìm Role (Chú ý: tên role nên có tiền tố ROLE_, vd: ROLE_ADMIN)
+        String roleName = request.getRoleName().toUpperCase();
+        if (!roleName.startsWith("ROLE_")) {
+            roleName = "ROLE_" + roleName;
+        }
+
+        Role role = roleRepository.findByName(roleName)
+                .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
+
+        boolean alreadyHasRole = userRoleRepository.existsByUserAndRole(user, role);
+        if (alreadyHasRole) {
+            throw new AppException(ErrorCode.USER_ALREADY_HAS_ROLE); // Cần thêm mã lỗi này vào ErrorCode
+        }
+
+        // 4. Gán Role mới cho User
+        UserRole userRole = UserRole.builder()
+                .user(user)
+                .role(role)
+                .build();
+
+        userRoleRepository.save(userRole);
     }
 }

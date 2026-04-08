@@ -1,9 +1,6 @@
 package com.example.datn.Service.Interface;
 
-import com.example.datn.DTO.Request.ChangePasswordRequest;
-import com.example.datn.DTO.Request.ForgotPasswordRequest;
-import com.example.datn.DTO.Request.ResetPasswordRequest;
-import com.example.datn.DTO.Request.VerifyOtpRequest;
+import com.example.datn.DTO.Request.*;
 import com.example.datn.DTO.Response.TokenResponse;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -15,4 +12,5 @@ public interface IAuthService {
     void forgotPassword(ForgotPasswordRequest request);
     String verifyOtp(VerifyOtpRequest request);
     void resetPassword(ResetPasswordRequest request);
+    void assignRoleToUser(AssignRoleRequest request);
 }
