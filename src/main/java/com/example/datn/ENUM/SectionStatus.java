@@ -4,5 +4,7 @@ public enum SectionStatus {
     PENDING,
     OPEN,
     LOCKED,
-    CANCELLED
+    CANCELLED,
+    OPENED,
+    CLOSED
 }
