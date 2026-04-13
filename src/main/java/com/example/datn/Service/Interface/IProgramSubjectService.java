@@ -11,5 +11,8 @@ public interface IProgramSubjectService {
     ProgramSubjectResponse update(UUID id, ProgramSubjectRequest request);
     ProgramSubjectResponse getById(UUID id);
     List<ProgramSubjectResponse> getBySectionId(UUID sectionId);
+    List<ProgramSubjectResponse> getFlattenedByProgramId(UUID programId);
+    List<ProgramSubjectResponse> getSubjectsByCohortAndMajor(UUID cohortId, UUID majorId);
+    List<ProgramSubjectResponse> getOpenedSubjectsForStudent(UUID cohortId, UUID majorId);
     void delete(UUID sectionId, UUID subjectId);
 }

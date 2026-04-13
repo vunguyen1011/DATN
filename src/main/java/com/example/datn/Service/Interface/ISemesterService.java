@@ -13,4 +13,5 @@ public interface ISemesterService {
     SemesterResponse updateSemester(UUID id, SemesterRequest request);
     void deleteSemester(UUID id);
     List<SemesterResponse> searchSemesters(String keyword);
+
 }

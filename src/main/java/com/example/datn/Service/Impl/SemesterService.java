@@ -52,6 +52,10 @@ public class SemesterService implements ISemesterService {
                 .orElseThrow(() -> new AppException(ErrorCode.ACADEMIC_YEAR_NOT_FOUND));
 
         Semester newSemester = semesterMapper.toEntity(request, academicYear);
+        Semester oldSemester = semesterRepository.findByIsCurrentTrue().orElseThrow(()->new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND));
+        oldSemester.setIsCurrent(false);
+        semesterRepository.save(oldSemester);
+
         Semester savedSemester = semesterRepository.save(newSemester);
 
         return semesterMapper.toResponse(savedSemester);
@@ -111,4 +115,5 @@ public class SemesterService implements ISemesterService {
                 .map(semesterMapper::toResponse)
                 .collect(Collectors.toList());
     }
+
 }

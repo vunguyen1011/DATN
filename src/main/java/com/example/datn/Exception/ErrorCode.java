@@ -41,6 +41,7 @@ public enum ErrorCode {
     SEMESTER_NAME_EXISTED_IN_YEAR(1501, "Tên học kỳ đã tồn tại trong năm học này"),
     SEMESTER_NOT_FOUND(1502, "Học kỳ không tồn tại"),
     INVALID_DATE_RANGE(1503, "Ngày bắt đầu phải trước ngày kết thúc"),
+    CURRENT_SEMESTER_NOT_FOUND(1504, "Không tìm thấy học kỳ hiện tại"),
 
     // 16xx: Subject & Subject Group
     SUBJECT_EXISTED(1601, "Môn học đã tồn tại"),
@@ -56,6 +57,7 @@ public enum ErrorCode {
     SUBJECT_IN_USE_IN_PROGRAM(1611, "Môn học đang được sử dụng trong chương trình đào tạo, không thể xóa"),
     SUBJECT_COMPONENT_NOT_FOUND(1612, "Thành phần môn học không tồn tại"),
     ROOM_TYPE_NOT_FOUND(1613, "Loại phòng không tồn tại"),
+    COMPONENT_TYPE_ALREADY_EXISTS(1614, "Loại thành phần đã tồn tại cho môn học này"),
     // 17xx: Education Program & Sections
     SECTION_NOT_FOUND(1701, "Nhóm lớp học không tồn tại"),
     PROGRAM_SUBJECT_NOT_FOUND(1702, "Môn học trong chương trình đào tạo không tồn tại"),
@@ -77,6 +79,7 @@ public enum ErrorCode {
     PROGRAM_HAS_NO_COHORTS_CANNOT_PUBLISH(1717, "Chương trình đào tạo chưa có khóa học nào, không thể publish"),
     // 19xx: System Errors
     UNCATEGORIZED_EXCEPTION(1901, "Lỗi không xác định"),
+    INVALID_REQUEST(1902, "Yêu cầu không hợp lệ"),
 
     // 20xx: Excel & Import
     INVALID_EXCEL_FORMAT(2001, "Chỉ chấp nhận file Excel định dạng .xlsx"),
@@ -94,6 +97,7 @@ public enum ErrorCode {
         this.code = code;
         this.message = message;
     }
+
 
     public int getCode() {
         return code;

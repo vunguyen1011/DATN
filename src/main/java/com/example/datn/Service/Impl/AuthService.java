@@ -196,6 +196,7 @@ public class AuthService implements IAuthService {
             roleName = "ROLE_" + roleName;
         }
 
+
         Role role = roleRepository.findByName(roleName)
                 .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
 

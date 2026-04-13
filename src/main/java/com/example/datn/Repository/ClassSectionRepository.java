@@ -2,9 +2,13 @@ package com.example.datn.Repository;
 
 import com.example.datn.Model.ClassSection;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.UUID;
+import com.example.datn.Model.Subject;
 
 @Repository
 public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID> {
@@ -12,4 +16,10 @@ public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID
     int countBySemesterIdAndSubjectComponent_SubjectIdAndParentSectionIsNull(UUID semesterId, UUID subjectId);
 
     boolean existsBySectionCode(String sectionCode);
+    List<ClassSection> findBySemesterId(UUID id);
+    List<ClassSection> findBySubjectId(UUID subjectId);
+    boolean existsByParentSectionId(UUID parentSectionId);
+
+    @Query("SELECT DISTINCT cs.subject FROM ClassSection cs WHERE cs.semester.id = :semesterId AND cs.subject.isActive = true")
+    List<Subject> findDistinctSubjectsBySemesterId(@Param("semesterId") UUID semesterId);
 }

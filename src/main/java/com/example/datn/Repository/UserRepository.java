@@ -30,4 +30,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByUsernameAndIsActiveTrue(String username);
     @Query("SELECT ur.user FROM UserRole ur WHERE ur.role.name = :roleName AND ur.user.isActive = true")
     Page<User> findByRoleNameAndIsActiveTrue(@Param("roleName") String roleName, Pageable pageable);
+    @Query("SELECT u FROM Lecturer l JOIN l.user u JOIN UserRole ur ON ur.user.id = u.id WHERE l.major.id = :majorId AND ur.role.name = 'ROLE_HEAD_OF_MAJOR' AND u.isActive = true")
+    Optional<User> findHeadOfMajorByMajorId(@Param("majorId") UUID majorId);
+
 }

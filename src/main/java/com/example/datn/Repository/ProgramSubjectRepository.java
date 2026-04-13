@@ -32,4 +32,32 @@ public interface ProgramSubjectRepository extends JpaRepository<ProgramSubject, 
     Integer sumCreditsBySectionId(@Param("sectionId") UUID sectionId);
     Optional<ProgramSubject> findBySectionIdAndSubjectIdAndIsActiveTrue(UUID sectionId, UUID subjectId);
 
+    // Dành cho Sinh Viên: Lấy toàn bộ môn trong Khung chương trình (dạng phẳng)
+    @Query("SELECT ps FROM ProgramSubject ps " +
+           "JOIN FETCH ps.subject " +
+           "WHERE ps.section.educationProgram.id = :programId " +
+           "AND ps.isActive = true " +
+           "ORDER BY ps.semester ASC")
+    List<ProgramSubject> findAllByProgramIdFlattened(@Param("programId") UUID programId);
+
+    // Lấy môn học theo Khóa và Ngành
+    @Query("SELECT ps FROM ProgramSubject ps " +
+           "JOIN FETCH ps.subject " +
+           "JOIN ProgramCohort pc ON pc.program.id = ps.section.educationProgram.id " +
+           "WHERE ps.section.educationProgram.major.id = :majorId " +
+           "AND pc.cohort.id = :cohortId " +
+           "AND ps.isActive = true " +
+           "ORDER BY ps.semester ASC")
+    List<ProgramSubject> findSubjectsByCohortAndMajor(@Param("cohortId") UUID cohortId, @Param("majorId") UUID majorId);
+
+    // Gợi ý đăng ký: Lấy môn học thuộc Khóa/Ngành MÀ ĐANG CÓ LỚP MỞ TRONG HỌC KỲ ĐÓ
+    @Query("SELECT ps FROM ProgramSubject ps " +
+           "JOIN FETCH ps.subject " +
+           "JOIN ProgramCohort pc ON pc.program.id = ps.section.educationProgram.id " +
+           "WHERE ps.section.educationProgram.major.id = :majorId " +
+           "AND pc.cohort.id = :cohortId " +
+           "AND ps.isActive = true " +
+           "AND EXISTS (SELECT 1 FROM ClassSection cs WHERE cs.subject.id = ps.subject.id AND cs.semester.id = :semesterId) " +
+           "ORDER BY ps.semester ASC")
+    List<ProgramSubject> findOpenedSubjectsByCohortAndMajor(@Param("cohortId") UUID cohortId, @Param("majorId") UUID majorId, @Param("semesterId") UUID semesterId);
 }

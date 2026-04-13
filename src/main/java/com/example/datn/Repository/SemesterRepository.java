@@ -2,9 +2,11 @@ package com.example.datn.Repository;
 
 import com.example.datn.Model.Semester;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -15,4 +17,7 @@ public interface SemesterRepository extends JpaRepository<Semester, UUID> {
 
     // Tìm kiếm theo tên học kỳ
     List<Semester> findByNameContainingIgnoreCase(String keyword);
+
+    // Tìm học kỳ hiện tại
+    Optional<Semester> findByIsCurrentTrue();
 }

@@ -1,6 +1,5 @@
 package com.example.datn.Service.Impl;
 
-import com.example.datn.DTO.Response.ClassSectionResponse;
 import com.example.datn.Exception.AppException;
 import com.example.datn.Exception.ErrorCode;
 import com.example.datn.Model.ClassSection;
@@ -13,208 +12,455 @@ import com.example.datn.Repository.SubjectComponentRepository;
 import com.example.datn.Repository.SubjectRepository;
 import com.example.datn.Service.Interface.IClassSectionService;
 import com.example.datn.ENUM.ComponentType;
-import com.example.datn.ENUM.SectionStatus;
+import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddressList;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import jakarta.servlet.http.HttpServletResponse;
+import com.example.datn.DTO.Response.SubjectResponse;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.NumberFormat;
+import java.text.ParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class ClassSectionServiceImpl implements IClassSectionService {
 
-    @Autowired
-    private ClassSectionRepository classSectionRepository;
+    private final ClassSectionRepository classSectionRepository;
+    private final SemesterRepository semesterRepository;
+    private final SubjectRepository subjectRepository;
+    private final SubjectComponentRepository subjectComponentRepository;
+    private final com.example.datn.Mapper.SubjectMapper subjectMapper; // Đã thêm Mapper (có thể cần autowire hoặc inject trong constructor/Lombok)
+    private final com.example.datn.Mapper.ClassSectionMapper classSectionMapper;
 
-    @Autowired
-    private SemesterRepository semesterRepository;
-
-    @Autowired
-    private SubjectRepository subjectRepository;
-
-    @Autowired
-    private SubjectComponentRepository subjectComponentRepository;
+    private List<Subject> getAllSubjects() {
+        return subjectRepository.findByIsActiveTrue();
+    }
 
     @Override
     public void downloadTemplate(HttpServletResponse response) throws IOException {
+        String[] columns = {"Tên môn học", "Mã môn học", "Số lượng lớp mở", "Sĩ số mỗi lớp", "Số lớp phụ / 1 lớp chính (Tự chọn)"};
         Workbook workbook = new XSSFWorkbook();
-        Sheet sheet = workbook.createSheet("Import-Class-Section");
+        Sheet sheet = workbook.createSheet("Class Sections Template");
+
+        Font headerFont = workbook.createFont();
+        headerFont.setBold(true);
+        CellStyle headerCellStyle = workbook.createCellStyle();
+        headerCellStyle.setFont(headerFont);
+        headerCellStyle.setLocked(true);
 
         Row headerRow = sheet.createRow(0);
-        String[] headers = {"STT", "Mã Môn", "Tổng Sinh Viên", "Max Lý Thuyết", "Max Thực Hành"};
-        for (int i = 0; i < headers.length; i++) {
+        for (int i = 0; i < columns.length; i++) {
             Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-
-            CellStyle headerStyle = workbook.createCellStyle();
-            Font font = workbook.createFont();
-            font.setBold(true);
-            headerStyle.setFont(font);
-            cell.setCellStyle(headerStyle);
+            cell.setCellValue(columns[i]);
+            cell.setCellStyle(headerCellStyle);
         }
 
-        // Example pre-filled row for user
-        Row row = sheet.createRow(1);
-        row.createCell(0).setCellValue(1);
-        row.createCell(1).setCellValue("ITD001");
-        row.createCell(2).setCellValue(100);
-        row.createCell(3).setCellValue(100);
-        row.createCell(4).setCellValue(40);
+        Sheet dataSheet = workbook.createSheet("SubjectData");
+        List<Subject> subjects = getAllSubjects();
+        for (int i = 0; i < subjects.size(); i++) {
+            Row row = dataSheet.createRow(i);
+            Subject subject = subjects.get(i);
+            row.createCell(0).setCellValue(subject.getName());
+            row.createCell(1).setCellValue(subject.getCode());
+        }
+        workbook.setSheetHidden(1, true);
 
-        for (int i = 0; i < headers.length; i++) {
+        if (!subjects.isEmpty()) {
+            DataValidationHelper validationHelper = sheet.getDataValidationHelper();
+            String formula = "SubjectData!$A$1:$A$" + subjects.size();
+            DataValidationConstraint constraint = validationHelper.createFormulaListConstraint(formula);
+            CellRangeAddressList addressList = new CellRangeAddressList(1, 500, 0, 0);
+            DataValidation validation = validationHelper.createValidation(constraint, addressList);
+            validation.setShowErrorBox(true);
+            sheet.addValidationData(validation);
+        }
+
+        CellStyle lockedStyle = workbook.createCellStyle();
+        lockedStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+        lockedStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        lockedStyle.setLocked(true);
+
+        CellStyle unlockedStyle = workbook.createCellStyle();
+        unlockedStyle.setLocked(false);
+
+        for (int i = 1; i <= 500; i++) {
+            Row row = sheet.createRow(i);
+
+            row.createCell(0).setCellStyle(unlockedStyle);
+
+            Cell codeCell = row.createCell(1);
+            codeCell.setCellFormula(String.format("IF(ISBLANK(A%d), \"\", VLOOKUP(A%d, SubjectData!$A:$B, 2, FALSE))", i + 1, i + 1));
+            codeCell.setCellStyle(lockedStyle);
+
+            row.createCell(2).setCellStyle(unlockedStyle);
+            row.createCell(3).setCellStyle(unlockedStyle);
+            row.createCell(4).setCellStyle(unlockedStyle);
+        }
+
+        for (int i = 0; i < columns.length; i++) {
             sheet.autoSizeColumn(i);
         }
+        sheet.setColumnWidth(0, 256 * 40);
+
+        sheet.protectSheet("tlu_vuvn");
 
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        response.setHeader("Content-Disposition", "attachment; filename=\"Template_Mo_Lop.xlsx\"");
+        response.setHeader("Content-Disposition", "attachment; filename=class_sections_template.xlsx");
         workbook.write(response.getOutputStream());
         workbook.close();
     }
 
     @Override
     @Transactional
-    public String importClassSections(UUID semesterId, MultipartFile file) {
-        if (file == null || file.isEmpty() || file.getOriginalFilename() == null || !file.getOriginalFilename().endsWith(".xlsx")) {
-            throw new AppException(ErrorCode.INVALID_EXCEL_FORMAT);
-        }
+    public String importClassSections( MultipartFile file) {
+        Semester semester = semesterRepository.findByIsCurrentTrue().orElseThrow(()-> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND));
 
-        Semester semester = semesterRepository.findById(semesterId)
-                .orElseThrow(() -> new AppException(ErrorCode.SEMESTER_NOT_FOUND));
+        List<ClassSection> parentsToSave = new ArrayList<>();
+        List<ClassSection> childrenToSave = new ArrayList<>();
+        List<String> errorMessages = new ArrayList<>();
+        int successRows = 0;
 
-//        if (semester.getCode() == null || semester.getCode().isEmpty()) {
-//            throw new RuntimeException("Semester code is required for generating section code. Vui lòng cập nhật mã cho học kỳ.");
-//        }
+        try (InputStream inputStream = file.getInputStream();
+             Workbook workbook = new XSSFWorkbook(inputStream)) {
 
-        List<ClassSection> sectionsToSave = new ArrayList<>();
-
-        try (InputStream is = file.getInputStream(); Workbook workbook = WorkbookFactory.create(is)) {
             Sheet sheet = workbook.getSheetAt(0);
-            Iterator<Row> rowIterator = sheet.iterator();
-
-            // Bỏ qua header
-            if (rowIterator.hasNext()) {
-                rowIterator.next();
+            if (sheet == null || sheet.getLastRowNum() < 1) {
+                throw new AppException(ErrorCode.EXCEL_FILE_EMPTY, "File Excel không có dữ liệu");
             }
 
-            while (rowIterator.hasNext()) {
-                Row row = rowIterator.next();
+            DataFormatter dataFormatter = new DataFormatter();
+            FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
 
-                // Lấy thông tin từ file excel
-                Cell subjectCodeCell = row.getCell(1);
-                Cell totalStudentsCell = row.getCell(2);
-                Cell maxLTCell = row.getCell(3);
-                Cell maxTHCell = row.getCell(4);
+            Map<String, Subject> subjectMap = subjectRepository.findByIsActiveTrue().stream()
+                    .collect(Collectors.toMap(Subject::getCode, s -> s));
 
-                if (subjectCodeCell == null || subjectCodeCell.getCellType() == CellType.BLANK) {
-                    continue;
-                }
+            List<UUID> activeSubjectIds = subjectMap.values().stream().map(Subject::getId).collect(Collectors.toList());
+            Map<UUID, List<SubjectComponent>> componentMap = new HashMap<>();
 
-                String subjectCode = subjectCodeCell.getStringCellValue().trim();
-                int totalStudents = (totalStudentsCell != null && totalStudentsCell.getCellType() == CellType.NUMERIC) ? (int) totalStudentsCell.getNumericCellValue() : 0;
-                int maxLT = (maxLTCell != null && maxLTCell.getCellType() == CellType.NUMERIC) ? (int) maxLTCell.getNumericCellValue() : 0;
-                int maxTH = (maxTHCell != null && maxTHCell.getCellType() == CellType.NUMERIC) ? (int) maxTHCell.getNumericCellValue() : 0;
+            if (!activeSubjectIds.isEmpty()) {
+                componentMap = subjectComponentRepository.findBySubjectIdIn(activeSubjectIds).stream()
+                        .collect(Collectors.groupingBy(c -> c.getSubject().getId()));
+            }
 
-                if (totalStudents <= 0) continue;
+            // Lấy tất cả danh sách lớp hiện có trong kỳ để check Suffix
+            List<ClassSection> existingSectionsInSemester = classSectionRepository.findBySemesterId(semester.getId());
 
-                // 1. Tìm môn học và các component
-                Optional<Subject> subjectOpt = subjectRepository.findByCode(subjectCode);
-                if (subjectOpt.isEmpty()) {
-                    continue; // Có thể log lại môn bị lỗi thay vì throw exception để import mượt hơn
-                }
-                Subject subject = subjectOpt.get();
-                List<SubjectComponent> components = subjectComponentRepository.findBySubjectId(subject.getId());
-                if (components.isEmpty()) continue;
+            // Dùng Map để lưu lại Max Suffix hiện tại của từng môn học
+            Map<String, Integer> currentMaxParentSuffixMap = new HashMap<>();
 
-                // 2. Tách lớp Lõi (Primary) và lớp Vệ tinh (Children)
-                SubjectComponent primaryComp = null;
-                List<SubjectComponent> childComps = new ArrayList<>();
+            for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                Row currentRow = sheet.getRow(rowIndex);
+                if (currentRow == null) continue;
 
-                Optional<SubjectComponent> theoryOpt = components.stream().filter(c -> c.getType() == ComponentType.THEORY).findFirst();
-                if (theoryOpt.isPresent()) {
-                    primaryComp = theoryOpt.get();
-                    childComps = components.stream().filter(c -> c.getType() != ComponentType.THEORY).collect(Collectors.toList());
-                } else {
-                    primaryComp = components.get(0);
-                    for (int i = 1; i < components.size(); i++) {
-                        childComps.add(components.get(i));
+                int displayRow = rowIndex + 1;
+
+                try {
+                    Cell codeCell = currentRow.getCell(1);
+                    if (codeCell == null || codeCell.getCellType() == CellType.BLANK || codeCell.getCellType() == CellType.ERROR) {
+                        continue;
                     }
-                }
 
-                // 3. Quy định dung lượng cho Primary dựa theo đúng Thể loại
-                int defaultPrimaryMax = 100;
-                int excelPrimaryMax = maxLT;
-                if (primaryComp.getType() == ComponentType.PRACTICE) {
-                    defaultPrimaryMax = 40;
-                    excelPrimaryMax = maxTH;
-                } else if (primaryComp.getType() != ComponentType.THEORY) {
-                    defaultPrimaryMax = 40; // Fallback cho PROJECT...
-                }
+                    String subjectCode = dataFormatter.formatCellValue(codeCell, evaluator).trim();
+                    if (subjectCode.isEmpty() || subjectCode.equals("#N/A")) {
+                        continue;
+                    }
 
-                int remainingStudents = totalStudents;
-                int currentSectionIndex = classSectionRepository.countBySemesterIdAndSubjectComponent_SubjectIdAndParentSectionIsNull(semesterId, subject.getId());
+                    int numberOfSections = parseIntegerCell(currentRow.getCell(2), dataFormatter, evaluator, "Số lượng lớp mở", displayRow);
+                    if (numberOfSections <= 0) throw new AppException(ErrorCode.EXCEL_DATA_INVALID, "Số lượng lớp mở phải lớn hơn 0");
 
-                while (remainingStudents > 0) {
-                    int finalMaxPrimary = (excelPrimaryMax > 0) ? excelPrimaryMax : defaultPrimaryMax;
+                    int capacity = parseIntegerCell(currentRow.getCell(3), dataFormatter, evaluator, "Sĩ số mỗi lớp", displayRow);
+                    if (capacity <= 0) throw new AppException(ErrorCode.EXCEL_DATA_INVALID, "Sĩ số mỗi lớp phải lớn hơn 0");
 
-                    // Lớp Bố hiện tại chứa được max là finalMaxPrimary, nhưng nếu Sinh viên dư ít hơn thì chỉ lấy phần dư.
-                    int studentsForThisSection = Math.min(remainingStudents, finalMaxPrimary);
+                    int splitRatio = 1;
+                    Cell ratioCell = currentRow.getCell(4);
+                    if (ratioCell != null && ratioCell.getCellType() != CellType.BLANK) {
+                        String ratioVal = dataFormatter.formatCellValue(ratioCell, evaluator).trim();
+                        if (!ratioVal.isEmpty()) {
+                            splitRatio = parseIntegerCell(ratioCell, dataFormatter, evaluator, "Số lớp phụ / 1 lớp chính (Tự chọn)", displayRow);
+                        }
+                    }
+                    if (splitRatio <= 0) splitRatio = 1;
 
-                    currentSectionIndex++;
-                    String parentCodeSuffix = String.format("%02d", currentSectionIndex);
-                    String parentSectionCode = subjectCode + "_" + semester.getCode() + "_" + parentCodeSuffix;
+                    Subject subject = subjectMap.get(subjectCode);
+                    if (subject == null) throw new AppException(ErrorCode.SUBJECT_NOT_FOUND, "Không tìm thấy mã môn: " + subjectCode);
 
-                    ClassSection parentSection = ClassSection.builder()
-                            .sectionCode(parentSectionCode)
-                            .courseGroupCode(parentCodeSuffix)
-                            .subjectComponent(primaryComp)
-                            .semester(semester)
-                            .capacity(finalMaxPrimary)
-                            .minStudents(15) // Fallback hardcode
-                            .build();
+                    List<SubjectComponent> components = componentMap.getOrDefault(subject.getId(), new ArrayList<>());
+                    if (components.isEmpty()) throw new AppException(ErrorCode.SUBJECT_COMPONENT_NOT_FOUND, "Môn học " + subjectCode + " chưa cấu hình thành phần môn");
 
-                    sectionsToSave.add(parentSection);
+                    List<ClassSection> rowParents = new ArrayList<>();
+                    List<ClassSection> rowChildren = new ArrayList<>();
 
-                    // Mở các lớp Vệ Tinh (Thực hành, Bài tập) để gồng lượng sinh viên của Lớp Bố
-                    for (SubjectComponent childComp : childComps) {
-                        int finalMaxChild = (maxTH > 0) ? maxTH : 40;
-                        int numChildSections = (int) Math.ceil((double) studentsForThisSection / finalMaxChild);
+                    List<SubjectComponent> theories = components.stream().filter(c -> c.getType() == ComponentType.THEORY).collect(Collectors.toList());
+                    List<SubjectComponent> practices = components.stream().filter(c -> c.getType() == ComponentType.PRACTICE).collect(Collectors.toList());
 
-                        for (int j = 1; j <= numChildSections; j++) {
-                            String childSectionCode = parentSectionCode + "." + j;
+                    // Khởi tạo Max Suffix nếu môn này chưa từng được quét
+                    if (!currentMaxParentSuffixMap.containsKey(subjectCode)) {
+                        int max = getMaxSuffixForSubject(existingSectionsInSemester, subjectCode);
+                        currentMaxParentSuffixMap.put(subjectCode, max);
+                    }
 
-                            ClassSection childSection = ClassSection.builder()
-                                    .sectionCode(childSectionCode)
-                                    .courseGroupCode(parentCodeSuffix)
-                                    .subjectComponent(childComp)
+                    // 1. Sinh các lớp Lý thuyết (Parent)
+                    for (SubjectComponent theory : theories) {
+                        for (int i = 0; i < numberOfSections; i++) {
+                            // Cập nhật Suffix mới nhất (chống trùng lặp tuyệt đối)
+                            int nextSuffix = currentMaxParentSuffixMap.get(subjectCode) + 1;
+                            currentMaxParentSuffixMap.put(subjectCode, nextSuffix);
+
+                            ClassSection section = ClassSection.builder()
+                                    .sectionCode(String.format("%s-%02d", subjectCode, nextSuffix))
+                                    .subject(subject)
+                                    .subjectComponent(theory)
                                     .semester(semester)
-                                    .parentSection(parentSection) // Map CHA - CON
-                                    .capacity(finalMaxChild)
-                                    .minStudents(15)
+                                    .capacity(capacity)
+                                    .minStudents(0)
                                     .build();
 
-                            sectionsToSave.add(childSection);
+                            rowParents.add(section);
                         }
                     }
 
-                    remainingStudents -= studentsForThisSection;
+                    // 2. Sinh các lớp Thực hành (Child)
+                    for (SubjectComponent practice : practices) {
+                        if (rowParents.isEmpty()) {
+                            // Ngoại lệ: Môn chỉ có TH, không có LT
+                            for (int i = 0; i < numberOfSections; i++) {
+                                int nextSuffix = currentMaxParentSuffixMap.get(subjectCode) + 1;
+                                currentMaxParentSuffixMap.put(subjectCode, nextSuffix);
+
+                                ClassSection section = ClassSection.builder()
+                                        .sectionCode(String.format("%s-%02d", subjectCode, nextSuffix))
+                                        .subject(subject)
+                                        .subjectComponent(practice)
+                                        .semester(semester)
+                                        .capacity(capacity / splitRatio)
+                                        .minStudents(0)
+                                        .build();
+                                rowParents.add(section);
+                            }
+                        } else {
+                            // Tự động bung Child từ Parent
+                            for (ClassSection parent : rowParents) {
+                                int baseCapacity = parent.getCapacity() / splitRatio; // Phần nguyên
+                                int remainder = parent.getCapacity() % splitRatio;    // Phần dư (nếu chia lẻ)
+
+                                for (int k = 0; k < splitRatio; k++) {
+                                    int actualCapacity = baseCapacity;
+                                    // Nhồi số sinh viên dư vào lớp thực hành cuối cùng
+                                    if (k == splitRatio - 1) {
+                                        actualCapacity += remainder;
+                                    }
+
+                                    ClassSection section = ClassSection.builder()
+                                            .sectionCode(parent.getSectionCode() + "." + (k + 1))
+                                            .subject(subject)
+                                            .subjectComponent(practice)
+                                            .parentSection(parent)
+                                            .semester(semester)
+                                            .capacity(actualCapacity)
+                                            .minStudents(0)
+                                            .build();
+                                    rowChildren.add(section);
+                                }
+                            }
+                        }
+                    }
+
+                    parentsToSave.addAll(rowParents);
+                    childrenToSave.addAll(rowChildren);
+                    successRows++;
+
+                } catch (AppException e) {
+                    errorMessages.add("Dòng " + displayRow + ": " + e.getMessage());
+                } catch (Exception e) {
+                    errorMessages.add("Dòng " + displayRow + ": Lỗi hệ thống (" + e.getMessage() + ")");
                 }
             }
 
-            // Thực thi INSERT Batched 1 lần duy nhất cho toàn bộ danh sách để O(1) Transactional DB
-            classSectionRepository.saveAll(sectionsToSave);
+            int totalSaved = 0;
 
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw new AppException(ErrorCode.EXCEL_READ_ERROR);
+            if (!parentsToSave.isEmpty()) {
+                classSectionRepository.saveAll(parentsToSave);
+                totalSaved += parentsToSave.size();
+            }
+
+            if (!childrenToSave.isEmpty()) {
+                classSectionRepository.saveAll(childrenToSave);
+                totalSaved += childrenToSave.size();
+            }
+
+            if (totalSaved == 0 && !errorMessages.isEmpty()) {
+                String limitedErrors = errorMessages.stream().limit(5).collect(Collectors.joining(" | "));
+                String suffix = errorMessages.size() > 5 ? " ... (và " + (errorMessages.size() - 5) + " lỗi khác)" : "";
+                throw new AppException(ErrorCode.EXCEL_DATA_INVALID, "Import thất bại toàn bộ. Lỗi chi tiết: " + limitedErrors + suffix);
+            }
+
+            StringBuilder resultMessage = new StringBuilder();
+            resultMessage.append("Đã đọc hợp lệ ").append(successRows).append(" dòng. ");
+            resultMessage.append("Tạo thành công ").append(totalSaved).append(" lớp học phần.");
+
+            if (!errorMessages.isEmpty()) {
+                String limitedErrors = errorMessages.stream().limit(5).collect(Collectors.joining(" | "));
+                String suffix = errorMessages.size() > 5 ? " ... (và " + (errorMessages.size() - 5) + " lỗi khác)" : "";
+                resultMessage.append(" | Có ").append(errorMessages.size()).append(" dòng bị lỗi hoặc bỏ qua: ").append(limitedErrors).append(suffix);
+            }
+
+            return resultMessage.toString();
+
+        } catch (IOException e) {
+            throw new AppException(ErrorCode.EXCEL_READ_ERROR, "Lỗi đọc file Excel: " + e.getMessage());
+        }
+    }
+
+    private int parseIntegerCell(Cell cell, DataFormatter formatter, FormulaEvaluator evaluator, String columnName, int row) {
+        String cellValue = formatter.formatCellValue(cell, evaluator).trim();
+        if (cellValue.isEmpty()) throw new AppException(ErrorCode.EXCEL_DATA_INVALID, "Cột [" + columnName + "] không được để trống");
+        try {
+            Number number = NumberFormat.getInstance(Locale.US).parse(cellValue);
+            return number.intValue();
+        } catch (ParseException e) {
+            throw new AppException(ErrorCode.EXCEL_DATA_INVALID, "Cột [" + columnName + "] sai định dạng số (Giá trị nhập: " + cellValue + ")");
+        }
+    }
+
+    // --- HÀM HELPER HỖ TRỢ TÌM SỐ THỨ TỰ LỚN NHẤT ĐANG CÓ TRONG DB ---
+    private int getMaxSuffixForSubject(List<ClassSection> existingSections, String subjectCode) {
+        int maxSuffix = 0;
+        for (ClassSection cs : existingSections) {
+            String code = cs.getSectionCode();
+            // Lọc đúng mã môn đó và lọc bỏ các lớp con (chứa dấu '.')
+            if (code != null && code.startsWith(subjectCode + "-") && !code.contains(".")) {
+                try {
+                    String suffixStr = code.substring(code.lastIndexOf("-") + 1);
+                    int suffix = Integer.parseInt(suffixStr);
+                    if (suffix > maxSuffix) {
+                        maxSuffix = suffix;
+                    }
+                } catch (NumberFormatException ignored) {
+                    // Bỏ qua rác
+                }
+            }
+        }
+        return maxSuffix;
+    }
+
+    @Override
+    public List<SubjectResponse> getOpenedSubjectsBySemester(UUID semesterId) {
+        return classSectionRepository.findDistinctSubjectsBySemesterId(semesterId).stream()
+                .map(subjectMapper::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public com.example.datn.DTO.Response.ClassSectionResponse updateClassSection(UUID id, com.example.datn.DTO.Request.ClassSectionUpdateRequest request) {
+        ClassSection section = classSectionRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.SECTION_NOT_FOUND, "Không tìm thấy lớp học phần"));
+
+        if (request.getCapacity() != null) {
+            if (request.getCapacity() < section.getEnrolledCount()) {
+                throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể sửa Sĩ số tối đa nhỏ hơn Số sinh viên đã đăng ký (" + section.getEnrolledCount() + ")");
+            }
+            section.setCapacity(request.getCapacity());
         }
 
-        return "Successfully created " + sectionsToSave.size() + " class sections.";
+        if (request.getMinStudents() != null) {
+            section.setMinStudents(request.getMinStudents());
+        }
+
+        return classSectionMapper.toResponse(classSectionRepository.save(section));
+    }
+
+    @Override
+    @Transactional
+    public void deleteClassSection(UUID id) {
+        ClassSection section = classSectionRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.SECTION_NOT_FOUND, "Không tìm thấy lớp học phần"));
+
+        if (section.getEnrolledCount() > 0) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể xóa lớp đã có sinh viên đăng ký. Vui lòng hủy đăng ký hoặc đóng lớp.");
+        }
+
+        if (classSectionRepository.existsByParentSectionId(id)) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Bạn đang cố xóa lớp Lý thuyết có chứa lớp Thực hành con. Vui lòng xóa lớp Thực hành trước.");
+        }
+
+        classSectionRepository.delete(section);
+    }
+
+    @Override
+    public com.example.datn.DTO.Response.ClassSectionResponse getClassSectionById(UUID id) {
+        ClassSection section = classSectionRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.SECTION_NOT_FOUND, "Không tìm thấy lớp học phần"));
+        return classSectionMapper.toResponse(section);
+    }
+
+    @Override
+    public List<com.example.datn.DTO.Response.ClassSectionResponse> getClassSectionsBySubjectId(UUID subjectId) {
+        return classSectionRepository.findBySubjectId(subjectId).stream()
+                .map(classSectionMapper::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    // --- CÁC HÀM XỬ LÝ TRẠNG THÁI (STATE TRANSITIONS) ---
+
+    @Override
+    @Transactional
+    public void approveClassSection(UUID id) {
+        ClassSection section = classSectionRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.SECTION_NOT_FOUND, "Không tìm thấy lớp học phần"));
+
+        if (section.getStatus() == com.example.datn.ENUM.SectionStatus.OPENED) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp học phần này đã được mở.");
+        }
+        if (section.getStatus() == com.example.datn.ENUM.SectionStatus.CANCELLED) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể mở lại lớp học phần đã bị Hủy.");
+        }
+
+        section.setStatus(com.example.datn.ENUM.SectionStatus.OPENED);
+        classSectionRepository.save(section);
+    }
+
+    @Override
+    @Transactional
+    public void cancelClassSection(UUID id) {
+        ClassSection section = classSectionRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.SECTION_NOT_FOUND, "Không tìm thấy lớp học phần"));
+
+        if (section.getStatus() == com.example.datn.ENUM.SectionStatus.CANCELLED) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp này đã bị hủy từ trước.");
+        }
+
+        if (section.getEnrolledCount() > 0) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể Hủy lớp học phần đang có sinh viên đăng ký. Vui lòng làm rỗng lớp trước khi hủy (Hệ thống chưa hỗ trợ Hủy tự động hoàn tiền).");
+        }
+
+        if (classSectionRepository.existsByParentSectionId(id)) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể Hủy lớp Lý thuyết đang có chứa các lớp Thực hành con. Vui lòng hủy lớp thực hành trước.");
+        }
+
+        section.setStatus(com.example.datn.ENUM.SectionStatus.CANCELLED);
+        classSectionRepository.save(section);
+    }
+
+    @Override
+    @Transactional
+    public void closeClassSection(UUID id) {
+        ClassSection section = classSectionRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.SECTION_NOT_FOUND, "Không tìm thấy lớp học phần"));
+
+        if (section.getStatus() != com.example.datn.ENUM.SectionStatus.OPENED) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Chỉ có thể Tạm Đóng các lớp học đang ở trạng thái OPENED (Đã Mở).");
+        }
+
+        section.setStatus(com.example.datn.ENUM.SectionStatus.CLOSED);
+        classSectionRepository.save(section);
     }
 }

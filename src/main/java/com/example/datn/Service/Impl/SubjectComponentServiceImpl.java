@@ -31,6 +31,11 @@ public class SubjectComponentServiceImpl implements ISubjectComponentService {
     @Override
     @Transactional
     public SubjectComponentResponse createSubjectComponent(SubjectComponentRequest request) {
+        // BƯỚC CHẶN 1: Kiểm tra xem môn học này đã có loại thành phần (VD: THEORY) này chưa
+        if (subjectComponentRepository.existsBySubjectIdAndType(request.getSubjectId(), request.getType())) {
+            throw new AppException(ErrorCode.COMPONENT_TYPE_ALREADY_EXISTS);
+        }
+
         calculateTotalPeriods(request);
 
         Subject subject = subjectRepository.findByIdAndIsActiveTrue(request.getSubjectId())
@@ -51,6 +56,11 @@ public class SubjectComponentServiceImpl implements ISubjectComponentService {
     public SubjectComponentResponse updateSubjectComponent(UUID id, SubjectComponentRequest request) {
         SubjectComponent entity = subjectComponentRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.SUBJECT_COMPONENT_NOT_FOUND));
+
+        // BƯỚC CHẶN 2: Kiểm tra trùng loại thành phần nhưng bỏ qua chính bản ghi đang sửa (id)
+        if (subjectComponentRepository.existsBySubjectIdAndTypeAndIdNot(request.getSubjectId(), request.getType(), id)) {
+            throw new AppException(ErrorCode.COMPONENT_TYPE_ALREADY_EXISTS);
+        }
 
         calculateTotalPeriods(request);
 

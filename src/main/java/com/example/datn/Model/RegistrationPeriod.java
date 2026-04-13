@@ -11,7 +11,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class RegistrationPeriod {
+public class    RegistrationPeriod {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

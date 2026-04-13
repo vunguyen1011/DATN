@@ -81,14 +81,7 @@ public class SubjectController {
                 .build();
     }
     // 1. Xem môn học này đang là tiên quyết cho những môn nào (Ai cần môn này?)
-    @GetMapping("/{id}/dependent-subjects")
-    public ApiResponse<List<SubjectResponse>> getDependentSubjects(@PathVariable UUID id) {
-        return ApiResponse.<List<SubjectResponse>>builder()
-                .code(1000)
-                .message("Lấy danh sách các môn phụ thuộc thành công")
-                .result(subjectService.getDependentSubjects(id))
-                .build();
-    }
+
 
 //    @GetMapping("/{id}/prerequisites")
 //    public ApiResponse<List<SubjectResponse>> getPrerequisiteTree(@PathVariable UUID id) {

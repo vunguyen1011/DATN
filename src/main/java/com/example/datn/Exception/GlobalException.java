@@ -17,7 +17,7 @@ public class GlobalException {
     ResponseEntity<ApiResponse> handlerRunTimeException(AppException exception) {
         ErrorCode errorCode = exception.getErrorCode();
         return ResponseEntity.badRequest()
-                .body(ApiResponse.builder().code(errorCode.getCode()).message(errorCode.getMessage())
+                .body(ApiResponse.builder().code(errorCode.getCode()).message(exception.getMessage())
                         .build()
                 );
     }

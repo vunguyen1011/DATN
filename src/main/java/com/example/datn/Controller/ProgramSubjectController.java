@@ -54,6 +54,38 @@ public class ProgramSubjectController {
                 .result(service.getBySectionId(sectionId))
                 .build();
     }
+
+    @GetMapping("/program/{programId}")
+    public ApiResponse<List<ProgramSubjectResponse>> getFlattenedByProgramId(@PathVariable UUID programId) {
+        return ApiResponse.<List<ProgramSubjectResponse>>builder()
+                .code(1000)
+                .message("Lấy danh sách môn học phẳng trong CTĐT thành công")
+                .result(service.getFlattenedByProgramId(programId))
+                .build();
+    }
+
+    @GetMapping("/cohort/{cohortId}/major/{majorId}")
+    public ApiResponse<List<ProgramSubjectResponse>> getSubjectsByCohortAndMajor(
+            @PathVariable UUID cohortId, 
+            @PathVariable UUID majorId) {
+        return ApiResponse.<List<ProgramSubjectResponse>>builder()
+                .code(1000)
+                .message("Lấy danh sách môn học theo Khóa và Ngành thành công")
+                .result(service.getSubjectsByCohortAndMajor(cohortId, majorId))
+                .build();
+    }
+
+    @GetMapping("/cohort/{cohortId}/major/{majorId}/opened-this-semester")
+    public ApiResponse<List<ProgramSubjectResponse>> getOpenedSubjectsForStudent(
+            @PathVariable UUID cohortId, 
+            @PathVariable UUID majorId) {
+        return ApiResponse.<List<ProgramSubjectResponse>>builder()
+                .code(1000)
+                .message("Lấy mảng danh sách môn học Lọc theo tính trạng Đã Mở Kỳ Hiện Tại thành công")
+                .result(service.getOpenedSubjectsForStudent(cohortId, majorId))
+                .build();
+    }
+
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping
     public ApiResponse<Void> delete(

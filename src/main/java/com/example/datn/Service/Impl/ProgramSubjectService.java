@@ -12,6 +12,7 @@ import com.example.datn.Model.EducationProgram;
 import com.example.datn.Repository.ProgramSubjectRepository;
 import com.example.datn.Repository.SubjectRepository;
 import com.example.datn.Repository.SubjectGroupSectionRepository;
+import com.example.datn.Repository.SemesterRepository;
 import com.example.datn.Service.Interface.IProgramSubjectService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ public class ProgramSubjectService implements IProgramSubjectService {
     private final ProgramSubjectRepository psRepository;
     private final SubjectRepository subjectRepository;
     private final SubjectGroupSectionRepository sectionRepository;
+    private final SemesterRepository semesterRepository;
     private final ProgramSubjectMapper psMapper;
 
     private void checkProgramNotLocked(SubjectGroupSection section) {
@@ -120,6 +122,27 @@ public class ProgramSubjectService implements IProgramSubjectService {
             throw new AppException(ErrorCode.SECTION_NOT_FOUND);
         }
         return psMapper.toResponseList(psRepository.findBySectionIdAndIsActiveTrue(sectionId));
+    }
+
+    @Override
+    public List<ProgramSubjectResponse> getFlattenedByProgramId(UUID programId) {
+        List<ProgramSubject> psList = psRepository.findAllByProgramIdFlattened(programId);
+        return psMapper.toResponseList(psList);
+    }
+
+    @Override
+    public List<ProgramSubjectResponse> getSubjectsByCohortAndMajor(UUID cohortId, UUID majorId) {
+        List<ProgramSubject> psList = psRepository.findSubjectsByCohortAndMajor(cohortId, majorId);
+        return psMapper.toResponseList(psList);
+    }
+
+    @Override
+    public List<ProgramSubjectResponse> getOpenedSubjectsForStudent(UUID cohortId, UUID majorId) {
+        com.example.datn.Model.Semester currentSemester = semesterRepository.findByIsCurrentTrue()
+                .orElseThrow(() -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND));
+
+        List<ProgramSubject> openedList = psRepository.findOpenedSubjectsByCohortAndMajor(cohortId, majorId, currentSemester.getId());
+        return psMapper.toResponseList(openedList);
     }
 
     @Override
