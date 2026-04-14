@@ -5,15 +5,15 @@ import com.example.datn.DTO.Request.*;
 import com.example.datn.DTO.Response.TokenResponse;
 import com.example.datn.Exception.AppException;
 import com.example.datn.Exception.ErrorCode;
-import com.example.datn.Model.Role;
-import com.example.datn.Model.User;
-import com.example.datn.Model.UserRole;
+import com.example.datn.Model.*;
 import com.example.datn.Pattern.Stragery.ILoginStrategy;
+import com.example.datn.Repository.LecturerRepository;
 import com.example.datn.Repository.RoleRepository;
 import com.example.datn.Repository.UserRepository;
 import com.example.datn.Repository.UserRoleRepository;
 import com.example.datn.Service.Interface.IAuthService;
 import com.example.datn.Service.Interface.IEmailService;
+import com.example.datn.Service.Interface.ILecturerService;
 import com.example.datn.Service.Interface.IRedisService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -41,6 +42,7 @@ public class AuthService implements IAuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final IEmailService emailService;
+    private final LecturerRepository lecturerRepository;
 
     @Value("${jwt.refreshTokenExpiration}")
     private long refreshExpiration;
@@ -186,31 +188,42 @@ public class AuthService implements IAuthService {
     }
 
     @Override
-    public void assignRoleToUser(AssignRoleRequest request) {
-        User user = userRepository.findByUsernameAndIsActiveTrue(request.getUsername())
+    @Transactional // BẮT BUỘC PHẢI CÓ
+    public void assignRoleToUser(String username) { // Đổi tên biến request -> username cho dễ đọc
+
+        // 1. Tìm User sắp được thăng chức
+        User user = userRepository.findByUsernameAndIsActiveTrue(username)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        // 2. Tìm Role (Chú ý: tên role nên có tiền tố ROLE_, vd: ROLE_ADMIN)
-        String roleName = request.getRoleName().toUpperCase();
-        if (!roleName.startsWith("ROLE_")) {
-            roleName = "ROLE_" + roleName;
-        }
-
-
-        Role role = roleRepository.findByName(roleName)
+        // 2. Tìm Role Trưởng phòng
+        Role role = roleRepository.findByName("ROLE_HOD")
                 .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
 
+        // 3. Tìm Ngành (Major) của User này thông qua bảng Lecturer
+        Lecturer lecturer = lecturerRepository.findByUser(user)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "Không tìm thấy hồ sơ Giảng viên của người dùng này"));
+        Major major = lecturer.getMajor();
+
+        // 4. Kiểm tra xem người này có đang làm Trưởng phòng sẵn rồi không
         boolean alreadyHasRole = userRoleRepository.existsByUserAndRole(user, role);
         if (alreadyHasRole) {
-            throw new AppException(ErrorCode.USER_ALREADY_HAS_ROLE); // Cần thêm mã lỗi này vào ErrorCode
+            throw new AppException(ErrorCode.USER_ALREADY_HAS_ROLE);
         }
 
-        // 4. Gán Role mới cho User
+        // 5. BƯỚC QUAN TRỌNG: Xóa quyền Trưởng phòng của Thầy/Cô cũ (Cùng Ngành)
+        List<UserRole> oldHodRoles = userRoleRepository.findOldHodByRoleAndMajor(role, major);
+        if (!oldHodRoles.isEmpty()) {
+            userRoleRepository.deleteAll(oldHodRoles); // Thu hồi quyền
+        }
+
+        // 6. Gán Role HOD cho Thầy/Cô mới
         UserRole userRole = UserRole.builder()
                 .user(user)
                 .role(role)
                 .build();
 
         userRoleRepository.save(userRole);
+
+        log.info("Đã bổ nhiệm user {} làm Trưởng phòng mới cho Ngành {}", user.getUsername(), major.getId());
     }
 }

@@ -12,5 +12,5 @@ public interface IAuthService {
     void forgotPassword(ForgotPasswordRequest request);
     String verifyOtp(VerifyOtpRequest request);
     void resetPassword(ResetPasswordRequest request);
-    void assignRoleToUser(AssignRoleRequest request);
+    void assignRoleToUser(String  username);
 }

@@ -65,13 +65,18 @@ public class ProgramSubjectController {
     }
 
     @GetMapping("/cohort/{cohortId}/major/{majorId}")
-    public ApiResponse<List<ProgramSubjectResponse>> getSubjectsByCohortAndMajor(
+    public ApiResponse<org.springframework.data.domain.Page<ProgramSubjectResponse>> getSubjectsByCohortAndMajor(
             @PathVariable UUID cohortId, 
-            @PathVariable UUID majorId) {
-        return ApiResponse.<List<ProgramSubjectResponse>>builder()
+            @PathVariable UUID majorId,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+            ) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        return ApiResponse.<org.springframework.data.domain.Page<ProgramSubjectResponse>>builder()
                 .code(1000)
-                .message("Lấy danh sách môn học theo Khóa và Ngành thành công")
-                .result(service.getSubjectsByCohortAndMajor(cohortId, majorId))
+                .message("Lấy danh sách môn học (phân trang) theo Khóa và Ngành thành công")
+                .result(service.getSubjectsByCohortAndMajorPage(cohortId, majorId, search, pageable))
                 .build();
     }
 
@@ -83,6 +88,22 @@ public class ProgramSubjectController {
                 .code(1000)
                 .message("Lấy mảng danh sách môn học Lọc theo tính trạng Đã Mở Kỳ Hiện Tại thành công")
                 .result(service.getOpenedSubjectsForStudent(cohortId, majorId))
+                .build();
+    }
+
+    @GetMapping("/cohort/{cohortId}/major/{majorId}/opened-this-semester/page")
+    public ApiResponse<org.springframework.data.domain.Page<ProgramSubjectResponse>> getOpenedSubjectsForStudentPage(
+            @PathVariable UUID cohortId, 
+            @PathVariable UUID majorId,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+            ) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        return ApiResponse.<org.springframework.data.domain.Page<ProgramSubjectResponse>>builder()
+                .code(1000)
+                .message("Lấy danh sách môn học (Phân trang) Lọc theo tình trạng Đã Mở Kỳ Hiện Tại thành công")
+                .result(service.getOpenedSubjectsForStudentPage(cohortId, majorId, search, pageable))
                 .build();
     }
 

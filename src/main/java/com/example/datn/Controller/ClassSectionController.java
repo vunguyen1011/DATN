@@ -22,7 +22,7 @@ public class ClassSectionController {
         classSectionService.downloadTemplate(response);
     }
 
-    @PostMapping("/import/{semesterId}")
+    @PostMapping(value = "/import", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<String> importClassSections(
 
             @RequestParam("file") MultipartFile file) {
@@ -42,6 +42,21 @@ public class ClassSectionController {
                 .code(1000)
                 .message("Lấy danh sách môn học đã mở trong học kỳ thành công")
                 .result(classSectionService.getOpenedSubjectsBySemester(semesterId))
+                .build();
+    }
+
+    @GetMapping("/opened-subjects")
+    public ApiResponse<org.springframework.data.domain.Page<com.example.datn.DTO.Response.SubjectResponse>> getOpenedSubjectsPage(
+            @RequestParam(required = false) UUID semesterId,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        return ApiResponse.<org.springframework.data.domain.Page<com.example.datn.DTO.Response.SubjectResponse>>builder()
+                .code(1000)
+                .message("Lấy danh sách môn học đã mở thành công")
+                .result(classSectionService.getOpenedSubjectsPage(semesterId, search, pageable))
                 .build();
     }
 
@@ -75,11 +90,13 @@ public class ClassSectionController {
     }
 
     @GetMapping("/subject/{subjectId}")
-    public ApiResponse<java.util.List<com.example.datn.DTO.Response.ClassSectionResponse>> getClassSectionsBySubjectId(@PathVariable UUID subjectId) {
+    public ApiResponse<java.util.List<com.example.datn.DTO.Response.ClassSectionResponse>> getClassSectionsBySubjectIdAndSemesterId(
+            @PathVariable UUID subjectId
+            ) {
         return ApiResponse.<java.util.List<com.example.datn.DTO.Response.ClassSectionResponse>>builder()
                 .code(1000)
-                .message("Lấy danh sách Lớp học phần theo Môn học thành công")
-                .result(classSectionService.getClassSectionsBySubjectId(subjectId))
+                .message("Lấy danh sách Lớp học phần theo Môn học và Học kỳ thành công")
+                .result(classSectionService.getClassSectionsBySubjectIdAndSemesterId(subjectId))
                 .build();
     }
 
@@ -109,4 +126,5 @@ public class ClassSectionController {
                 .message("Hủy (Cancel) lớp học phần thành công")
                 .build();
     }
+
 }

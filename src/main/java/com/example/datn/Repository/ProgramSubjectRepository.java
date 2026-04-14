@@ -50,6 +50,25 @@ public interface ProgramSubjectRepository extends JpaRepository<ProgramSubject, 
            "ORDER BY ps.semester ASC")
     List<ProgramSubject> findSubjectsByCohortAndMajor(@Param("cohortId") UUID cohortId, @Param("majorId") UUID majorId);
 
+    @Query(value = "SELECT ps FROM ProgramSubject ps " +
+                   "JOIN FETCH ps.subject " +
+                   "JOIN ProgramCohort pc ON pc.program.id = ps.section.educationProgram.id " +
+                   "WHERE ps.section.educationProgram.major.id = :majorId " +
+                   "AND pc.cohort.id = :cohortId " +
+                   "AND ps.isActive = true " +
+                   "AND (:keyword = '' OR LOWER(ps.subject.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(ps.subject.code) LIKE LOWER(CONCAT('%', :keyword, '%')))",
+           countQuery = "SELECT count(ps) FROM ProgramSubject ps " +
+                        "JOIN ProgramCohort pc ON pc.program.id = ps.section.educationProgram.id " +
+                        "WHERE ps.section.educationProgram.major.id = :majorId " +
+                        "AND pc.cohort.id = :cohortId " +
+                        "AND ps.isActive = true " +
+                        "AND (:keyword = '' OR LOWER(ps.subject.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(ps.subject.code) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    org.springframework.data.domain.Page<ProgramSubject> searchSubjectsByCohortAndMajorPaginated(
+            @Param("cohortId") UUID cohortId, 
+            @Param("majorId") UUID majorId, 
+            @Param("keyword") String keyword,
+            org.springframework.data.domain.Pageable pageable);
+
     // Gợi ý đăng ký: Lấy môn học thuộc Khóa/Ngành MÀ ĐANG CÓ LỚP MỞ TRONG HỌC KỲ ĐÓ
     @Query("SELECT ps FROM ProgramSubject ps " +
            "JOIN FETCH ps.subject " +
@@ -60,4 +79,27 @@ public interface ProgramSubjectRepository extends JpaRepository<ProgramSubject, 
            "AND EXISTS (SELECT 1 FROM ClassSection cs WHERE cs.subject.id = ps.subject.id AND cs.semester.id = :semesterId) " +
            "ORDER BY ps.semester ASC")
     List<ProgramSubject> findOpenedSubjectsByCohortAndMajor(@Param("cohortId") UUID cohortId, @Param("majorId") UUID majorId, @Param("semesterId") UUID semesterId);
+
+    @Query(value = "SELECT ps FROM ProgramSubject ps " +
+                   "JOIN FETCH ps.subject " +
+                   "JOIN ProgramCohort pc ON pc.program.id = ps.section.educationProgram.id " +
+                   "WHERE ps.section.educationProgram.major.id = :majorId " +
+                   "AND pc.cohort.id = :cohortId " +
+                   "AND ps.isActive = true " +
+                   "AND EXISTS (SELECT 1 FROM ClassSection cs WHERE cs.subject.id = ps.subject.id AND cs.semester.id = :semesterId) " +
+                   "AND (:keyword = '' OR LOWER(ps.subject.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(ps.subject.code) LIKE LOWER(CONCAT('%', :keyword, '%')))",
+           countQuery = "SELECT count(ps) FROM ProgramSubject ps " +
+                        "JOIN ProgramCohort pc ON pc.program.id = ps.section.educationProgram.id " +
+                        "WHERE ps.section.educationProgram.major.id = :majorId " +
+                        "AND pc.cohort.id = :cohortId " +
+                        "AND ps.isActive = true " +
+                        "AND EXISTS (SELECT 1 FROM ClassSection cs WHERE cs.subject.id = ps.subject.id AND cs.semester.id = :semesterId) " +
+                        "AND (:keyword = '' OR LOWER(ps.subject.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(ps.subject.code) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    org.springframework.data.domain.Page<ProgramSubject> searchOpenedSubjectsPaginated(
+            @Param("cohortId") UUID cohortId, 
+            @Param("majorId") UUID majorId, 
+            @Param("semesterId") UUID semesterId, 
+            @Param("keyword") String keyword,
+            org.springframework.data.domain.Pageable pageable);
+
 }

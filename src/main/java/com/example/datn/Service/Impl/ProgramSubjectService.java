@@ -137,12 +137,30 @@ public class ProgramSubjectService implements IProgramSubjectService {
     }
 
     @Override
+    public org.springframework.data.domain.Page<ProgramSubjectResponse> getSubjectsByCohortAndMajorPage(UUID cohortId, UUID majorId, String keyword, org.springframework.data.domain.Pageable pageable) {
+        String safeKeyword = (keyword == null) ? "" : keyword;
+        org.springframework.data.domain.Page<ProgramSubject> pageList = psRepository.searchSubjectsByCohortAndMajorPaginated(cohortId, majorId, safeKeyword, pageable);
+        return pageList.map(psMapper::toResponse);
+    }
+
+    @Override
     public List<ProgramSubjectResponse> getOpenedSubjectsForStudent(UUID cohortId, UUID majorId) {
         com.example.datn.Model.Semester currentSemester = semesterRepository.findByIsCurrentTrue()
                 .orElseThrow(() -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND));
 
         List<ProgramSubject> openedList = psRepository.findOpenedSubjectsByCohortAndMajor(cohortId, majorId, currentSemester.getId());
         return psMapper.toResponseList(openedList);
+    }
+
+    @Override
+    public org.springframework.data.domain.Page<ProgramSubjectResponse> getOpenedSubjectsForStudentPage(UUID cohortId, UUID majorId, String keyword, org.springframework.data.domain.Pageable pageable) {
+        com.example.datn.Model.Semester currentSemester = semesterRepository.findByIsCurrentTrue()
+                .orElseThrow(() -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND));
+                
+        String safeKeyword = (keyword == null) ? "" : keyword;
+        org.springframework.data.domain.Page<ProgramSubject> pageList = psRepository.searchOpenedSubjectsPaginated(cohortId, majorId, currentSemester.getId(), safeKeyword, pageable);
+        
+        return pageList.map(psMapper::toResponse);
     }
 
     @Override

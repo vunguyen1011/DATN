@@ -140,11 +140,14 @@ public class AuthController {
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/assign")
     public ApiResponse<Void> assignRoleToUser(
-            @RequestBody AssignRoleRequest request){
-        authService.assignRoleToUser(request);
+            @RequestParam String username) { // Hứng tham số username từ URL
+
+        // Gọi xuống Service (nhớ đảm bảo bên Service cũng đã đổi tên biến thành username cho đồng bộ)
+        authService.assignRoleToUser(username);
+
         return ApiResponse.<Void>builder()
                 .code(1000)
-                .message("Gán vai trò cho người dùng thành công")
+                .message("Bổ nhiệm Trưởng phòng thành công")
                 .build();
     }
 }

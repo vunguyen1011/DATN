@@ -1,6 +1,9 @@
 package com.example.datn.Repository;
 
+import com.example.datn.Model.Major;
+import com.example.datn.Model.Role;
 import com.example.datn.Model.User;
+import com.example.datn.Model.UserRole;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -32,5 +35,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Page<User> findByRoleNameAndIsActiveTrue(@Param("roleName") String roleName, Pageable pageable);
     @Query("SELECT u FROM Lecturer l JOIN l.user u JOIN UserRole ur ON ur.user.id = u.id WHERE l.major.id = :majorId AND ur.role.name = 'ROLE_HEAD_OF_MAJOR' AND u.isActive = true")
     Optional<User> findHeadOfMajorByMajorId(@Param("majorId") UUID majorId);
+    @Query("SELECT ur FROM UserRole ur WHERE ur.role = :role AND ur.user.id IN (SELECT l.user.id FROM Lecturer l WHERE l.major = :major)")
+    List<UserRole> findOldHodByRoleAndMajor(@Param("role") Role role, @Param("major") Major major);
 
 }

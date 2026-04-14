@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.UUID;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -26,4 +27,5 @@ public class ClassSectionResponse {
     private Integer minStudents;
     private Integer enrolledCount;
     private SectionStatus status;
+    private List<ClassSectionResponse> children;
 }

@@ -1,5 +1,6 @@
 package com.example.datn.Service.Impl;
 
+import com.example.datn.DTO.Response.ClassSectionResponse;
 import com.example.datn.Exception.AppException;
 import com.example.datn.Exception.ErrorCode;
 import com.example.datn.Model.ClassSection;
@@ -16,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddressList;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -396,20 +398,43 @@ public class ClassSectionServiceImpl implements IClassSectionService {
     }
 
     @Override
-    public com.example.datn.DTO.Response.ClassSectionResponse getClassSectionById(UUID id) {
+    public ClassSectionResponse getClassSectionById(UUID id) {
         ClassSection section = classSectionRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.SECTION_NOT_FOUND, "Không tìm thấy lớp học phần"));
         return classSectionMapper.toResponse(section);
     }
 
     @Override
-    public List<com.example.datn.DTO.Response.ClassSectionResponse> getClassSectionsBySubjectId(UUID subjectId) {
-        return classSectionRepository.findBySubjectId(subjectId).stream()
+    public List<ClassSectionResponse> getClassSectionsBySubjectIdAndSemesterId(UUID subjectId) {
+        Semester currentSemester = semesterRepository.findByIsCurrentTrue()
+                .orElseThrow(() -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND, "Không tìm thấy học kỳ hiện tại"));
+        List<com.example.datn.DTO.Response.ClassSectionResponse> allResponses = classSectionRepository.findBySubjectIdAndSemesterId(subjectId, currentSemester.getId()).stream()
                 .map(classSectionMapper::toResponse)
                 .collect(Collectors.toList());
+
+        java.util.Map<UUID, List<com.example.datn.DTO.Response.ClassSectionResponse>> childrenMap = allResponses.stream()
+                .filter(r -> r.getParentSectionId() != null)
+                .collect(Collectors.groupingBy(com.example.datn.DTO.Response.ClassSectionResponse::getParentSectionId));
+
+        List<com.example.datn.DTO.Response.ClassSectionResponse> rootSections = new java.util.ArrayList<>();
+        for (com.example.datn.DTO.Response.ClassSectionResponse response : allResponses) {
+            response.setChildren(childrenMap.getOrDefault(response.getId(), new java.util.ArrayList<>()));
+            if (response.getParentSectionId() == null) {
+                rootSections.add(response);
+            }
+        }
+
+        return rootSections;
     }
 
-    // --- CÁC HÀM XỬ LÝ TRẠNG THÁI (STATE TRANSITIONS) ---
+    @Override
+    public Page<SubjectResponse> getOpenedSubjectsPage(UUID semesterId, String keyword, org.springframework.data.domain.Pageable pageable) {
+        String safeKeyword = (keyword == null) ? "" : keyword;
+        return classSectionRepository.searchOpenedSubjects(semesterId, safeKeyword, pageable)
+                .map(subjectMapper::toResponse);
+    }
+
+
 
     @Override
     @Transactional

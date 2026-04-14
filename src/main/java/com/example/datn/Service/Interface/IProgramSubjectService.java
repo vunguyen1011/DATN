@@ -13,6 +13,8 @@ public interface IProgramSubjectService {
     List<ProgramSubjectResponse> getBySectionId(UUID sectionId);
     List<ProgramSubjectResponse> getFlattenedByProgramId(UUID programId);
     List<ProgramSubjectResponse> getSubjectsByCohortAndMajor(UUID cohortId, UUID majorId);
+    org.springframework.data.domain.Page<ProgramSubjectResponse> getSubjectsByCohortAndMajorPage(UUID cohortId, UUID majorId, String keyword, org.springframework.data.domain.Pageable pageable);
     List<ProgramSubjectResponse> getOpenedSubjectsForStudent(UUID cohortId, UUID majorId);
+    org.springframework.data.domain.Page<ProgramSubjectResponse> getOpenedSubjectsForStudentPage(UUID cohortId, UUID majorId, String keyword, org.springframework.data.domain.Pageable pageable);
     void delete(UUID sectionId, UUID subjectId);
 }
