@@ -59,7 +59,7 @@ public class ScheduleController {
         }
 
         @PatchMapping("/{id}/lecturer")
-        @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
+        @PreAuthorize("hasAnyRole('ADMIN','HOD')")
         public ApiResponse<ScheduleResponse> assignLecturer(
                         @PathVariable UUID id,
                         @RequestBody ScheduleLecturerRequest request) {
@@ -97,11 +97,6 @@ public class ScheduleController {
 
         // ── HOD: Quản lý môn học (Xếp giảng viên) ────────────────────────────────
 
-        /**
-         * [HOD] Lấy danh sách lịch học chờ phân công giảng viên
-         * Bộ môn được tự động determine dựa trên User đang login.
-         * GET /api/schedules/hod/pending-lecturers?semesterId=...
-         */
         @GetMapping("/hod/pending-lecturers")
         @PreAuthorize("hasRole('HOD')")
         public ApiResponse<List<ScheduleResponse>> getPendingSchedulesForHOD(
@@ -117,19 +112,16 @@ public class ScheduleController {
 
         // ── GIẢNG VIÊN: Xem lịch dạy ─────────────────────────────────────────────
 
-        /**
-         * [LECTURER] Xem lịch dạy của giảng viên.
-         * GET /api/schedules/lecturer/{lecturerId}?semesterId=...
-         */
-        @GetMapping("/lecturer/{lecturerId}")
+
+        @GetMapping("/lecturer/{lecturerCode}")
         @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER')")
         public ApiResponse<List<ScheduleResponse>> getSchedulesByLecturer(
-                        @PathVariable UUID lecturerId,
+                        @PathVariable String lecturerCode,
                         @RequestParam(required = false) UUID semesterId) {
                 return ApiResponse.<List<ScheduleResponse>>builder()
                                 .code(1000)
                                 .message("Lấy lịch dạy của giảng viên thành công")
-                                .result(scheduleService.getSchedulesByLecturer(lecturerId, semesterId))
+                                .result(scheduleService.getSchedulesByLecturer(lecturerCode, semesterId))
                                 .build();
         }
 

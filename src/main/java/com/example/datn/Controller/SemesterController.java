@@ -71,4 +71,12 @@ public class SemesterController {
                 .message("Xóa học kỳ thành công")
                 .build();
     }
+    @GetMapping("/current")
+    public ApiResponse<SemesterResponse> getCurrentSemester() {
+        return ApiResponse.<SemesterResponse>builder()
+                .code(1000)
+                .message("Lấy học kỳ hiện tại thành công")
+                .result(semesterService.findCurrentSemester())
+                .build();
+    }
 }

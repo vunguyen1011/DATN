@@ -40,11 +40,11 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
         @EntityGraph(attributePaths = { "classSection", "classSection.subject", "room", "lecturer" })
         @Query("""
                             SELECT s FROM Schedule s
-                            WHERE s.lecturer.id = :lecturerId
+                            WHERE s.lecturer.lecturerCode = :lecturerCode
                               AND (:semesterId IS NULL OR s.classSection.semester.id = :semesterId)
                         """)
         List<Schedule> findByLecturerAndSemester(
-                        @Param("lecturerId") UUID lecturerId,
+                        @Param("lecturerCode") String lecturerCode,
                         @Param("semesterId") UUID semesterId);
 
         /**

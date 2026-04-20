@@ -161,7 +161,7 @@ public class ScheduleServiceImpl implements IScheduleService {
     @Override
     @Transactional
     public ScheduleResponse assignLecturer(UUID scheduleId, ScheduleLecturerRequest request) {
-        log.info("[Schedule] HOD phân công giảng viên {} cho schedule {}", request.getLecturerId(), scheduleId);
+        log.info("[Schedule] HOD phân công giảng viên {} cho schedule {}", request.getLecturerCode(), scheduleId);
 
         Schedule schedule = findScheduleById(scheduleId);
 
@@ -173,8 +173,8 @@ public class ScheduleServiceImpl implements IScheduleService {
         }
 
         Lecturer lecturer = null;
-        if (request.getLecturerId() != null) {
-            lecturer = lecturerRepository.findById(request.getLecturerId())
+        if (request.getLecturerCode() != null) {
+            lecturer = lecturerRepository.findByLecturerCode(request.getLecturerCode())
                     .orElseThrow(() -> new AppException(ErrorCode.LECTURER_NOT_FOUND));
             validateLecturerConflict(lecturer, schedule.getDayOfWeek(),
                     schedule.getStartPeriod(), schedule.getEndPeriod(), scheduleId);
@@ -216,12 +216,15 @@ public class ScheduleServiceImpl implements IScheduleService {
     // ── GIẢNG VIÊN: Xem lịch dạy ─────────────────────────────────────────────
 
     @Override
-    public List<ScheduleResponse> getSchedulesByLecturer(UUID lecturerId, UUID semesterId) {
-        return scheduleRepository.findByLecturerAndSemester(lecturerId, semesterId)
+    public List<ScheduleResponse> getSchedulesByLecturer(String lecturerCode, UUID semesterId) {
+        Semester currentSemester = semesterRepository.findByIsCurrentTrue()
+                .orElseThrow(() -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND));
+
+        return scheduleRepository.findByLecturerAndSemester(lecturerCode, currentSemester.getId())
                 .stream().map(this::toResponse).collect(Collectors.toList());
     }
 
-    // ── HOD: Xem lịch chờ gán giảng viên theo khoa ───────────────────────────
+
 
     @Override
     public List<ScheduleResponse> getPendingSchedulesForHOD(String username, UUID semesterId) {
@@ -231,7 +234,7 @@ public class ScheduleServiceImpl implements IScheduleService {
         Lecturer hod = lecturerRepository.findByUser(user)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "Người dùng không phải là giảng viên"));
 
-        String hodDepartmentName = hod.getFaculty().getName();
+        String hodDepartmentName = hod.getMajor().getName();
 
         List<Schedule> schedules = scheduleRepository.findPendingSchedulesByDepartmentAndSemester(hodDepartmentName,
                 semesterId);

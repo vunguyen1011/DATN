@@ -16,7 +16,6 @@ import java.util.UUID;
 @Builder
 public class ScheduleRoomRequest {
 
-    // nullable — cho phép huỷ phòng (đặt lại null)
     private UUID roomId;
 
 }

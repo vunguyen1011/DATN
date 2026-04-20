@@ -9,4 +9,5 @@ import java.util.UUID;
 
 public interface LecturerRepository  extends JpaRepository<Lecturer, UUID> {
     Optional<Lecturer> findByUser(User user);
+    Optional<Lecturer> findByLecturerCode(String lecturerCode);
 }

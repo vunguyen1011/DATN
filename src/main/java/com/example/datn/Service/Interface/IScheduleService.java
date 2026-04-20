@@ -63,7 +63,7 @@ public interface IScheduleService {
     /**
      * [LECTURER] Xem lịch dạy của mình trong một học kỳ.
      */
-    List<ScheduleResponse> getSchedulesByLecturer(UUID lecturerId, UUID semesterId);
+    List<ScheduleResponse> getSchedulesByLecturer(String lecturerCode, UUID semesterId);
 
     // ── SINH VIÊN: Xem thời khóa biểu ────────────────────────────────────────
 

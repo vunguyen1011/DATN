@@ -115,5 +115,11 @@ public class SemesterService implements ISemesterService {
                 .map(semesterMapper::toResponse)
                 .collect(Collectors.toList());
     }
+    @Override
+    public SemesterResponse findCurrentSemester() {
+        Semester current= semesterRepository.findByIsCurrentTrue()
+                .orElseThrow(() -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND));
+        return semesterMapper.toResponse(current);
+    }
 
 }

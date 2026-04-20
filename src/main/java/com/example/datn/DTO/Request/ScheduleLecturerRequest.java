@@ -21,5 +21,5 @@ import java.util.UUID;
 public class ScheduleLecturerRequest {
 
     // nullable — cho phép huỷ phân công (lecturer = null)
-    private UUID lecturerId;
+    private String lecturerCode;
 }
