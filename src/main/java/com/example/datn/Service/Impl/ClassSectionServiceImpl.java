@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ClassSectionServiceImpl implements IClassSectionService {
 
+
     private final ClassSectionRepository classSectionRepository;
     private final SemesterRepository semesterRepository;
     private final SubjectRepository subjectRepository;
@@ -488,4 +489,11 @@ public class ClassSectionServiceImpl implements IClassSectionService {
         section.setStatus(com.example.datn.ENUM.SectionStatus.CLOSED);
         classSectionRepository.save(section);
     }
+
+    @Override
+    public List<ClassSection> getAllClassSectionsBySemesterId(UUID semesterId) {
+        return  classSectionRepository.findBySemesterId(semesterId);
+    }
+
+
 }

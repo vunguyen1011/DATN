@@ -11,6 +11,8 @@ public class LecturerMapper {
         return LecturerProfile.builder()
                 .lecturerCode(lecturer.getLecturerCode())
                 .phone(lecturer.getPhone())
+                .majorId(lecturer.getMajor().getId())
+                .majorName(lecturer.getMajor().getName())
                 .address(lecturer.getAddress())
                 .degree(lecturer.getDegree())
                 .status(lecturer.getStatus() != null ? lecturer.getStatus().name() : null)

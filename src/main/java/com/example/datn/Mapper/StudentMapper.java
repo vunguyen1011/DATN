@@ -14,7 +14,9 @@ public class StudentMapper {
                 .address(student.getAddress())
                 .gender(student.getGender() != null ? student.getGender().name() : null)
                 .status(student.getStatus() != null ? student.getStatus().name() : null)
+                .cohortId(student.getCohort().getId())
                 .cohortName(student.getCohort() != null ? student.getCohort().getName() : null)
+                .majorId(student.getMajor().getId())
                 .majorName(student.getMajor() != null ? student.getMajor().getName() : null)
                 .adminClassName(student.getAdminClass() != null ? student.getAdminClass().getName() : null)
                 .build();

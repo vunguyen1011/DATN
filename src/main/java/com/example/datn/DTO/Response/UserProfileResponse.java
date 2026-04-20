@@ -36,7 +36,10 @@ public class UserProfileResponse {
         private String address;
         private String degree;
         private String status;
+        private UUID facultyId;
         private String facultyName;
+        private UUID majorId;
+        private String majorName;
     }
 
     @Data
@@ -47,7 +50,9 @@ public class UserProfileResponse {
         private String address;
         private String gender;
         private String status;
+        private UUID cohortId;
         private String cohortName;
+        private UUID majorId;
         private String majorName;
         private String adminClassName;
     }

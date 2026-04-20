@@ -4,12 +4,15 @@ public enum ErrorCode {
 
     UNAUTHENTICATED(401, "Unauthenticated"),
 
+    // 900 - 999: Room
+    ROOM_NOT_FOUND(901, "Room not found"),
+
     // 10xx - 1099: Auth & User
     USER_NOT_FOUND(1001, "User not found"),
     USER_ALREADY_EXISTS(1002, "User already exists"),
     ROLE_NOT_FOUND(1003, "Role not found"),
     USER_NOT_ACTIVE(1004, "User not active"),
-    LOGIN_FAILED(1005,"Username or password is incorrect"),
+    LOGIN_FAILED(1005, "Username or password is incorrect"),
     INVALID_CREDENTIALS(1006, "Sai username hoặc password"),
     USER_DISABLED(1007, "Tài khoản chưa được kích hoạt"),
     USER_LOCKED(1008, "Tài khoản bị khóa"),
@@ -69,7 +72,8 @@ public enum ErrorCode {
     SUBJECT_IN_USE_IN_TEMPLATE(1708, "Môn học đang được sử dụng trong mẫu chương trình đào tạo, không thể xóa"),
     SECTION_DEFAULT_NOT_FOUND(1709, "Không tìm thấy nhóm lớp học mặc định cho chương trình đào tạo"),
     PROGRAM_NOT_FOUND(1710, "Chương trình đào tạo không tồn tại"),
-    SECTION_DEFAULT_TITLE_ALREADY_EXISTS(1711, "Tiêu đề nhóm lớp học mặc định đã tồn tại trong chương trình đào tạo này"),
+    SECTION_DEFAULT_TITLE_ALREADY_EXISTS(1711,
+            "Tiêu đề nhóm lớp học mặc định đã tồn tại trong chương trình đào tạo này"),
     PROGRAM_COHORT_ALREADY_EXISTS(1712, "Chương trình đào tạo đã được gắn với khóa học này"),
     PROGRAM_COHORT_NOT_FOUND(1713, "Liên kết chương trình đào tạo - khóa học không tồn tại"),
     PROGRAM_HAS_STUDENTS_CANNOT_DELETE(1714, "Chương trình đào tạo đang có sinh viên theo học, không thể xóa"),
@@ -77,6 +81,20 @@ public enum ErrorCode {
     PROGRAM_ALREADY_PUBLISHED(1716, "Chương trình đào tạo đã được publish trước đó"),
     PROGRAM_NOT_PUBLISHED_CANNOT_ASSIGN(1718, "Chương trình đào tạo chưa được publish, không thể gán cho khóa học"),
     PROGRAM_HAS_NO_COHORTS_CANNOT_PUBLISH(1717, "Chương trình đào tạo chưa có khóa học nào, không thể publish"),
+    COHORT_ALREADY_HAS_PROGRAM(1719, "Khóa học đã có chương trình đào tạo được gán"),
+
+    // 18xx: Schedule
+    SCHEDULE_NOT_FOUND(1801, "Không tìm thấy lịch học"),
+    SCHEDULE_ALREADY_EXISTS_FOR_SECTION(1802, "Lớp học phần đã có lịch học, không thể tạo trùng"),
+    LECTURER_NOT_FOUND(1804, "Không tìm thấy giảng viên"),
+    ROOM_CONFLICT(1805, "Phòng học đã có lịch trong khung giờ này"),
+    LECTURER_CONFLICT(1806, "Giảng viên đã có lịch dạy trong khung giờ này"),
+    NO_CLASS_SECTIONS_FOUND(1807, "Không có lớp học phần nào trong học kỳ hiện tại"),
+    ROOM_CAPACITY_EXCEEDED(1808, "Sức chứa phòng học không đủ cho lớp học phần này"),
+    SCHEDULE_TIME_NOT_SET(1809, "Lịch học chưa được xếp giờ, vui lòng xếp giờ trước khi phân công giảng viên"),
+    INVALID_SCHEDULE_TIME(1810, "Ngày và tiết học không được để trống"),
+    INVALID_PERIOD_RANGE(1811, "Tiết bắt đầu phải nhỏ hơn hoặc bằng tiết kết thúc"),
+
     // 19xx: System Errors
     UNCATEGORIZED_EXCEPTION(1901, "Lỗi không xác định"),
     INVALID_REQUEST(1902, "Yêu cầu không hợp lệ"),
@@ -97,7 +115,6 @@ public enum ErrorCode {
         this.code = code;
         this.message = message;
     }
-
 
     public int getCode() {
         return code;

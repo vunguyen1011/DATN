@@ -1,6 +1,7 @@
 package com.example.datn.Service.Interface;
 
 import com.example.datn.DTO.Response.ClassSectionResponse;
+import com.example.datn.Model.ClassSection;
 import org.springframework.web.multipart.MultipartFile;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -22,4 +23,5 @@ public interface IClassSectionService {
     void approveClassSection(UUID id);
     void cancelClassSection(UUID id);
     void closeClassSection(UUID id);
+    List<ClassSection> getAllClassSectionsBySemesterId(UUID semesterId);
 }

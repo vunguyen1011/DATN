@@ -14,6 +14,7 @@ import com.example.datn.Model.Subject;
 public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID> {
     
     int countBySemesterIdAndSubjectComponent_SubjectIdAndParentSectionIsNull(UUID semesterId, UUID subjectId);
+    long countBySemesterId(UUID semesterId);
 
     boolean existsBySectionCode(String sectionCode);
     List<ClassSection> findBySemesterId(UUID id);
@@ -32,4 +33,31 @@ public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID
             org.springframework.data.domain.Pageable pageable);
 
     List<ClassSection> findBySubjectIdAndSemesterId(UUID subjectId, UUID semesterId);
+
+    /**
+     * Tìm các ClassSection trong học kỳ chưa có Schedule nào.
+     * DB tự lọc bằng NOT EXISTS — nhanh hơn load toàn bộ về Java rồi filter.
+     */
+    @Query("""
+        SELECT cs FROM ClassSection cs
+        WHERE cs.semester.id = :semesterId
+          AND NOT EXISTS (
+              SELECT 1 FROM Schedule s WHERE s.classSection = cs
+          )
+    """)
+    List<ClassSection> findSectionsWithoutSchedule(@Param("semesterId") UUID semesterId);
+
+    /**
+     * Đếm số ClassSection trong học kỳ chưa có Schedule.
+     */
+    @Query("""
+        SELECT COUNT(cs) FROM ClassSection cs
+        WHERE cs.semester.id = :semesterId
+          AND NOT EXISTS (
+              SELECT 1 FROM Schedule s WHERE s.classSection = cs
+          )
+    """)
+    long countSectionsWithoutSchedule(@Param("semesterId") UUID semesterId);
+    @Query("SELECT cs FROM ClassSection cs JOIN cs.subject s WHERE s.code LIKE %:keyword% OR s.name LIKE %:keyword%")
+    List<ClassSection> findBySubjectCodeOrName(@Param("keyword") String keyword);
 }

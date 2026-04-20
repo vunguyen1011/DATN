@@ -225,12 +225,16 @@ public class EducationProgramService implements IEducationProgramService {
     public ProgramCohortResponse assignProgramToCohort(ProgramCohortRequest request) {
         EducationProgram program = programRepository.findByIdAndIsActiveTrue(request.getProgramId())
                 .orElseThrow(() -> new AppException(ErrorCode.PROGRAM_NOT_FOUND));
+
         if(!program.getIsTemplate()){
             throw new AppException(ErrorCode.PROGRAM_NOT_PUBLISHED_CANNOT_ASSIGN);
         }
 
         Cohort cohort = cohortRepository.findById(request.getCohortId())
                 .orElseThrow(() -> new AppException(ErrorCode.COHORT_NOT_FOUND));
+        if(programCohortRepository.existsByCohortId(cohort.getId())){
+            throw new AppException(ErrorCode.COHORT_ALREADY_HAS_PROGRAM);
+        }
 
         if (programCohortRepository.existsByProgramIdAndCohortId(request.getProgramId(), request.getCohortId())) {
             throw new AppException(ErrorCode.PROGRAM_COHORT_ALREADY_EXISTS);
