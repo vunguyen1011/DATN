@@ -26,7 +26,4 @@ public class ScheduleTimeRequest {
     @Min(value = 1, message = "Tiết bắt đầu phải >= 1")
     private Integer startPeriod;
 
-    // nullable — cho phép chưa xác định tiết kết thúc
-    @Min(value = 1, message = "Tiết kết thúc phải >= 1")
-    private Integer endPeriod;
 }

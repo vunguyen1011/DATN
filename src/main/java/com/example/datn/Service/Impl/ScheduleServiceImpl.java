@@ -77,33 +77,44 @@ public class ScheduleServiceImpl implements IScheduleService {
     @Transactional
     public ScheduleResponse assignTime(UUID scheduleId, com.example.datn.DTO.Request.ScheduleTimeRequest request) {
 
-        if (request.getStartPeriod() != null && request.getEndPeriod() != null
-                && request.getStartPeriod() > request.getEndPeriod()) {
+        Schedule schedule = findScheduleById(scheduleId);
+
+        int periods = 3; // Default
+        if (schedule.getClassSection() != null && schedule.getClassSection().getSubjectComponent() != null) {
+            Integer p = schedule.getClassSection().getSubjectComponent().getPeriodsPerSession();
+            if (p != null && p > 0) periods = p;
+        }
+
+        Integer startPeriod = request.getStartPeriod();
+        
+        // Tự động tính toán endPeriod dựa theo thời lượng cấu hình của lớp học
+        Integer endPeriod = startPeriod + periods - 1;
+        log.info("[Schedule] Auto-calculated endPeriod: {} (start: {}, periods: {})", endPeriod, startPeriod, periods);
+
+        if (startPeriod > endPeriod || endPeriod > 15) {
             throw new AppException(ErrorCode.INVALID_PERIOD_RANGE);
         }
 
-        Schedule schedule = findScheduleById(scheduleId);
-
         schedule.setDayOfWeek(request.getDayOfWeek());
-        schedule.setStartPeriod(request.getStartPeriod());
-        schedule.setEndPeriod(request.getEndPeriod());
+        schedule.setStartPeriod(startPeriod);
+        schedule.setEndPeriod(endPeriod);
 
         // Nếu đã có phòng rồi, thì khi đổi thời gian, cần check lại xem phòng có bị
         // trùng không
         if (schedule.getRoom() != null) {
             validateRoomConflict(schedule.getRoom(), request.getDayOfWeek(),
-                    request.getStartPeriod(), request.getEndPeriod(), scheduleId);
+                    startPeriod, endPeriod, scheduleId);
         }
 
         // Tương tự, nếu đã có giảng viên, đổi giờ có thể gây trùng lịch giảng viên
         if (schedule.getLecturer() != null) {
             validateLecturerConflict(schedule.getLecturer(), request.getDayOfWeek(),
-                    request.getStartPeriod(), request.getEndPeriod(), scheduleId);
+                    startPeriod, endPeriod, scheduleId);
         }
 
         Schedule saved = scheduleRepository.save(schedule);
         log.info("[Schedule] Đã xếp thời gian (Thứ {}, tiết {}-{}) cho schedule {}",
-                request.getDayOfWeek(), request.getStartPeriod(), request.getEndPeriod(), scheduleId);
+                request.getDayOfWeek(), startPeriod, endPeriod, scheduleId);
         return toResponse(saved);
     }
 

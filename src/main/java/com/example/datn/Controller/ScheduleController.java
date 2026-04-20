@@ -70,12 +70,6 @@ public class ScheduleController {
                                 .build();
         }
 
-        // ── ADMIN: Xóa & Xem theo học kỳ ─────────────────────────────────────────
-
-        /**
-         * [ADMIN] Xóa lịch học.
-         * DELETE /api/schedules/{id}
-         */
         @DeleteMapping("/{id}")
         @PreAuthorize("hasRole('ADMIN')")
         public ApiResponse<Void> deleteSchedule(@PathVariable UUID id) {
