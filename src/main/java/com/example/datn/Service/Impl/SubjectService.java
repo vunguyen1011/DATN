@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @Service
 @RequiredArgsConstructor
@@ -56,17 +58,20 @@ public class SubjectService implements ISubjectService {
         subject.setIsActive(true);
         return subjectMapper.toResponse(subjectRepository.save(subject));
     }
+
     @Override
     @Transactional
     public SubjectResponse updateSubject(UUID id, SubjectRequest request) {
         Subject subject = subjectRepository.findByIdAndIsActiveTrue(id)
                 .orElseThrow(() -> new AppException(ErrorCode.SUBJECT_NOT_FOUND));
 
-        if (!subject.getCode().equals(request.getCode()) && subjectRepository.existsByCodeAndIsActiveTrue(request.getCode())) {
+        if (!subject.getCode().equals(request.getCode())
+                && subjectRepository.existsByCodeAndIsActiveTrue(request.getCode())) {
             throw new AppException(ErrorCode.SUBJECT_EXISTED);
         }
 
-        if (!subject.getName().equals(request.getName()) && subjectRepository.existsByNameAndIsActiveTrue(request.getName())) {
+        if (!subject.getName().equals(request.getName())
+                && subjectRepository.existsByNameAndIsActiveTrue(request.getName())) {
             throw new AppException(ErrorCode.SUBJECT_EXISTED);
         }
 
@@ -75,16 +80,14 @@ public class SubjectService implements ISubjectService {
     }
 
     @Override
-    public List<SubjectResponse> getAllSubjects(String keyword) {
-        List<Subject> subjects;
+    public Page<SubjectResponse> getAllSubjects(String keyword, Pageable pageable) {
+        Page<Subject> subjects;
         if (keyword != null && !keyword.trim().isEmpty()) {
-            subjects = subjectRepository.searchActiveByCodeOrName(keyword.trim());
+            subjects = subjectRepository.searchActiveByCodeOrName(keyword.trim(), pageable);
         } else {
-            subjects = subjectRepository.findByIsActiveTrue();
+            subjects = subjectRepository.findByIsActiveTrue(pageable);
         }
-        return subjects.stream()
-                .map(subjectMapper::toResponse)
-                .collect(Collectors.toList());
+        return subjects.map(subjectMapper::toResponse);
     }
 
     @Override
@@ -157,12 +160,10 @@ public class SubjectService implements ISubjectService {
             }
         }
 
-        List<Prerequisite> newPrerequisites = prereqSubjects.stream().map(prereq ->
-                Prerequisite.builder()
-                        .subject(subject)
-                        .prerequisiteSubject(prereq)
-                        .build()
-        ).collect(Collectors.toList());
+        List<Prerequisite> newPrerequisites = prereqSubjects.stream().map(prereq -> Prerequisite.builder()
+                .subject(subject)
+                .prerequisiteSubject(prereq)
+                .build()).collect(Collectors.toList());
 
         prerequisiteRepository.saveAll(newPrerequisites);
     }

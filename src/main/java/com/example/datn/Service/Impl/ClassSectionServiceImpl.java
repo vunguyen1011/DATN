@@ -44,7 +44,7 @@ public class ClassSectionServiceImpl implements IClassSectionService {
     private final com.example.datn.Mapper.ClassSectionMapper classSectionMapper;
 
     private List<Subject> getAllSubjects() {
-        return subjectRepository.findByIsActiveTrue();
+        return subjectRepository.findByIsActiveTrue(org.springframework.data.domain.Pageable.unpaged()).getContent();
     }
 
     @Override
@@ -142,7 +142,7 @@ public class ClassSectionServiceImpl implements IClassSectionService {
             DataFormatter dataFormatter = new DataFormatter();
             FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
 
-            Map<String, Subject> subjectMap = subjectRepository.findByIsActiveTrue().stream()
+            Map<String, Subject> subjectMap = subjectRepository.findByIsActiveTrue(org.springframework.data.domain.Pageable.unpaged()).getContent().stream()
                     .collect(Collectors.toMap(Subject::getCode, s -> s));
 
             List<UUID> activeSubjectIds = subjectMap.values().stream().map(Subject::getId).collect(Collectors.toList());

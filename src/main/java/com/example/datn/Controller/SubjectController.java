@@ -12,6 +12,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 @RestController
 @RequestMapping("/api/subjects")
@@ -39,10 +43,18 @@ public class SubjectController {
     }
 
     @GetMapping
-    public ApiResponse<List<SubjectResponse>> getAllSubjects(
-            @RequestParam(value = "keyword", required = false) String keyword) {
-        return ApiResponse.<List<SubjectResponse>>builder()
-                .result(subjectService.getAllSubjects(keyword))
+    public ApiResponse<Page<SubjectResponse>> getAllSubjects(
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "name") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir) {
+        Sort sort = sortDir.equalsIgnoreCase("desc")
+                ? Sort.by(sortBy).descending()
+                : Sort.by(sortBy).ascending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+        return ApiResponse.<Page<SubjectResponse>>builder()
+                .result(subjectService.getAllSubjects(keyword, pageable))
                 .message("Lấy danh sách môn học thành công")
                 .build();
     }
