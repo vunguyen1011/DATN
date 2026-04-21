@@ -28,10 +28,20 @@ public interface IScheduleService {
     ScheduleResponse assignTime(UUID scheduleId, com.example.datn.DTO.Request.ScheduleTimeRequest request);
 
     /**
+     * [ADMIN] Bỏ phân công khung giờ của lịch học.
+     */
+    ScheduleResponse clearTime(UUID scheduleId);
+
+    /**
      * [ADMIN] Bước 2b: Xếp phòng học.
      * Dựa vào thời gian đã được lưu từ bước 2a.
      */
     ScheduleResponse assignRoom(UUID scheduleId, ScheduleRoomRequest request);
+
+    /**
+     * [ADMIN] Bỏ phân công phòng học.
+     */
+    ScheduleResponse clearRoom(UUID scheduleId);
 
     /**
      * [ADMIN] Xóa lịch học.
@@ -41,7 +51,7 @@ public interface IScheduleService {
     /**
      * [ADMIN] Xem toàn bộ lịch học trong một học kỳ.
      */
-    List<ScheduleResponse> getSchedulesBySemester(UUID semesterId);
+    org.springframework.data.domain.Page<ScheduleResponse> getSchedulesBySemester(UUID semesterId, org.springframework.data.domain.Pageable pageable);
 
     // ── HOD: Phân công giảng viên ─────────────────────────────────────────────
 
@@ -54,16 +64,26 @@ public interface IScheduleService {
     ScheduleResponse assignLecturer(UUID scheduleId, ScheduleLecturerRequest request);
 
     /**
+     * [HOD] Bỏ phân công giảng viên.
+     */
+    ScheduleResponse clearLecturer(UUID scheduleId);
+
+    /**
+     * [HOD] Phân công giảng viên hàng loạt cho nhiều môn học.
+     */
+    java.util.List<ScheduleResponse> bulkAssignLecturer(com.example.datn.DTO.Request.BulkScheduleLecturerRequest request);
+
+    /**
      * [HOD] Xem danh sách lịch chờ HOD phân công giảng viên.
      */
-    List<ScheduleResponse> getPendingSchedulesForHOD(String username, UUID semesterId);
+    org.springframework.data.domain.Page<ScheduleResponse> getPendingSchedulesForHOD(String username, UUID semesterId, org.springframework.data.domain.Pageable pageable);
 
     // ── GIẢNG VIÊN: Xem lịch dạy ─────────────────────────────────────────────
 
     /**
      * [LECTURER] Xem lịch dạy của mình trong một học kỳ.
      */
-    List<ScheduleResponse> getSchedulesByLecturer(String lecturerCode, UUID semesterId);
+    org.springframework.data.domain.Page<ScheduleResponse> getSchedulesByLecturer(String lecturerCode, UUID semesterId, org.springframework.data.domain.Pageable pageable);
 
     // ── SINH VIÊN: Xem thời khóa biểu ────────────────────────────────────────
 

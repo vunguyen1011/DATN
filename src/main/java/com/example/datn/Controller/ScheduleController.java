@@ -46,6 +46,16 @@ public class ScheduleController {
                                 .build();
         }
 
+        @DeleteMapping("/{id}/time")
+        @PreAuthorize("hasRole('ADMIN')")
+        public ApiResponse<ScheduleResponse> clearTime(@PathVariable UUID id) {
+                return ApiResponse.<ScheduleResponse>builder()
+                                .code(1000)
+                                .message("Hủy phân công thời gian thành công")
+                                .result(scheduleService.clearTime(id))
+                                .build();
+        }
+
         @PatchMapping("/{id}/room")
         @PreAuthorize("hasRole('ADMIN')")
         public ApiResponse<ScheduleResponse> assignRoom(
@@ -58,6 +68,16 @@ public class ScheduleController {
                                 .build();
         }
 
+        @DeleteMapping("/{id}/room")
+        @PreAuthorize("hasRole('ADMIN')")
+        public ApiResponse<ScheduleResponse> clearRoom(@PathVariable UUID id) {
+                return ApiResponse.<ScheduleResponse>builder()
+                                .code(1000)
+                                .message("Hủy phân công phòng học thành công")
+                                .result(scheduleService.clearRoom(id))
+                                .build();
+        }
+
         @PatchMapping("/{id}/lecturer")
         @PreAuthorize("hasAnyRole('ADMIN','HOD')")
         public ApiResponse<ScheduleResponse> assignLecturer(
@@ -67,6 +87,27 @@ public class ScheduleController {
                                 .code(1000)
                                 .message("Phân công giảng viên thành công")
                                 .result(scheduleService.assignLecturer(id, request))
+                                .build();
+        }
+
+        @PatchMapping("/bulk-lecturer")
+        @PreAuthorize("hasAnyRole('ADMIN','HOD')")
+        public ApiResponse<List<ScheduleResponse>> bulkAssignLecturer(
+                        @RequestBody com.example.datn.DTO.Request.BulkScheduleLecturerRequest request) {
+                return ApiResponse.<List<ScheduleResponse>>builder()
+                                .code(1000)
+                                .message("Phân công giảng viên hàng loạt thành công")
+                                .result(scheduleService.bulkAssignLecturer(request))
+                                .build();
+        }
+
+        @DeleteMapping("/{id}/lecturer")
+        @PreAuthorize("hasAnyRole('ADMIN','HOD')")
+        public ApiResponse<ScheduleResponse> clearLecturer(@PathVariable UUID id) {
+                return ApiResponse.<ScheduleResponse>builder()
+                                .code(1000)
+                                .message("Hủy phân công giảng viên thành công")
+                                .result(scheduleService.clearLecturer(id))
                                 .build();
         }
 
@@ -86,27 +127,33 @@ public class ScheduleController {
          */
         @GetMapping("/semester/{semesterId}")
         @PreAuthorize("hasRole('ADMIN')")
-        public ApiResponse<List<ScheduleResponse>> getSchedulesBySemester(
-                        @PathVariable UUID semesterId) {
-                return ApiResponse.<List<ScheduleResponse>>builder()
+        public ApiResponse<org.springframework.data.domain.Page<ScheduleResponse>> getSchedulesBySemester(
+                        @PathVariable UUID semesterId,
+                        @RequestParam(defaultValue = "0") int page,
+                        @RequestParam(defaultValue = "10") int size) {
+                org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+                return ApiResponse.<org.springframework.data.domain.Page<ScheduleResponse>>builder()
                                 .code(1000)
                                 .message("Lấy danh sách lịch học trong học kỳ thành công")
-                                .result(scheduleService.getSchedulesBySemester(semesterId))
+                                .result(scheduleService.getSchedulesBySemester(semesterId, pageable))
                                 .build();
         }
 
         // ── HOD: Quản lý môn học (Xếp giảng viên) ────────────────────────────────
 
         @GetMapping("/hod/pending-lecturers")
-        @PreAuthorize("hasRole('HOD')")
-        public ApiResponse<List<ScheduleResponse>> getPendingSchedulesForHOD(
-                        @RequestParam UUID semesterId) {
+        @PreAuthorize("hasAnyRole('HOD','ADMIN')")
+        public ApiResponse<org.springframework.data.domain.Page<ScheduleResponse>> getPendingSchedulesForHOD(
+                        @RequestParam UUID semesterId,
+                        @RequestParam(defaultValue = "0") int page,
+                        @RequestParam(defaultValue = "10") int size) {
+                org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
                 String username = org.springframework.security.core.context.SecurityContextHolder.getContext()
                                 .getAuthentication().getName();
-                return ApiResponse.<List<ScheduleResponse>>builder()
+                return ApiResponse.<org.springframework.data.domain.Page<ScheduleResponse>>builder()
                                 .code(1000)
                                 .message("Lấy danh sách môn học của Khoa thành công")
-                                .result(scheduleService.getPendingSchedulesForHOD(username, semesterId))
+                                .result(scheduleService.getPendingSchedulesForHOD(username, semesterId, pageable))
                                 .build();
         }
 
@@ -115,13 +162,16 @@ public class ScheduleController {
 
         @GetMapping("/lecturer/{lecturerCode}")
         @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER')")
-        public ApiResponse<List<ScheduleResponse>> getSchedulesByLecturer(
+        public ApiResponse<org.springframework.data.domain.Page<ScheduleResponse>> getSchedulesByLecturer(
                         @PathVariable String lecturerCode,
-                        @RequestParam(required = false) UUID semesterId) {
-                return ApiResponse.<List<ScheduleResponse>>builder()
+                        @RequestParam(required = false) UUID semesterId,
+                        @RequestParam(defaultValue = "0") int page,
+                        @RequestParam(defaultValue = "10") int size) {
+                org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+                return ApiResponse.<org.springframework.data.domain.Page<ScheduleResponse>>builder()
                                 .code(1000)
                                 .message("Lấy lịch dạy của giảng viên thành công")
-                                .result(scheduleService.getSchedulesByLecturer(lecturerCode, semesterId))
+                                .result(scheduleService.getSchedulesByLecturer(lecturerCode, semesterId, pageable))
                                 .build();
         }
 

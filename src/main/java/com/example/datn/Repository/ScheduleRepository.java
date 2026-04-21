@@ -25,7 +25,7 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
          */
         @EntityGraph(attributePaths = { "classSection", "classSection.subject", "room", "lecturer" })
         @Query("SELECT s FROM Schedule s WHERE s.classSection.semester.id = :semesterId")
-        List<Schedule> findBySemesterId(@Param("semesterId") UUID semesterId);
+        org.springframework.data.domain.Page<Schedule> findBySemesterId(@Param("semesterId") UUID semesterId, org.springframework.data.domain.Pageable pageable);
 
         /**
          * Lấy lịch theo lớp học phần — dùng derived query + @EntityGraph.
@@ -43,9 +43,10 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
                             WHERE s.lecturer.lecturerCode = :lecturerCode
                               AND (:semesterId IS NULL OR s.classSection.semester.id = :semesterId)
                         """)
-        List<Schedule> findByLecturerAndSemester(
+        org.springframework.data.domain.Page<Schedule> findByLecturerAndSemester(
                         @Param("lecturerCode") String lecturerCode,
-                        @Param("semesterId") UUID semesterId);
+                        @Param("semesterId") UUID semesterId,
+                        org.springframework.data.domain.Pageable pageable);
 
         /**
          * Xem chi tiết một lịch học với @EntityGraph.
@@ -108,9 +109,10 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
         @Query("SELECT s FROM Schedule s " +
                         "WHERE s.classSection.semester.id = :semesterId " +
                         "AND s.classSection.subject.departmentName = :departmentName")
-        List<Schedule> findPendingSchedulesByDepartmentAndSemester(
+        org.springframework.data.domain.Page<Schedule> findPendingSchedulesByDepartmentAndSemester(
                         @Param("departmentName") String departmentName,
-                        @Param("semesterId") UUID semesterId);
+                        @Param("semesterId") UUID semesterId,
+                        org.springframework.data.domain.Pageable pageable);
 
         List<Schedule> findByClassSection_IdIn(List<UUID> classSectionIds);
 

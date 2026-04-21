@@ -48,5 +48,9 @@ public class Schedule {
     @Builder.Default
     @Column(name = "is_deleted", nullable = false)
     private Boolean isDeleted = false; // Soft delete — không xóa vật lý
+
+    @Builder.Default
+    @Column(name = "is_locked", nullable = false, columnDefinition = "boolean default false")
+    private Boolean isLocked = false;
 }
-
+

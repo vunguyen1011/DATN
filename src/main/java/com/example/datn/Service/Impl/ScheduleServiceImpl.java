@@ -29,6 +29,7 @@ public class ScheduleServiceImpl implements IScheduleService {
 
     private final ScheduleRepository scheduleRepository;
     private final ClassSectionRepository classSectionRepository;
+    private final MajorRepository majorRepository;
 
     private final LecturerRepository lecturerRepository;
     private final RoomRepository roomRepository;
@@ -78,6 +79,7 @@ public class ScheduleServiceImpl implements IScheduleService {
     public ScheduleResponse assignTime(UUID scheduleId, com.example.datn.DTO.Request.ScheduleTimeRequest request) {
 
         Schedule schedule = findScheduleById(scheduleId);
+        checkLock(schedule);
 
         int periods = 3; // Default
         if (schedule.getClassSection() != null && schedule.getClassSection().getSubjectComponent() != null) {
@@ -120,9 +122,28 @@ public class ScheduleServiceImpl implements IScheduleService {
 
     @Override
     @Transactional
+    public ScheduleResponse clearTime(UUID scheduleId) {
+        Schedule schedule = findScheduleById(scheduleId);
+        checkLock(schedule);
+        if (schedule.getDayOfWeek() == null && schedule.getStartPeriod() == null && schedule.getEndPeriod() == null) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Lịch học chưa được xếp thời gian, không thể hủy bỏ");
+        }
+        
+        schedule.setDayOfWeek(null);
+        schedule.setStartPeriod(null);
+        schedule.setEndPeriod(null);
+        
+        Schedule saved = scheduleRepository.save(schedule);
+        log.info("[Schedule] Đã bỏ phân công thời gian cho schedule {}", scheduleId);
+        return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
     public ScheduleResponse assignRoom(UUID scheduleId, ScheduleRoomRequest request) {
 
         Schedule schedule = findScheduleById(scheduleId);
+        checkLock(schedule);
 
         Room room = null;
         if (request.getRoomId() != null) {
@@ -141,8 +162,6 @@ public class ScheduleServiceImpl implements IScheduleService {
                 }
             }
 
-            // LAYER 2: Chỉ check conflict nếu thời gian ĐÃ ĐƯỢC XẾP từ trước (bởi
-            // assignTime)
             if (schedule.getDayOfWeek() != null && schedule.getStartPeriod() != null
                     && schedule.getEndPeriod() != null) {
                 validateRoomConflict(room, schedule.getDayOfWeek(),
@@ -160,10 +179,27 @@ public class ScheduleServiceImpl implements IScheduleService {
 
     @Override
     @Transactional
+    public ScheduleResponse clearRoom(UUID scheduleId) {
+        Schedule schedule = findScheduleById(scheduleId);
+        checkLock(schedule);
+        if (schedule.getRoom() == null) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Lịch học chưa được xếp phòng, không thể hủy bỏ");
+        }
+
+        schedule.setRoom(null);
+        
+        Schedule saved = scheduleRepository.save(schedule);
+        log.info("[Schedule] Đã bỏ phân công phòng cho schedule {}", scheduleId);
+        return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
     public ScheduleResponse assignLecturer(UUID scheduleId, ScheduleLecturerRequest request) {
         log.info("[Schedule] HOD phân công giảng viên {} cho schedule {}", request.getLecturerCode(), scheduleId);
 
         Schedule schedule = findScheduleById(scheduleId);
+        checkLock(schedule);
 
         // Bít kẽ hở: bắt buộc phải có đầy đủ giờ học trước khi phân công
         if (schedule.getDayOfWeek() == null || schedule.getStartPeriod() == null
@@ -188,7 +224,44 @@ public class ScheduleServiceImpl implements IScheduleService {
         return toResponse(saved);
     }
 
-    // ── ADMIN: Xóa lịch (Soft Delete) ────────────────────────────────────────
+    @Override
+    @Transactional
+    public java.util.List<ScheduleResponse> bulkAssignLecturer(com.example.datn.DTO.Request.BulkScheduleLecturerRequest request) {
+        log.info("[Schedule] HOD phân công giảng viên {} cho hàng loạt schedule: {}", request.getLecturerCode(), request.getScheduleIds());
+        
+        if (request.getScheduleIds() == null || request.getScheduleIds().isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Danh sách lịch học bị trống");
+        }
+
+        List<ScheduleResponse> responses = new java.util.ArrayList<>();
+        for (UUID scheduleId : request.getScheduleIds()) {
+            // Re-use logic từ hàm assignLecturer gốc
+            // Tuy nhiên vì cần DB update ngay để validate conflict chéo, ta sẽ ép flush
+            ScheduleLecturerRequest singleReq = new ScheduleLecturerRequest(request.getLecturerCode());
+            ScheduleResponse singleResponse = assignLecturer(scheduleId, singleReq);
+            // Ép Hibernate xả dữ liệu xuống DB ngay sau mỗi vòng lặp để các câu query validateLecturerConflict tiếp theo nhìn thấy dữ liệu mới thay vì bị ẩn trong cached Session.
+            scheduleRepository.flush(); 
+            responses.add(singleResponse);
+        }
+
+        return responses;
+    }
+
+    @Override
+    @Transactional
+    public ScheduleResponse clearLecturer(UUID scheduleId) {
+        Schedule schedule = findScheduleById(scheduleId);
+        checkLock(schedule);
+        if (schedule.getLecturer() == null) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Lịch học chưa được phân công giảng viên, không thể hủy bỏ");
+        }
+
+        schedule.setLecturer(null);
+        
+        Schedule saved = scheduleRepository.save(schedule);
+        log.info("[Schedule] Đã bỏ phân công giảng viên cho schedule {}", scheduleId);
+        return toResponse(saved);
+    }
 
     @Override
     @Transactional
@@ -200,6 +273,7 @@ public class ScheduleServiceImpl implements IScheduleService {
                     log.warn("[Schedule] Không tìm thấy schedule {} để xóa", id);
                     return new AppException(ErrorCode.SCHEDULE_NOT_FOUND);
                 });
+        checkLock(schedule);
         schedule.setIsDeleted(true);
         scheduleRepository.save(schedule);
         log.info("[Schedule] Đã soft-delete schedule {}", id);
@@ -208,26 +282,26 @@ public class ScheduleServiceImpl implements IScheduleService {
     // ── ADMIN: Xem lịch toàn học kỳ ──────────────────────────────────────────
 
     @Override
-    public List<ScheduleResponse> getSchedulesBySemester(UUID semesterId) {
-        return scheduleRepository.findBySemesterId(semesterId)
-                .stream().map(this::toResponse).collect(Collectors.toList());
+    public org.springframework.data.domain.Page<ScheduleResponse> getSchedulesBySemester(UUID semesterId, org.springframework.data.domain.Pageable pageable) {
+        return scheduleRepository.findBySemesterId(semesterId, pageable)
+                .map(this::toResponse);
     }
 
     // ── GIẢNG VIÊN: Xem lịch dạy ─────────────────────────────────────────────
 
     @Override
-    public List<ScheduleResponse> getSchedulesByLecturer(String lecturerCode, UUID semesterId) {
+    public org.springframework.data.domain.Page<ScheduleResponse> getSchedulesByLecturer(String lecturerCode, UUID semesterId, org.springframework.data.domain.Pageable pageable) {
         Semester currentSemester = semesterRepository.findByIsCurrentTrue()
                 .orElseThrow(() -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND));
 
-        return scheduleRepository.findByLecturerAndSemester(lecturerCode, currentSemester.getId())
-                .stream().map(this::toResponse).collect(Collectors.toList());
+        return scheduleRepository.findByLecturerAndSemester(lecturerCode, currentSemester.getId(), pageable)
+                .map(this::toResponse);
     }
 
 
 
     @Override
-    public List<ScheduleResponse> getPendingSchedulesForHOD(String username, UUID semesterId) {
+    public org.springframework.data.domain.Page<ScheduleResponse> getPendingSchedulesForHOD(String username, UUID semesterId, org.springframework.data.domain.Pageable pageable) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
@@ -236,10 +310,10 @@ public class ScheduleServiceImpl implements IScheduleService {
 
         String hodDepartmentName = hod.getMajor().getName();
 
-        List<Schedule> schedules = scheduleRepository.findPendingSchedulesByDepartmentAndSemester(hodDepartmentName,
-                semesterId);
+        org.springframework.data.domain.Page<Schedule> schedules = scheduleRepository.findPendingSchedulesByDepartmentAndSemester(hodDepartmentName,
+                semesterId, pageable);
 
-        return schedules.stream().map(this::toResponse).collect(Collectors.toList());
+        return schedules.map(this::toResponse);
     }
 
     @Override
@@ -254,9 +328,37 @@ public class ScheduleServiceImpl implements IScheduleService {
         return toResponse(findScheduleById(id));
     }
 
+//    public List<ScheduleResponse> autoSetTime(){
+//        Semester currentSemester = semesterRepository.findByIsCurrentTrue()
+//                .orElseThrow(() -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND));
+//       // Major peMajor = majorRepository.findByCode("PE").orElseThrow(()-> new AppException(ErrorCode.MAJOR_NOT_FOUND));
+//        // List<Schedule> peSchedules = scheduleRepository.findBySemesterIdAndDepartmentName(currentSemester.getId(), peMajor.getName());
+//        Major elearningMajor = majorRepository.findByCode("NLCT").orElseThrow(()-> new AppException(ErrorCode.MAJOR_NOT_FOUND));
+//        List<Schedule> elearningSchedules = scheduleRepository.findBySemesterIdAndDepartmentName(currentSemester.getId(), elearningMajor.getName());
+//        elearningSchedules.stream().map(
+//                s -> {
+//                    s.setDayOfWeek(8);
+//                    s.setStartPeriod(1);
+//                    s.setEndPeriod(3);
+//                    return s;
+//                })
+//                        .collect(Collectors.toList());
+//        scheduleRepository.saveAll(elearningSchedules);
+//        List<Schedule> schedules=scheduleRepository.find
+//
+//
+//    }
+
     private Schedule findScheduleById(UUID id) {
         return scheduleRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.SCHEDULE_NOT_FOUND));
+    }
+
+    private void checkLock(Schedule schedule) {
+        if (Boolean.TRUE.equals(schedule.getIsLocked())) {
+            log.warn("[Schedule] Từ chối thao tác - lịch học {} đã bị khóa", schedule.getId());
+            throw new AppException(ErrorCode.SCHEDULE_IS_LOCKED);
+        }
     }
 
     private void validateRoomConflict(Room room, Integer dayOfWeek,
