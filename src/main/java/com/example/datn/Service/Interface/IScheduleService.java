@@ -1,101 +1,53 @@
 package com.example.datn.Service.Interface;
 
+import com.example.datn.DTO.Request.BulkScheduleLecturerRequest;
 import com.example.datn.DTO.Request.ScheduleLecturerRequest;
 import com.example.datn.DTO.Request.ScheduleRoomRequest;
+import com.example.datn.DTO.Request.ScheduleTimeRequest;
+import com.example.datn.DTO.Response.AutoAssignResultResponse;
+import com.example.datn.DTO.Response.LecturerSuggestionResponse;
 import com.example.datn.DTO.Response.ScheduleInitResponse;
 import com.example.datn.DTO.Response.ScheduleResponse;
+import com.example.datn.DTO.Response.SlotSuggestionResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 public interface IScheduleService {
 
-    // ── ADMIN: Quản lý lịch học ───────────────────────────────────────────────
-
-    /**
-     * [ADMIN] Bước 1: Tạo lịch học cho tất cả lớp học phần chưa có lịch.
-     * Chỉ xác định ClassSection, Room/Giờ hoặc Giảng viên để trống.
-     * Trả về thống kê (tổng, số đã có, số mới tạo).
-     */
     ScheduleInitResponse createSchedule();
 
+    AutoAssignResultResponse autoAssignRoomAndTime(UUID semesterId);
 
+    ScheduleResponse assignTime(UUID scheduleId, ScheduleTimeRequest request);
 
-    /**
-     * [ADMIN] Bước 2a: Xếp thời gian (Thứ, Tiết) cho lịch học.
-     */
-    ScheduleResponse assignTime(UUID scheduleId, com.example.datn.DTO.Request.ScheduleTimeRequest request);
-
-    /**
-     * [ADMIN] Bỏ phân công khung giờ của lịch học.
-     */
     ScheduleResponse clearTime(UUID scheduleId);
 
-    /**
-     * [ADMIN] Bước 2b: Xếp phòng học.
-     * Dựa vào thời gian đã được lưu từ bước 2a.
-     */
     ScheduleResponse assignRoom(UUID scheduleId, ScheduleRoomRequest request);
 
-    /**
-     * [ADMIN] Bỏ phân công phòng học.
-     */
     ScheduleResponse clearRoom(UUID scheduleId);
 
-    /**
-     * [ADMIN] Xóa lịch học.
-     */
     void deleteSchedule(UUID id);
 
-    /**
-     * [ADMIN] Xem toàn bộ lịch học trong một học kỳ.
-     */
-    org.springframework.data.domain.Page<ScheduleResponse> getSchedulesBySemester(UUID semesterId, org.springframework.data.domain.Pageable pageable);
+    Page<ScheduleResponse> getSchedulesBySemester(UUID semesterId, Pageable pageable);
 
-    // ── HOD: Phân công giảng viên ─────────────────────────────────────────────
-
-    /**
-     * [HOD] Bước 3: Phân công giảng viên vào lịch học đã có.
-     * Chỉ chạm vào: Lecturer.
-     * Room/Time do Admin xếp KHÔNG bị ảnh hưởng.
-     * lecturerId = null → huỷ phân công giảng viên.
-     */
     ScheduleResponse assignLecturer(UUID scheduleId, ScheduleLecturerRequest request);
 
-    /**
-     * [HOD] Bỏ phân công giảng viên.
-     */
     ScheduleResponse clearLecturer(UUID scheduleId);
 
-    /**
-     * [HOD] Phân công giảng viên hàng loạt cho nhiều môn học.
-     */
-    java.util.List<ScheduleResponse> bulkAssignLecturer(com.example.datn.DTO.Request.BulkScheduleLecturerRequest request);
+    List<ScheduleResponse> bulkAssignLecturer(BulkScheduleLecturerRequest request);
 
-    /**
-     * [HOD] Xem danh sách lịch chờ HOD phân công giảng viên.
-     */
-    org.springframework.data.domain.Page<ScheduleResponse> getPendingSchedulesForHOD(String username, UUID semesterId, org.springframework.data.domain.Pageable pageable);
+    Page<ScheduleResponse> getPendingSchedulesForHOD(String username, UUID semesterId, Pageable pageable);
 
-    // ── GIẢNG VIÊN: Xem lịch dạy ─────────────────────────────────────────────
+    Page<ScheduleResponse> getSchedulesByLecturer(String lecturerCode, UUID semesterId, Pageable pageable);
 
-    /**
-     * [LECTURER] Xem lịch dạy của mình trong một học kỳ.
-     */
-    org.springframework.data.domain.Page<ScheduleResponse> getSchedulesByLecturer(String lecturerCode, UUID semesterId, org.springframework.data.domain.Pageable pageable);
-
-    // ── SINH VIÊN: Xem thời khóa biểu ────────────────────────────────────────
-
-    /**
-     * [STUDENT] Xem thời khóa biểu của một lớp học phần đã đăng ký.
-     */
     List<ScheduleResponse> getSchedulesByClassSection(UUID classSectionId);
 
-    // ── CHUNG ─────────────────────────────────────────────────────────────────
-
-    /**
-     * Xem chi tiết một lịch học.
-     */
     ScheduleResponse getScheduleById(UUID id);
+
+    List<LecturerSuggestionResponse> suggestLecturersForSchedule(UUID scheduleId);
+
+    List<SlotSuggestionResponse> suggestSlotsForSchedule(UUID scheduleId, int topN);
 }

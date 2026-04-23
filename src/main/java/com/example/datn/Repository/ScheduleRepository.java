@@ -25,7 +25,8 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
          */
         @EntityGraph(attributePaths = { "classSection", "classSection.subject", "room", "lecturer" })
         @Query("SELECT s FROM Schedule s WHERE s.classSection.semester.id = :semesterId")
-        org.springframework.data.domain.Page<Schedule> findBySemesterId(@Param("semesterId") UUID semesterId, org.springframework.data.domain.Pageable pageable);
+        org.springframework.data.domain.Page<Schedule> findBySemesterId(@Param("semesterId") UUID semesterId,
+                        org.springframework.data.domain.Pageable pageable);
 
         /**
          * Lấy lịch theo lớp học phần — dùng derived query + @EntityGraph.
@@ -122,10 +123,28 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
                         @Param("semesterId") UUID semesterId,
                         @Param("departmentName") String departmentName);
 
+        @EntityGraph(attributePaths = {
+                        "classSection", "classSection.subject", "classSection.subjectComponent",
+                        "classSection.subjectComponent.requiredRoomType", "room", "lecturer"
+        })
         @Query("SELECT s FROM Schedule s WHERE s.classSection.semester.id = :semesterId AND s.room IS NOT NULL")
         List<Schedule> findAssignedSchedules(@Param("semesterId") UUID semesterId);
 
         // 2. Lấy các lịch CHƯA CÓ PHÒNG (Để đem đi xếp)
         @Query("SELECT s FROM Schedule s WHERE s.classSection.semester.id = :semesterId AND s.room IS NULL")
         List<Schedule> findUnassignedSchedules(@Param("semesterId") UUID semesterId);
+
+        /**
+         * Load schedules chưa có phòng kèm đầy đủ ClassSection + Subject +
+         * SubjectComponent.
+         * Dùng cho Phase 2 (GreedySchedulerEngine) để tránh N+1 khi lặp.
+         */
+        @EntityGraph(attributePaths = {
+                        "classSection", "classSection.subject",
+                        "classSection.subjectComponent",
+                        "classSection.subjectComponent.requiredRoomType",
+                        "classSection.semester"
+        })
+        @Query("SELECT s FROM Schedule s WHERE s.classSection.semester.id = :semesterId AND s.room IS NULL")
+        List<Schedule> findUnassignedSchedulesWithSection(@Param("semesterId") UUID semesterId);
 }

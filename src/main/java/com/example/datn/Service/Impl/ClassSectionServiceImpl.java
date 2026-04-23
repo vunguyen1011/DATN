@@ -42,6 +42,7 @@ public class ClassSectionServiceImpl implements IClassSectionService {
     private final SubjectComponentRepository subjectComponentRepository;
     private final com.example.datn.Mapper.SubjectMapper subjectMapper; // Đã thêm Mapper (có thể cần autowire hoặc inject trong constructor/Lombok)
     private final com.example.datn.Mapper.ClassSectionMapper classSectionMapper;
+    private final com.example.datn.Repository.ScheduleRepository scheduleRepository;
 
     private List<Subject> getAllSubjects() {
         return subjectRepository.findByIsActiveTrue(org.springframework.data.domain.Pageable.unpaged()).getContent();
@@ -413,12 +414,25 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                 .map(classSectionMapper::toResponse)
                 .collect(Collectors.toList());
 
+        // Lấy danh sách ID để lôi hàng loạt lịch học ra 1 lần
+        List<UUID> responseIds = allResponses.stream()
+                .map(com.example.datn.DTO.Response.ClassSectionResponse::getId)
+                .collect(Collectors.toList());
+
+        java.util.Map<UUID, List<com.example.datn.DTO.Response.ScheduleResponse>> scheduleMap = new java.util.HashMap<>();
+        if (!responseIds.isEmpty()) {
+            scheduleMap = scheduleRepository.findByClassSection_IdIn(responseIds).stream()
+                    .map(this::mapScheduleToResponse)
+                    .collect(Collectors.groupingBy(com.example.datn.DTO.Response.ScheduleResponse::getClassSectionId));
+        }
+
         java.util.Map<UUID, List<com.example.datn.DTO.Response.ClassSectionResponse>> childrenMap = allResponses.stream()
                 .filter(r -> r.getParentSectionId() != null)
                 .collect(Collectors.groupingBy(com.example.datn.DTO.Response.ClassSectionResponse::getParentSectionId));
 
         List<com.example.datn.DTO.Response.ClassSectionResponse> rootSections = new java.util.ArrayList<>();
         for (com.example.datn.DTO.Response.ClassSectionResponse response : allResponses) {
+            response.setSchedules(scheduleMap.getOrDefault(response.getId(), new java.util.ArrayList<>()));
             response.setChildren(childrenMap.getOrDefault(response.getId(), new java.util.ArrayList<>()));
             if (response.getParentSectionId() == null) {
                 rootSections.add(response);
@@ -426,6 +440,39 @@ public class ClassSectionServiceImpl implements IClassSectionService {
         }
 
         return rootSections;
+    }
+
+    private com.example.datn.DTO.Response.ScheduleResponse mapScheduleToResponse(com.example.datn.Model.Schedule s) {
+        return com.example.datn.DTO.Response.ScheduleResponse.builder()
+                .id(s.getId())
+                .classSectionId(s.getClassSection().getId())
+                .sectionCode(s.getClassSection().getSectionCode())
+                .subjectName(s.getClassSection().getSubject().getName())
+                .subjectCode(s.getClassSection().getSubject().getCode())
+                .roomId(s.getRoom() != null ? s.getRoom().getId() : null)
+                .roomName(s.getRoom() != null ? s.getRoom().getName() : null)
+                .lecturerId(s.getLecturer() != null ? s.getLecturer().getId() : null)
+                .lecturerName(s.getLecturer() != null ? s.getLecturer().getFullName() : null)
+                .lecturerCode(s.getLecturer() != null ? s.getLecturer().getLecturerCode() : null)
+                .dayOfWeek(s.getDayOfWeek())
+                .dayOfWeekName(toDayName(s.getDayOfWeek()))
+                .startPeriod(s.getStartPeriod())
+                .endPeriod(s.getEndPeriod())
+                .build();
+    }
+
+    private String toDayName(Integer dayOfWeek) {
+        if (dayOfWeek == null) return null;
+        switch (dayOfWeek) {
+            case 2: return "Thứ 2";
+            case 3: return "Thứ 3";
+            case 4: return "Thứ 4";
+            case 5: return "Thứ 5";
+            case 6: return "Thứ 6";
+            case 7: return "Thứ 7";
+            case 8: return "Chủ nhật";
+            default: return "Không xác định";
+        }
     }
 
     @Override

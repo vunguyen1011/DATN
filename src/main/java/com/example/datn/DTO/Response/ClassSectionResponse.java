@@ -28,4 +28,5 @@ public class ClassSectionResponse {
     private Integer enrolledCount;
     private SectionStatus status;
     private List<ClassSectionResponse> children;
+    private List<com.example.datn.DTO.Response.ScheduleResponse> schedules;
 }
