@@ -39,7 +39,7 @@ public class ScheduleController {
         // ── GIAI ĐOẠN 2 & 3: AUTO SCHEDULING (MÁY CHẠY) ──────────────────────────
 
         @PostMapping("/semester/{semesterId}/auto-assign")
-        @PreAuthorize("hasRole('ADMIN')")
+        @PreAuthorize("hasRole('ADMIN','DEAN')")
         public ApiResponse<AutoAssignResultResponse> autoAssignRoomAndTime(
                 @PathVariable UUID semesterId) {
                 return ApiResponse.<AutoAssignResultResponse>builder()
@@ -61,7 +61,7 @@ public class ScheduleController {
         }
 
         @GetMapping("/{id}/suggest-slots")
-        @PreAuthorize("hasRole('ADMIN')")
+        @PreAuthorize("hasRole('ADMIN','DEAN')")
         public ApiResponse<List<SlotSuggestionResponse>> suggestSlots(
                 @PathVariable UUID id,
                 @RequestParam(defaultValue = "5") int topN) {
@@ -75,7 +75,7 @@ public class ScheduleController {
         // ── GIAI ĐOẠN 1: MANUAL ASSIGNMENT (XẾP TAY / TINH CHỈNH) ────────────────
 
         @PatchMapping("/{id}/time")
-        @PreAuthorize("hasRole('ADMIN')")
+        @PreAuthorize("hasRole('ADMIN','DEAN')")
         public ApiResponse<ScheduleResponse> assignTime(
                 @PathVariable UUID id,
                 @Valid @RequestBody com.example.datn.DTO.Request.ScheduleTimeRequest request) {
@@ -87,7 +87,7 @@ public class ScheduleController {
         }
 
         @DeleteMapping("/{id}/time")
-        @PreAuthorize("hasRole('ADMIN')")
+        @PreAuthorize("hasRole('ADMIN','DEAN')")
         public ApiResponse<ScheduleResponse> clearTime(@PathVariable UUID id) {
                 return ApiResponse.<ScheduleResponse>builder()
                         .code(1000)
@@ -97,7 +97,7 @@ public class ScheduleController {
         }
 
         @PatchMapping("/{id}/room")
-        @PreAuthorize("hasRole('ADMIN')")
+        @PreAuthorize("hasRole('ADMIN','DEAN')")
         public ApiResponse<ScheduleResponse> assignRoom(
                 @PathVariable UUID id,
                 @Valid @RequestBody ScheduleRoomRequest request) {
@@ -109,7 +109,7 @@ public class ScheduleController {
         }
 
         @DeleteMapping("/{id}/room")
-        @PreAuthorize("hasRole('ADMIN')")
+        @PreAuthorize("hasRole('ADMIN','DEAN')")
         public ApiResponse<ScheduleResponse> clearRoom(@PathVariable UUID id) {
                 return ApiResponse.<ScheduleResponse>builder()
                         .code(1000)
@@ -164,7 +164,7 @@ public class ScheduleController {
         // ── CÁC HÀM GET DỮ LIỆU (VIEWER) ─────────────────────────────────────────
 
         @GetMapping("/semester/{semesterId}")
-        @PreAuthorize("hasRole('ADMIN')")
+        @PreAuthorize("hasRole('ADMIN','DEAN')")
         public ApiResponse<org.springframework.data.domain.Page<ScheduleResponse>> getSchedulesBySemester(
                 @PathVariable UUID semesterId,
                 @RequestParam(defaultValue = "0") int page,
@@ -178,7 +178,7 @@ public class ScheduleController {
         }
 
         @GetMapping("/semester/{semesterId}/export-pdf")
-        @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER', 'STUDENT')")
+        @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER', 'USERgỉ ','DEAN')")
         public void exportSemesterScheduleToPdf(
                 @PathVariable UUID semesterId,
                 jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
@@ -186,7 +186,7 @@ public class ScheduleController {
         }
 
         @GetMapping("/hod/pending-lecturers")
-        @PreAuthorize("hasAnyRole('HOD','ADMIN')")
+        @PreAuthorize("hasAnyRole('HOD','ADMIN','DEAN')")
         public ApiResponse<org.springframework.data.domain.Page<ScheduleResponse>> getPendingSchedulesForHOD(
                 @RequestParam UUID semesterId,
                 @RequestParam(defaultValue = "0") int page,
@@ -202,7 +202,7 @@ public class ScheduleController {
         }
 
         @GetMapping("/lecturer/{lecturerCode}")
-        @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER')")
+        @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'USER','DEAN')")
         public ApiResponse<org.springframework.data.domain.Page<ScheduleResponse>> getSchedulesByLecturer(
                 @PathVariable String lecturerCode,
                 @RequestParam(required = false) UUID semesterId,
@@ -217,7 +217,7 @@ public class ScheduleController {
         }
 
         @GetMapping("/class-section/{classSectionId}")
-        @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER', 'STUDENT')")
+        @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER', 'USER','DEAN')")
         public ApiResponse<java.util.Map<String, List<ScheduleResponse>>> getSchedulesByClassSection(
                 @PathVariable UUID classSectionId) {
                 return ApiResponse.<java.util.Map<String, List<ScheduleResponse>>>builder()
@@ -228,7 +228,7 @@ public class ScheduleController {
         }
 
         @GetMapping("/{id}")
-        @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER', 'STUDENT')")
+        @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER', 'USER','DEAN')")
         public ApiResponse<ScheduleResponse> getScheduleById(@PathVariable UUID id) {
                 return ApiResponse.<ScheduleResponse>builder()
                         .code(1000)
