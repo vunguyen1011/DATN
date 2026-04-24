@@ -295,9 +295,138 @@ public class ScheduleServiceImpl implements IScheduleService {
     }
 
     @Override
-    public List<ScheduleResponse> getSchedulesByClassSection(UUID classSectionId) {
-        return scheduleRepository.findByClassSection_Id(classSectionId)
+    public java.util.Map<String, List<ScheduleResponse>> getSchedulesByClassSection(UUID classSectionId) {
+        ClassSection cs = classSectionRepository.findById(classSectionId)
+                .orElseThrow(() -> new AppException(ErrorCode.SECTION_NOT_FOUND));
+
+        List<UUID> idsToFetch = new java.util.ArrayList<>();
+        idsToFetch.add(cs.getId());
+
+        // Tìm thêm các anh em họ hàng (child hoặc parent chung môn học)
+        List<ClassSection> siblings = classSectionRepository.findBySubjectIdAndSemesterId(
+                cs.getSubject().getId(), cs.getSemester().getId());
+
+        UUID parentId = cs.getParentSection() != null ? cs.getParentSection().getId() : cs.getId();
+        
+        for (ClassSection sibling : siblings) {
+            if (!sibling.getId().equals(cs.getId())) {
+                boolean isSameFamily = sibling.getId().equals(parentId) 
+                        || (sibling.getParentSection() != null && sibling.getParentSection().getId().equals(parentId));
+                if (isSameFamily) {
+                    idsToFetch.add(sibling.getId());
+                }
+            }
+        }
+
+        List<ScheduleResponse> responses = scheduleRepository.findByClassSection_IdIn(idsToFetch)
                 .stream().map(this::toResponse).collect(Collectors.toList());
+
+        // Sort: Subject -> SectionCode -> Day -> StartPeriod
+        responses.sort(java.util.Comparator
+                .comparing(ScheduleResponse::getSubjectName, java.util.Comparator.nullsLast(String::compareTo))
+                .thenComparing(ScheduleResponse::getSectionCode, java.util.Comparator.nullsLast(String::compareTo))
+                .thenComparing(ScheduleResponse::getDayOfWeek, java.util.Comparator.nullsLast(Integer::compareTo))
+                .thenComparing(ScheduleResponse::getStartPeriod, java.util.Comparator.nullsLast(Integer::compareTo)));
+
+        return responses.stream().collect(Collectors.groupingBy(ScheduleResponse::getSubjectName));
+    }
+
+    @Override
+    public void exportSemesterScheduleToPdf(UUID semesterId, jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        Semester semester = semesterRepository.findById(semesterId)
+                .orElseThrow(() -> new AppException(ErrorCode.SEMESTER_NOT_FOUND));
+
+        // Bỏ qua unpaged để fetch toàn bộ mảng List lịch
+        List<Schedule> allSchedules = scheduleRepository.findBySemesterId(semesterId, org.springframework.data.domain.Pageable.unpaged()).getContent();
+        
+        List<Schedule> assignedSchedules = allSchedules.stream()
+                .filter(s -> s.getDayOfWeek() != null)
+                .collect(Collectors.toList());
+
+        java.util.Map<String, List<ScheduleResponse>> groupedSchedules = assignedSchedules.stream()
+                .map(this::toResponse)
+                .sorted(java.util.Comparator
+                        .comparing(ScheduleResponse::getSubjectName, java.util.Comparator.nullsLast(String::compareTo))
+                        .thenComparing(ScheduleResponse::getSectionCode, java.util.Comparator.nullsLast(String::compareTo))
+                        .thenComparing(ScheduleResponse::getDayOfWeek, java.util.Comparator.nullsLast(Integer::compareTo))
+                        .thenComparing(ScheduleResponse::getStartPeriod, java.util.Comparator.nullsLast(Integer::compareTo)))
+                .collect(Collectors.groupingBy(
+                        ScheduleResponse::getSubjectName,
+                        java.util.LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+
+        response.setContentType("application/pdf");
+        
+        String safeSemesterName = java.text.Normalizer.normalize(semester.getName(), java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .replaceAll("[^a-zA-Z0-9\\s]", "")
+                .replaceAll("\\s+", "_");
+        response.setHeader("Content-Disposition", "attachment; filename=lich_hoc_ky_" + safeSemesterName + ".pdf");
+
+        try (com.lowagie.text.Document document = new com.lowagie.text.Document(com.lowagie.text.PageSize.A4.rotate())) {
+            com.lowagie.text.pdf.PdfWriter.getInstance(document, response.getOutputStream());
+            document.open();
+
+            com.lowagie.text.Font titleFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD, 18);
+            com.lowagie.text.Font headerFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD, 12);
+            com.lowagie.text.Font normalFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA, 12);
+            com.lowagie.text.Font subjectFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD, 14);
+
+            try {
+                com.lowagie.text.pdf.BaseFont bf = com.lowagie.text.pdf.BaseFont.createFont("C:\\Windows\\Fonts\\arial.ttf", com.lowagie.text.pdf.BaseFont.IDENTITY_H, com.lowagie.text.pdf.BaseFont.EMBEDDED);
+                titleFont = new com.lowagie.text.Font(bf, 18, com.lowagie.text.Font.BOLD);
+                headerFont = new com.lowagie.text.Font(bf, 12, com.lowagie.text.Font.BOLD);
+                normalFont = new com.lowagie.text.Font(bf, 12, com.lowagie.text.Font.NORMAL);
+                subjectFont = new com.lowagie.text.Font(bf, 14, com.lowagie.text.Font.BOLD);
+            } catch (Exception e) {
+                log.warn("[PDF] Could not load Arial font, falling back to Helvetica");
+            }
+
+            com.lowagie.text.Paragraph title = new com.lowagie.text.Paragraph("LỊCH HỌC KỲ DỰ KIẾN - " + semester.getName(), titleFont);
+            title.setAlignment(com.lowagie.text.Element.ALIGN_CENTER);
+            document.add(title);
+            document.add(new com.lowagie.text.Paragraph("\n"));
+
+            if (groupedSchedules.isEmpty()) {
+                document.add(new com.lowagie.text.Paragraph("Chưa có lịch học nào được xếp thời gian.", normalFont));
+                return;
+            }
+
+            for (java.util.Map.Entry<String, List<ScheduleResponse>> entry : groupedSchedules.entrySet()) {
+                document.add(new com.lowagie.text.Paragraph("Môn học: " + entry.getKey(), subjectFont));
+                document.add(new com.lowagie.text.Paragraph("\n"));
+
+                com.lowagie.text.pdf.PdfPTable table = new com.lowagie.text.pdf.PdfPTable(6);
+                table.setWidthPercentage(100);
+                table.setWidths(new float[]{1.5f, 1f, 1f, 1.5f, 2f, 3f});
+
+                String[] headers = {"Mã Lớp", "Thứ", "Tiết", "Thời lượng", "Phòng", "Giảng viên"};
+                for (String header : headers) {
+                    com.lowagie.text.pdf.PdfPCell cell = new com.lowagie.text.pdf.PdfPCell(new com.lowagie.text.Phrase(header, headerFont));
+                    cell.setHorizontalAlignment(com.lowagie.text.Element.ALIGN_CENTER);
+                    cell.setBackgroundColor(new java.awt.Color(230, 230, 230));
+                    cell.setPadding(5);
+                    table.addCell(cell);
+                }
+
+                for (ScheduleResponse s : entry.getValue()) {
+                    table.addCell(new com.lowagie.text.Phrase(s.getSectionCode() != null ? s.getSectionCode() : "", normalFont));
+                    table.addCell(new com.lowagie.text.Phrase(s.getDayOfWeekName() != null ? s.getDayOfWeekName() : "", normalFont));
+                    table.addCell(new com.lowagie.text.Phrase(s.getStartPeriod() != null ? s.getStartPeriod().toString() : "", normalFont));
+                    
+                    String periods = (s.getStartPeriod() != null && s.getEndPeriod() != null) 
+                            ? (s.getEndPeriod() - s.getStartPeriod() + 1) + " tiết" : "";
+                    table.addCell(new com.lowagie.text.Phrase(periods, normalFont));
+                    
+                    table.addCell(new com.lowagie.text.Phrase(s.getRoomName() != null ? s.getRoomName() : "E-Learning", normalFont));
+                    table.addCell(new com.lowagie.text.Phrase(s.getLecturerName() != null ? s.getLecturerName() : "Chưa phân công", normalFont));
+                }
+
+                document.add(table);
+                document.add(new com.lowagie.text.Paragraph("\n"));
+            }
+        }
     }
 
     @Override

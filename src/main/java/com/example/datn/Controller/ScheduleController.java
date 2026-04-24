@@ -177,6 +177,14 @@ public class ScheduleController {
                         .build();
         }
 
+        @GetMapping("/semester/{semesterId}/export-pdf")
+        @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER', 'STUDENT')")
+        public void exportSemesterScheduleToPdf(
+                @PathVariable UUID semesterId,
+                jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+                scheduleService.exportSemesterScheduleToPdf(semesterId, response);
+        }
+
         @GetMapping("/hod/pending-lecturers")
         @PreAuthorize("hasAnyRole('HOD','ADMIN')")
         public ApiResponse<org.springframework.data.domain.Page<ScheduleResponse>> getPendingSchedulesForHOD(
@@ -210,9 +218,9 @@ public class ScheduleController {
 
         @GetMapping("/class-section/{classSectionId}")
         @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER', 'STUDENT')")
-        public ApiResponse<List<ScheduleResponse>> getSchedulesByClassSection(
+        public ApiResponse<java.util.Map<String, List<ScheduleResponse>>> getSchedulesByClassSection(
                 @PathVariable UUID classSectionId) {
-                return ApiResponse.<List<ScheduleResponse>>builder()
+                return ApiResponse.<java.util.Map<String, List<ScheduleResponse>>>builder()
                         .code(1000)
                         .message("Lấy thời khóa biểu lớp học phần thành công")
                         .result(scheduleService.getSchedulesByClassSection(classSectionId))

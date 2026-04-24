@@ -33,6 +33,8 @@ public interface IScheduleService {
 
     Page<ScheduleResponse> getSchedulesBySemester(UUID semesterId, Pageable pageable);
 
+    void exportSemesterScheduleToPdf(UUID semesterId, jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException;
+
     ScheduleResponse assignLecturer(UUID scheduleId, ScheduleLecturerRequest request);
 
     ScheduleResponse clearLecturer(UUID scheduleId);
@@ -43,7 +45,7 @@ public interface IScheduleService {
 
     Page<ScheduleResponse> getSchedulesByLecturer(String lecturerCode, UUID semesterId, Pageable pageable);
 
-    List<ScheduleResponse> getSchedulesByClassSection(UUID classSectionId);
+    java.util.Map<String, List<ScheduleResponse>> getSchedulesByClassSection(UUID classSectionId);
 
     ScheduleResponse getScheduleById(UUID id);
 
