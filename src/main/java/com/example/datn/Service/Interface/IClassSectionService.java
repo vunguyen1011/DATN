@@ -24,4 +24,6 @@ public interface IClassSectionService {
     void cancelClassSection(UUID id);
     void closeClassSection(UUID id);
     List<ClassSection> getAllClassSectionsBySemesterId(UUID semesterId);
+
+    List<SubjectResponse> getSubjectInFaculty(UUID semesterId);
 }

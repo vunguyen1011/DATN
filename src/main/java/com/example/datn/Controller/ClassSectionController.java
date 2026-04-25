@@ -1,6 +1,7 @@
 package com.example.datn.Controller;
 
 import com.example.datn.DTO.Response.ApiResponse;
+import com.example.datn.DTO.Response.SubjectResponse;
 import com.example.datn.Service.Interface.IClassSectionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -8,6 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -124,6 +126,15 @@ public class ClassSectionController {
         return ApiResponse.<Void>builder()
                 .code(1000)
                 .message("Hủy (Cancel) lớp học phần thành công")
+                .build();
+    }
+
+    @GetMapping("/semester/{semesterId}/subjects-in-faculty")
+    public ApiResponse<List<SubjectResponse>> getSubjectInFaculty(@PathVariable  UUID semesterId) {
+        return ApiResponse.<List<SubjectResponse>>builder()
+                .code(1000)
+                .message("Lấy danh sách môn học đã mở trong học kỳ thành công")
+                .result(classSectionService.getSubjectInFaculty(semesterId))
                 .build();
     }
 

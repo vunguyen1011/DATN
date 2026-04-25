@@ -542,5 +542,17 @@ public class ClassSectionServiceImpl implements IClassSectionService {
         return  classSectionRepository.findBySemesterId(semesterId);
     }
 
+    @Override
+    public List<SubjectResponse> getSubjectInFaculty(UUID semesterId) {
+        List<String> excludedNames = List.of("Lý luận chính trị", "Giáo dục thể chất", "Ngoại ngữ");
 
+        return classSectionRepository.findBySemesterId(semesterId)
+                .stream()
+                .map(ClassSection::getSubject)
+                .filter(Objects::nonNull)
+                .filter(subject -> !excludedNames.contains(subject.getDepartmentName()))
+                .distinct()
+                .map(subjectMapper::toResponse)
+                .collect(Collectors.toList());
+    }
 }
