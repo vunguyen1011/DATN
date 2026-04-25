@@ -164,7 +164,7 @@ public class ScheduleController {
         // ── CÁC HÀM GET DỮ LIỆU (VIEWER) ─────────────────────────────────────────
 
         @GetMapping("/semester/{semesterId}")
-        @PreAuthorize("hasRole('ADMIN','DEAN')")
+        @PreAuthorize("hasAnyRole('ADMIN','DEAN','USER','HOD','LECTURER')")
         public ApiResponse<org.springframework.data.domain.Page<ScheduleResponse>> getSchedulesBySemester(
                 @PathVariable UUID semesterId,
                 @RequestParam(defaultValue = "0") int page,
