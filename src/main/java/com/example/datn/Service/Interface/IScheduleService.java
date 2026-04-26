@@ -17,6 +17,8 @@ public interface IScheduleService {
 
     AutoAssignResultResponse autoAssignRoomAndTime(UUID semesterId);
 
+    void clearSemesterSchedule(UUID semesterId);
+
     ScheduleResponse assignTime(UUID scheduleId, ScheduleTimeRequest request);
 
     ScheduleResponse clearTime(UUID scheduleId);

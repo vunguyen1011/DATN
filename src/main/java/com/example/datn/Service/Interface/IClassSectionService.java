@@ -26,4 +26,5 @@ public interface IClassSectionService {
     List<ClassSection> getAllClassSectionsBySemesterId(UUID semesterId);
 
     List<SubjectResponse> getSubjectInFaculty(UUID semesterId);
+    int approveAllPendingBySemester(UUID semesterId);
 }

@@ -94,6 +94,30 @@ public class ScheduleServiceImpl implements IScheduleService {
     }
 
     @Override
+    @Transactional
+    public void clearSemesterSchedule(UUID semesterId) {
+        log.info("[ScheduleService] Nhận request xóa kết quả xếp lịch cho học kỳ: {}", semesterId);
+        Semester semester = semesterRepository.findById(semesterId)
+                .orElseThrow(() -> new AppException(ErrorCode.SEMESTER_NOT_FOUND));
+
+        List<Schedule> schedules = scheduleRepository.findBySemesterId(semesterId, org.springframework.data.domain.Pageable.unpaged()).getContent();
+
+        int count = 0;
+        for (Schedule s : schedules) {
+            if (!Boolean.TRUE.equals(s.getIsLocked())) {
+                s.setDayOfWeek(null);
+                s.setStartPeriod(null);
+                s.setEndPeriod(null);
+                s.setRoom(null);
+                s.setLecturer(null);
+                count++;
+            }
+        }
+        scheduleRepository.saveAll(schedules);
+        log.info("[ScheduleService] Đã clear thành công {} lịch học không bị khóa cho học kỳ {}", count, semester.getName());
+    }
+
+    @Override
     public List<LecturerSuggestionResponse> suggestLecturersForSchedule(UUID scheduleId) {
         log.info("[ScheduleService] Nhận request gợi ý giảng viên cho Schedule: {}", scheduleId);
 

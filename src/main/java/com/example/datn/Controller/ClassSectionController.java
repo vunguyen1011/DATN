@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import jakarta.servlet.http.HttpServletResponse;
@@ -29,11 +30,8 @@ public class ClassSectionController {
 
     @PostMapping(value = "/import", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<String> importClassSections(
-
             @RequestParam("file") MultipartFile file) {
-        
         String resultMessage = classSectionService.importClassSections(file);
-        
         return ApiResponse.<String>builder()
                 .code(200)
                 .message("Import thành công")
@@ -97,7 +95,7 @@ public class ClassSectionController {
     @GetMapping("/subject/{subjectId}")
     public ApiResponse<java.util.List<com.example.datn.DTO.Response.ClassSectionResponse>> getClassSectionsBySubjectIdAndSemesterId(
             @PathVariable UUID subjectId
-            ) {
+    ) {
         return ApiResponse.<java.util.List<com.example.datn.DTO.Response.ClassSectionResponse>>builder()
                 .code(1000)
                 .message("Lấy danh sách Lớp học phần theo Môn học và Học kỳ thành công")
@@ -133,7 +131,7 @@ public class ClassSectionController {
     }
 
     @GetMapping("/semester/{semesterId}/subjects-in-faculty")
-    public ApiResponse<List<SubjectResponse>> getSubjectInFaculty(@PathVariable  UUID semesterId) {
+    public ApiResponse<List<SubjectResponse>> getSubjectInFaculty(@PathVariable UUID semesterId) {
         return ApiResponse.<List<SubjectResponse>>builder()
                 .code(1000)
                 .message("Lấy danh sách môn học đã mở trong học kỳ thành công")
@@ -141,4 +139,13 @@ public class ClassSectionController {
                 .build();
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/approval-pending/{id}")
+    public ApiResponse<Void> approvalPending(@PathVariable UUID id) {
+        int pendingCount = classSectionService.approveAllPendingBySemester(id);
+        return ApiResponse.<Void>builder()
+                .code(1000)
+                .message("Đã phê duyêt " + pendingCount + " lớp học phần đang chờ phê duyệt trong học kỳ.")
+                .build();
+    }
 }

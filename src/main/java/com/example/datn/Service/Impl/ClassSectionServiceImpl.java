@@ -1,6 +1,7 @@
 package com.example.datn.Service.Impl;
 
 import com.example.datn.DTO.Response.ClassSectionResponse;
+import com.example.datn.ENUM.SectionStatus;
 import com.example.datn.Exception.AppException;
 import com.example.datn.Exception.ErrorCode;
 import com.example.datn.Model.ClassSection;
@@ -555,4 +556,14 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                 .map(subjectMapper::toResponse)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    @Transactional
+    public int approveAllPendingBySemester(UUID semesterId) {
+        return classSectionRepository.approveAllPendingBySemester(
+                semesterId,
+                SectionStatus.OPENED,  // Dùng đối tượng Enum, KHÔNG dùng chuỗi "OPENED"
+                SectionStatus.PENDING  // Dùng đối tượng Enum, KHÔNG dùng chuỗi "PENDING"
+        );
+        }
 }

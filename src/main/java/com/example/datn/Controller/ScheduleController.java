@@ -37,13 +37,23 @@ public class ScheduleController {
         // ── GIAI ĐOẠN 2 & 3: AUTO SCHEDULING (MÁY CHẠY) ──────────────────────────
 
         @PostMapping("/semester/{semesterId}/auto-assign")
-        @PreAuthorize("hasRole('ADMIN','DEAN')")
+        @PreAuthorize("hasAnyRole('ADMIN','DEAN')")
         public ApiResponse<AutoAssignResultResponse> autoAssignRoomAndTime(
                 @PathVariable UUID semesterId) {
                 return ApiResponse.<AutoAssignResultResponse>builder()
                         .code(1000)
                         .message("Chạy thuật toán xếp Phòng và Giờ tự động thành công")
                         .result(scheduleService.autoAssignRoomAndTime(semesterId))
+                        .build();
+        }
+
+        @DeleteMapping("/semester/{semesterId}/auto-assign")
+        @PreAuthorize("hasAnyRole('ADMIN','DEAN')")
+        public ApiResponse<Void> clearSemesterSchedule(@PathVariable UUID semesterId) {
+                scheduleService.clearSemesterSchedule(semesterId);
+                return ApiResponse.<Void>builder()
+                        .code(1000)
+                        .message("Xóa kết quả xếp lịch thành công")
                         .build();
         }
 
@@ -85,7 +95,7 @@ public class ScheduleController {
         }
 
         @DeleteMapping("/{id}/time")
-        @PreAuthorize("hasRole('ADMIN','DEAN')")
+        @PreAuthorize("hasAnyRole('ADMIN','DEAN')")
         public ApiResponse<ScheduleResponse> clearTime(@PathVariable UUID id) {
                 return ApiResponse.<ScheduleResponse>builder()
                         .code(1000)
@@ -95,7 +105,7 @@ public class ScheduleController {
         }
 
         @PatchMapping("/{id}/room")
-        @PreAuthorize("hasRole('ADMIN','DEAN')")
+        @PreAuthorize("hasAnyRole('ADMIN','DEAN')")
         public ApiResponse<ScheduleResponse> assignRoom(
                 @PathVariable UUID id,
                 @Valid @RequestBody ScheduleRoomRequest request) {
@@ -107,7 +117,7 @@ public class ScheduleController {
         }
 
         @DeleteMapping("/{id}/room")
-        @PreAuthorize("hasRole('ADMIN','DEAN')")
+        @PreAuthorize("hasAnyRole('ADMIN','DEAN')")
         public ApiResponse<ScheduleResponse> clearRoom(@PathVariable UUID id) {
                 return ApiResponse.<ScheduleResponse>builder()
                         .code(1000)
@@ -150,7 +160,7 @@ public class ScheduleController {
         }
 
         @DeleteMapping("/{id}")
-        @PreAuthorize("hasRole('ADMIN')")
+        @PreAuthorize("hasARole('ADMIN')")
         public ApiResponse<Void> deleteSchedule(@PathVariable UUID id) {
                 scheduleService.deleteSchedule(id);
                 return ApiResponse.<Void>builder()
