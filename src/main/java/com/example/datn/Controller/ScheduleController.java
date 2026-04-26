@@ -69,7 +69,7 @@ public class ScheduleController {
         }
 
         @GetMapping("/{id}/suggest-slots")
-        @PreAuthorize("hasRole('ADMIN','DEAN')")
+        @PreAuthorize("hasAnyRole('ADMIN','DEAN')") // ĐÃ SỬA: hasRole -> hasAnyRole
         public ApiResponse<List<SlotSuggestionResponse>> suggestSlots(
                 @PathVariable UUID id,
                 @RequestParam(defaultValue = "5") int topN) {
@@ -83,7 +83,7 @@ public class ScheduleController {
         // ── GIAI ĐOẠN 1: MANUAL ASSIGNMENT (XẾP TAY / TINH CHỈNH) ────────────────
 
         @PatchMapping("/{id}/time")
-        @PreAuthorize("hasRole('ADMIN','DEAN')")
+        @PreAuthorize("hasAnyRole('ADMIN','DEAN')") // ĐÃ SỬA: hasRole -> hasAnyRole
         public ApiResponse<ScheduleResponse> assignTime(
                 @PathVariable UUID id,
                 @Valid @RequestBody com.example.datn.DTO.Request.ScheduleTimeRequest request) {
@@ -160,7 +160,7 @@ public class ScheduleController {
         }
 
         @DeleteMapping("/{id}")
-        @PreAuthorize("hasARole('ADMIN')")
+        @PreAuthorize("hasRole('ADMIN')") // ĐÃ SỬA: hasARole -> hasRole
         public ApiResponse<Void> deleteSchedule(@PathVariable UUID id) {
                 scheduleService.deleteSchedule(id);
                 return ApiResponse.<Void>builder()
@@ -186,7 +186,7 @@ public class ScheduleController {
         }
 
         @GetMapping("/semester/{semesterId}/export-pdf")
-        @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER', 'USERgỉ ','DEAN')")
+        @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER', 'USER', 'DEAN')") // ĐÃ SỬA: USERgỉ -> USER
         public void exportSemesterScheduleToPdf(
                 @PathVariable UUID semesterId,
                 jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
