@@ -5,6 +5,7 @@ import com.example.datn.DTO.Request.ScheduleRoomRequest;
 import com.example.datn.DTO.Response.*;
 import com.example.datn.Exception.AppException;
 import com.example.datn.Exception.ErrorCode;
+import com.example.datn.Mapper.SubjectMapper;
 import com.example.datn.Model.*;
 import com.example.datn.Pattern.Stragery.scheduling.GreedySchedulerEngine;
 import com.example.datn.Pattern.Stragery.scheduling.LecturerSuggestionEngine; // Thêm import này
@@ -32,6 +33,9 @@ public class ScheduleServiceImpl implements IScheduleService {
     private final RoomRepository roomRepository;
     private final SemesterRepository semesterRepository;
     private final UserRepository userRepository;
+    private final SubjectRepository subjectRepository;
+    private   final SubjectMapper subjectMapper;
+
 
     // ── CÁC ENGINE CỐT LÕI CỦA HỆ THỐNG ──────────────────────────────────────
     private final GreedySchedulerEngine greedySchedulerEngine;       // Phase 2: Tự xếp lịch
@@ -286,12 +290,19 @@ public class ScheduleServiceImpl implements IScheduleService {
     }
 
     @Override
-    public org.springframework.data.domain.Page<ScheduleResponse> getPendingSchedulesForHOD(String username, UUID semesterId, org.springframework.data.domain.Pageable pageable) {
-        User user = userRepository.findByUsername(username).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-        Lecturer hod = lecturerRepository.findByUser(user).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "Người dùng không phải là giảng viên"));
+    public List<SubjectResponse> getPendingSchedulesForHOD(String username, UUID semesterId) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        return scheduleRepository.findPendingSchedulesByDepartmentAndSemester(hod.getMajor().getName(), semesterId, pageable)
-                .map(this::toResponse);
+        Lecturer hod = lecturerRepository.findByUser(user)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "Người dùng không phải là giảng viên"));
+
+        String departmentName = hod.getMajor().getName();
+
+        return subjectRepository.findSubjectsWithPendingLecturers(semesterId, departmentName)
+                .stream()
+                .map(subjectMapper::toResponse)
+                .collect(Collectors.toList());
     }
 
     @Override

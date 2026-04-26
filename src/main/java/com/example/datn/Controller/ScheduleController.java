@@ -2,16 +2,14 @@ package com.example.datn.Controller;
 
 import com.example.datn.DTO.Request.ScheduleLecturerRequest;
 import com.example.datn.DTO.Request.ScheduleRoomRequest;
-import com.example.datn.DTO.Response.ApiResponse;
-import com.example.datn.DTO.Response.AutoAssignResultResponse;
-import com.example.datn.DTO.Response.LecturerSuggestionResponse;
-import com.example.datn.DTO.Response.ScheduleInitResponse;
-import com.example.datn.DTO.Response.ScheduleResponse;
-import com.example.datn.DTO.Response.SlotSuggestionResponse;
+import com.example.datn.DTO.Response.*;
 import com.example.datn.Service.Interface.IScheduleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -187,17 +185,17 @@ public class ScheduleController {
 
         @GetMapping("/hod/pending-lecturers")
         @PreAuthorize("hasAnyRole('HOD','ADMIN','DEAN')")
-        public ApiResponse<org.springframework.data.domain.Page<ScheduleResponse>> getPendingSchedulesForHOD(
+        public ApiResponse<List<SubjectResponse>> getPendingSchedulesForHOD(
                 @RequestParam UUID semesterId,
                 @RequestParam(defaultValue = "0") int page,
                 @RequestParam(defaultValue = "10") int size) {
-                org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
-                String username = org.springframework.security.core.context.SecurityContextHolder.getContext()
+
+                String username = SecurityContextHolder.getContext()
                         .getAuthentication().getName();
-                return ApiResponse.<org.springframework.data.domain.Page<ScheduleResponse>>builder()
+                return ApiResponse.<List<SubjectResponse>>builder()
                         .code(1000)
                         .message("Lấy danh sách môn học của Khoa thành công")
-                        .result(scheduleService.getPendingSchedulesForHOD(username, semesterId, pageable))
+                        .result(scheduleService.getPendingSchedulesForHOD(username, semesterId))
                         .build();
         }
 

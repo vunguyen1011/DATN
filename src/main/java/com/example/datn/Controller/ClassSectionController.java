@@ -4,6 +4,9 @@ import com.example.datn.DTO.Response.ApiResponse;
 import com.example.datn.DTO.Response.SubjectResponse;
 import com.example.datn.Service.Interface.IClassSectionService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import jakarta.servlet.http.HttpServletResponse;
@@ -48,13 +51,13 @@ public class ClassSectionController {
     }
 
     @GetMapping("/opened-subjects")
-    public ApiResponse<org.springframework.data.domain.Page<com.example.datn.DTO.Response.SubjectResponse>> getOpenedSubjectsPage(
+    public ApiResponse<Page<SubjectResponse>> getOpenedSubjectsPage(
             @RequestParam(required = false) UUID semesterId,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, size);
         return ApiResponse.<org.springframework.data.domain.Page<com.example.datn.DTO.Response.SubjectResponse>>builder()
                 .code(1000)
                 .message("Lấy danh sách môn học đã mở thành công")

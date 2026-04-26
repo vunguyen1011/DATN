@@ -53,4 +53,13 @@ public interface SubjectRepository extends JpaRepository<Subject, UUID> {
         boolean existsByNameAndIsActiveTrue(String name);
 
         Optional<Subject> findByCode(String code);
+        @Query("SELECT DISTINCT sub FROM Subject sub " +
+                "JOIN ClassSection cs ON cs.subject = sub " +
+                "JOIN Schedule s ON s.classSection = cs " +
+                "WHERE cs.semester.id = :semesterId " +
+                "AND sub.departmentName = :departmentName " +
+                "AND s.lecturer IS NULL")
+        List<Subject> findSubjectsWithPendingLecturers(
+                @Param("semesterId") UUID semesterId,
+                @Param("departmentName") String departmentName);
 }

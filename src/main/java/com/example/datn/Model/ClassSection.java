@@ -22,7 +22,7 @@ public class ClassSection {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "section_code", nullable = false, unique = true)
+    @Column(name = "section_code", nullable = false, unique = false)
     private String sectionCode;
 
     @Column(name = "course_group_code", length = 20)

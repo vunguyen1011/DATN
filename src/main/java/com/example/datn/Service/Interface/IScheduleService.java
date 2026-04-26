@@ -4,11 +4,7 @@ import com.example.datn.DTO.Request.BulkScheduleLecturerRequest;
 import com.example.datn.DTO.Request.ScheduleLecturerRequest;
 import com.example.datn.DTO.Request.ScheduleRoomRequest;
 import com.example.datn.DTO.Request.ScheduleTimeRequest;
-import com.example.datn.DTO.Response.AutoAssignResultResponse;
-import com.example.datn.DTO.Response.LecturerSuggestionResponse;
-import com.example.datn.DTO.Response.ScheduleInitResponse;
-import com.example.datn.DTO.Response.ScheduleResponse;
-import com.example.datn.DTO.Response.SlotSuggestionResponse;
+import com.example.datn.DTO.Response.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -41,7 +37,7 @@ public interface IScheduleService {
 
     List<ScheduleResponse> bulkAssignLecturer(BulkScheduleLecturerRequest request);
 
-    Page<ScheduleResponse> getPendingSchedulesForHOD(String username, UUID semesterId, Pageable pageable);
+    List<SubjectResponse> getPendingSchedulesForHOD(String username, UUID semesterId);
 
     Page<ScheduleResponse> getSchedulesByLecturer(String lecturerCode, UUID semesterId, Pageable pageable);
 
