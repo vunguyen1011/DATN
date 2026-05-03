@@ -36,7 +36,8 @@ public class SecurityConfig {
             "/api/auths/reset-password",
             "/oauth2/**",
             "/login/oauth2/**",
-            "/v3/api-docs/**",
+            "/v3/api-docs",         // Mở cửa cho đường dẫn gốc
+            "/v3/api-docs/**",      // Mở cửa cho các file config bên trong
             "/swagger-ui/**",
             "/swagger-ui.html",
             "/api/test/**"

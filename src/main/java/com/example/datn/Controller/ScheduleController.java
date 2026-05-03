@@ -210,7 +210,7 @@ public class ScheduleController {
         }
 
         @GetMapping("/lecturer/{lecturerCode}")
-        @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'USER','DEAN')")
+        @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER','DEAN')")
         public ApiResponse<org.springframework.data.domain.Page<ScheduleResponse>> getSchedulesByLecturer(
                 @PathVariable String lecturerCode,
                 @RequestParam(required = false) UUID semesterId,

@@ -22,4 +22,9 @@ public class Enrollment {
     private ClassSection classSection;
     @Column(name = "enrollment_date")
     private java.time.LocalDateTime enrollmentDate = java.time.LocalDateTime.now();
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    @Builder.Default
+    private com.example.datn.ENUM.EnrollmentStatus status = com.example.datn.ENUM.EnrollmentStatus.REGISTERED;
 }

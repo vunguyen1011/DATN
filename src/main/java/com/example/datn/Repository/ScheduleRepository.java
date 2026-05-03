@@ -147,4 +147,24 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
         })
         @Query("SELECT s FROM Schedule s WHERE s.classSection.semester.id = :semesterId AND s.room IS NULL")
         List<Schedule> findUnassignedSchedulesWithSection(@Param("semesterId") UUID semesterId);
+        // Trả về số lượng lịch bị trùng giữa lớp định đăng ký và danh sách lớp đã đăng ký
+        @Query("SELECT COUNT(s1) FROM Schedule s1, Schedule s2 " +
+                "WHERE s1.classSection.id = :newSectionId " +
+                "AND s2.classSection.id IN :enrolledSectionIds " +
+                "AND s1.dayOfWeek = s2.dayOfWeek " +
+                "AND s1.startPeriod <= s2.endPeriod " +
+                "AND s1.endPeriod >= s2.startPeriod")
+        int countOverlappingSchedules(
+                @Param("newSectionId") UUID newSectionId,
+                @Param("enrolledSectionIds") List<UUID> enrolledSectionIds);
+        @Query("SELECT COUNT(s1) > 0 FROM Schedule s1, Schedule s2 " +
+                "WHERE s1.classSection.id = :parentId " +
+                "AND s2.classSection.id = :childId " +
+                "AND s1.dayOfWeek IS NOT NULL AND s2.dayOfWeek IS NOT NULL " +
+                "AND s1.dayOfWeek = s2.dayOfWeek " +
+                "AND s1.startPeriod <= s2.endPeriod " +
+                "AND s1.endPeriod >= s2.startPeriod")
+        boolean existsOverlapBetweenParentAndChild(
+                @Param("parentId") UUID parentId,
+                @Param("childId") UUID childId);
 }

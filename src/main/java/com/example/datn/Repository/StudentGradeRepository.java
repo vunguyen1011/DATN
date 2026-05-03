@@ -40,4 +40,12 @@ public interface StudentGradeRepository extends JpaRepository<StudentGrade, UUID
            "JOIN e.classSection cs " +
            "WHERE e.student.id = :studentId AND sg.isPassed = true")
     Set<UUID> findPassedSubjectIdsByStudentId(@Param("studentId") UUID studentId);
+    @Query("SELECT COUNT(sg) > 0 FROM StudentGrade sg " +
+            "WHERE sg.enrollment.student.id = :studentId " +
+            "AND sg.enrollment.classSection.subject.id = :subjectId " +
+            "AND sg.isPassed = true")
+    boolean existsByStudent_IdAndSubject_IdAndIsPassedTrue(
+            @Param("studentId") UUID studentId,
+            @Param("subjectId") UUID subjectId);
+
 }

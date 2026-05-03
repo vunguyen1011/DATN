@@ -1,26 +1,12 @@
 package com.example.datn.DTO.Request;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.*;
+import lombok.Data;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class RegistrationPeriodRequest {
-
-
-
-    @NotBlank(message = "Tên đợt đăng ký không được để trống")
-    private String name;
-
-    private Boolean isActive = true;
-
+@Data
+public class RegistrationPeriodUpdateRequest {
     @NotNull(message = "Thời gian bắt đầu không được để trống")
     private LocalDateTime startTime;
 

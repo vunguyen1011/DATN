@@ -4,6 +4,7 @@ import com.example.datn.DTO.Response.AutoAssignResultResponse;
 import com.example.datn.Exception.AppException;
 import com.example.datn.Exception.ErrorCode;
 import com.example.datn.Model.*;
+import com.example.datn.Repository.ClassSectionRepository;
 import com.example.datn.Repository.RoomRepository;
 import com.example.datn.Repository.ScheduleRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +23,8 @@ import java.util.stream.Collectors;
 public class GreedySchedulerEngine {
 
     private static final int[] WORKING_DAYS = {2, 3, 4, 5, 6, 7};
-    private static final int MAX_PERIOD = 15;
+    // Đã nâng lên 16 để cho phép rải môn E-learning vào tiết 14-16
+    private static final int MAX_PERIOD = 16;
     private static final UUID NULL_TYPE_KEY = UUID.fromString("00000000-0000-0000-0000-000000000000");
     private static final String ELEARNING_TYPE_ID = "f6a7b8c9-d0e1-2f3a-4b5c-6d7e8f9a0b1c";
 
@@ -30,6 +32,7 @@ public class GreedySchedulerEngine {
     public static final String ERR_NO_ROOM = "NO_ROOM_AVAILABLE";
     public static final String ERR_CAPACITY = "TEACHER_CAPACITY_LIMIT";
     public static final String ERR_SLOT = "NO_VALID_SLOT";
+    public static final String ERR_PARENT_CHILD_CONFLICT = "PARENT_CHILD_CONFLICT";
 
     @Value("${scheduling.rules.allow-cross-lunch:false}")
     private boolean allowCrossLunch;
@@ -44,6 +47,7 @@ public class GreedySchedulerEngine {
     private final SchedulingMatrixBuilder matrixBuilder;
     private final ScheduleRepository scheduleRepository;
     private final RoomRepository roomRepository;
+    private final ClassSectionRepository classSectionRepository;
 
     private boolean isElearning(Schedule s) {
         SubjectComponent comp = s.getClassSection().getSubjectComponent();
@@ -68,19 +72,30 @@ public class GreedySchedulerEngine {
                 list.sort(Comparator.comparingInt(r -> r.getCapacity() == null ? 0 : r.getCapacity()))
         );
 
-        List<Schedule> originalUnassigned = scheduleRepository.findUnassignedSchedulesWithSection(semesterId);
+        List<Schedule> allSemesterSchedules = scheduleRepository.findBySemesterId(semesterId, org.springframework.data.domain.Pageable.unpaged()).getContent();
 
-        // VẤN ĐỀ 1: Fake slot cho E-learning để trả về DB nhưng bóc ra khỏi engine
+        List<Schedule> originalUnassigned = allSemesterSchedules.stream()
+                .filter(s -> s.getDayOfWeek() == null || s.getStartPeriod() == null)
+                .collect(Collectors.toList());
+
+        // =========================================================================
+        // THUẬT TOÁN ROUND-ROBIN CHO E-LEARNING (RẢI ĐỀU TỪ T2-T7, TIẾT 14-16)
+        // =========================================================================
+        int elearningDayIndex = 0;
         for (Schedule s : originalUnassigned) {
             if (isElearning(s)) {
-                s.setRoom(null);
-                s.setDayOfWeek(8);
-                s.setStartPeriod(10);
-                s.setEndPeriod(12);
+                s.setRoom(null); // Học online nên không xếp phòng
+
+                // Rải đều theo thứ tự: 2, 3, 4, 5, 6, 7 rồi lặp lại
+                int assignedDay = WORKING_DAYS[elearningDayIndex % WORKING_DAYS.length];
+                s.setDayOfWeek(assignedDay);
+                s.setStartPeriod(14);
+                s.setEndPeriod(16);
+
+                elearningDayIndex++;
             }
         }
 
-        // Loại bỏ hoàn toàn E-learning khỏi danh sách lập lịch của Greedy Engine
         List<Schedule> schedulingList = originalUnassigned.stream()
                 .filter(s -> !isElearning(s))
                 .collect(Collectors.toList());
@@ -94,6 +109,14 @@ public class GreedySchedulerEngine {
         for (Schedule s : schedulingList) {
             if (!pinnedScheduleIds.contains(s.getId())) {
                 eligibleRoomCache.put(s.getId(), getEligibleRoomCount(s, roomsByType, allRooms));
+            }
+        }
+
+        Map<UUID, List<ClassSection>> childrenCache = new HashMap<>();
+        for (Schedule s : allSemesterSchedules) {
+            ClassSection section = s.getClassSection();
+            if (section.getParentSection() == null) {
+                childrenCache.computeIfAbsent(section.getId(), k -> classSectionRepository.findByParentSectionId(section.getId()));
             }
         }
 
@@ -136,7 +159,6 @@ public class GreedySchedulerEngine {
                         ctx.updateSubjectConcurrent(subjId, s.getDayOfWeek(), s.getStartPeriod(), s.getEndPeriod(), +1);
                     }
                     if (s.getLecturer() != null) {
-                        // Dùng matrix chung thay vì HashSet tạm
                         ctx.setLecturerBusy(s.getLecturer().getId(), s.getDayOfWeek(), s.getStartPeriod(), s.getEndPeriod(), true);
                     }
                 }
@@ -151,7 +173,7 @@ public class GreedySchedulerEngine {
                     continue;
                 }
 
-                String result = tryPlace(schedule, roomsByType, allRooms, ctx, pinnedScheduleIds);
+                String result = tryPlace(schedule, roomsByType, allRooms, ctx, pinnedScheduleIds, allSemesterSchedules, childrenCache);
 
                 if (!SUCCESS.equals(result)) {
                     failed.add(buildFailedInfo(schedule, result));
@@ -216,7 +238,9 @@ public class GreedySchedulerEngine {
         return bestResult;
     }
 
-    private String tryPlace(Schedule schedule, Map<UUID, List<Room>> roomsByType, List<Room> allRooms, SchedulingContext ctx, Set<UUID> pinnedScheduleIds) {
+    private String tryPlace(Schedule schedule, Map<UUID, List<Room>> roomsByType, List<Room> allRooms,
+                            SchedulingContext ctx, Set<UUID> pinnedScheduleIds,
+                            List<Schedule> allSemesterSchedules, Map<UUID, List<ClassSection>> childrenCache) {
 
         if (pinnedScheduleIds.contains(schedule.getId())) return SUCCESS;
 
@@ -228,7 +252,6 @@ public class GreedySchedulerEngine {
         UUID subjectId = Optional.ofNullable(schedule.getClassSection().getSubject())
                 .map(Subject::getId).orElse(null);
 
-        // VẤN ĐỀ 2: Mở rộng Fallback logic cho THEORY -> có thể học ANY (cả Practice)
         List<Room> baseRooms = new ArrayList<>();
         if (reqType == null) {
             baseRooms = allRooms;
@@ -249,6 +272,7 @@ public class GreedySchedulerEngine {
 
         int roomBusyFails = 0;
         int capacityLimitFails = 0;
+        int parentChildFails = 0;
 
         List<Integer> randomizedDays = new ArrayList<>(Arrays.asList(2, 3, 4, 5, 6, 7));
         Collections.shuffle(randomizedDays);
@@ -268,7 +292,21 @@ public class GreedySchedulerEngine {
                     continue;
                 }
 
-                // VẤN ĐỀ 3: Check lecturer thông qua Matrix tập trung
+                boolean hasParentChildConflict = false;
+                ClassSection currentSection = schedule.getClassSection();
+
+                if (currentSection.getParentSection() != null) {
+                    hasParentChildConflict = isConflictWithParent(currentSection.getParentSection(), day, start, end, allSemesterSchedules);
+                } else {
+                    List<ClassSection> childSections = childrenCache.getOrDefault(currentSection.getId(), Collections.emptyList());
+                    hasParentChildConflict = isConflictWithAnyChild(childSections, day, start, end, allSemesterSchedules);
+                }
+
+                if (hasParentChildConflict) {
+                    parentChildFails++;
+                    continue;
+                }
+
                 boolean isTeacherBusy = false;
                 if (schedule.getLecturer() != null) {
                     for (int p = start; p <= end; p++) {
@@ -307,13 +345,35 @@ public class GreedySchedulerEngine {
             }
         }
 
-        int totalFails = roomBusyFails + capacityLimitFails;
+        int totalFails = roomBusyFails + capacityLimitFails + parentChildFails;
         if (totalFails == 0) return ERR_SLOT;
+
+        if (parentChildFails > roomBusyFails && parentChildFails > capacityLimitFails) return ERR_PARENT_CHILD_CONFLICT;
 
         double capacityRatio = capacityLimitFails * 1.0 / totalFails;
         if (capacityRatio > 0.5) return ERR_CAPACITY;
 
         return ERR_NO_ROOM;
+    }
+
+    private boolean checkTimeOverlap(Schedule s1, Integer testDay, Integer testStart, Integer testEnd) {
+        if (s1.getDayOfWeek() == null || s1.getStartPeriod() == null || s1.getEndPeriod() == null) return false;
+        if (!s1.getDayOfWeek().equals(testDay)) return false;
+        return s1.getStartPeriod() <= testEnd && s1.getEndPeriod() >= testStart;
+    }
+
+    private boolean isConflictWithParent(ClassSection parentSection, Integer slotDay, Integer slotStart, Integer slotEnd, List<Schedule> allSemesterSchedules) {
+        return allSemesterSchedules.stream()
+                .filter(s -> s.getClassSection().getId().equals(parentSection.getId()))
+                .anyMatch(parentSchedule -> checkTimeOverlap(parentSchedule, slotDay, slotStart, slotEnd));
+    }
+
+    private boolean isConflictWithAnyChild(List<ClassSection> childSections, Integer slotDay, Integer slotStart, Integer slotEnd, List<Schedule> allSemesterSchedules) {
+        if (childSections == null || childSections.isEmpty()) return false;
+        Set<UUID> childIds = childSections.stream().map(ClassSection::getId).collect(Collectors.toSet());
+        return allSemesterSchedules.stream()
+                .filter(s -> childIds.contains(s.getClassSection().getId()))
+                .anyMatch(childSchedule -> checkTimeOverlap(childSchedule, slotDay, slotStart, slotEnd));
     }
 
     private List<Integer> generateValidStartsFallback(int periods) {

@@ -12,8 +12,16 @@ import java.util.List;
 import java.util.UUID;
 import com.example.datn.Model.Subject;
 
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
+import java.util.Optional;
+
 @Repository
 public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT cs FROM ClassSection cs WHERE cs.id = :id")
+    Optional<ClassSection> findByIdWithLock(@Param("id") UUID id);
 
     int countBySemesterIdAndSubjectComponent_SubjectIdAndParentSectionIsNull(UUID semesterId, UUID subjectId);
     long countBySemesterId(UUID semesterId);
@@ -21,7 +29,10 @@ public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID
     boolean existsBySectionCode(String sectionCode);
     List<ClassSection> findBySemesterId(UUID id);
     List<ClassSection> findBySubjectId(UUID subjectId);
+
     boolean existsByParentSectionId(UUID parentSectionId);
+
+    List<ClassSection> findByParentSectionId(UUID parentSectionId);
 
     @Query("SELECT DISTINCT cs.subject FROM ClassSection cs WHERE cs.semester.id = :semesterId AND cs.subject.isActive = true")
     List<Subject> findDistinctSubjectsBySemesterId(@Param("semesterId") UUID semesterId);
@@ -54,12 +65,10 @@ public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID
     """)
     long countSectionsWithoutSchedule(@Param("semesterId") UUID semesterId);
 
-    // ĐÃ SỬA LỖI CONCAT LIKE
     @Query("SELECT cs FROM ClassSection cs JOIN cs.subject s " +
             "WHERE s.code LIKE CONCAT('%', :keyword, '%') OR s.name LIKE CONCAT('%', :keyword, '%')")
     List<ClassSection> findBySubjectCodeOrName(@Param("keyword") String keyword);
 
-    // ĐÃ SỬA LỖI ENUM & THÊM CƠ CHẾ ĐỒNG BỘ RAM
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Transactional
     @Query("UPDATE ClassSection cs SET cs.status = :openedStatus " +
@@ -69,4 +78,15 @@ public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID
             @Param("openedStatus") com.example.datn.ENUM.SectionStatus openedStatus,
             @Param("pendingStatus") com.example.datn.ENUM.SectionStatus pendingStatus
     );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE ClassSection cs SET cs.enrolledCount = cs.enrolledCount + 1 " +
+            "WHERE cs.id = :id AND cs.enrolledCount < cs.capacity")
+    int tryIncrementEnrolledCount(@Param("id") UUID id);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE ClassSection cs SET cs.enrolledCount = cs.enrolledCount - 1 " +
+            "WHERE cs.id = :id AND cs.enrolledCount > 0")
+    int tryDecrementEnrolledCount(@Param("id") UUID id);
+
 }

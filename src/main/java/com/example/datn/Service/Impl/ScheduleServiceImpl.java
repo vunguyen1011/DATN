@@ -8,7 +8,7 @@ import com.example.datn.Exception.ErrorCode;
 import com.example.datn.Mapper.SubjectMapper;
 import com.example.datn.Model.*;
 import com.example.datn.Pattern.Stragery.scheduling.GreedySchedulerEngine;
-import com.example.datn.Pattern.Stragery.scheduling.LecturerSuggestionEngine; // Thêm import này
+import com.example.datn.Pattern.Stragery.scheduling.LecturerSuggestionEngine;
 import com.example.datn.Pattern.Stragery.scheduling.SuggestionEngine;
 import com.example.datn.Repository.*;
 import com.example.datn.Service.Interface.IScheduleService;
@@ -34,15 +34,11 @@ public class ScheduleServiceImpl implements IScheduleService {
     private final SemesterRepository semesterRepository;
     private final UserRepository userRepository;
     private final SubjectRepository subjectRepository;
-    private   final SubjectMapper subjectMapper;
+    private final SubjectMapper subjectMapper;
 
-
-    // ── CÁC ENGINE CỐT LÕI CỦA HỆ THỐNG ──────────────────────────────────────
-    private final GreedySchedulerEngine greedySchedulerEngine;       // Phase 2: Tự xếp lịch
-    // SỬA LẠI KIỂU DỮ LIỆU Ở DÒNG DƯỚI NÀY:
-    private final LecturerSuggestionEngine lecturerSuggestionEngine; // Phase 3: Gợi ý Giảng viên
-    private final SuggestionEngine suggestionEngine;                 // Phase 4: Gợi ý Giờ/Phòng
-
+    private final GreedySchedulerEngine greedySchedulerEngine;
+    private final LecturerSuggestionEngine lecturerSuggestionEngine;
+    private final SuggestionEngine suggestionEngine;
 
     @Override
     @Transactional
@@ -64,7 +60,7 @@ public class ScheduleServiceImpl implements IScheduleService {
             scheduleRepository.saveAll(schedules);
             log.info("[Schedule] Đã tạo {} lịch mới cho học kỳ {}", newSections.size(), currentSemester.getName());
         } else {
-            log.info("[Schedule] Tất cả {} lớp đã có lịch — không tạo thêm", totalSections);
+            log.info("[Schedule] Tất cả {} lớp đã có lịch", totalSections);
         }
 
         return ScheduleInitResponse.builder()
@@ -73,20 +69,14 @@ public class ScheduleServiceImpl implements IScheduleService {
                 .totalSections(totalSections)
                 .alreadyHadSchedule(alreadyExists)
                 .newlyCreated((long) newSections.size())
-                .message(newSections.isEmpty()
-                        ? "Tất cả lớp học phần đã có lịch"
-                        : "Đã tạo thành công " + newSections.size() + " lịch mới")
+                .message(newSections.isEmpty() ? "Tất cả lớp học phần đã có lịch" : "Đã tạo thành công " + newSections.size() + " lịch mới")
                 .build();
     }
-
-
-    // ── AUTO SCHEDULING & SUGGESTION (PHASE 2, 3, 4) ─────────────────────────
 
     @Override
     @Transactional
     public AutoAssignResultResponse autoAssignRoomAndTime(UUID semesterId) {
         log.info("[ScheduleService] Nhận request chạy Auto-Scheduling cho học kỳ: {}", semesterId);
-
         Semester semester = semesterRepository.findById(semesterId)
                 .orElseThrow(() -> new AppException(ErrorCode.SEMESTER_NOT_FOUND));
 
@@ -119,25 +109,17 @@ public class ScheduleServiceImpl implements IScheduleService {
 
     @Override
     public List<LecturerSuggestionResponse> suggestLecturersForSchedule(UUID scheduleId) {
-        log.info("[ScheduleService] Nhận request gợi ý giảng viên cho Schedule: {}", scheduleId);
-
         Schedule schedule = findScheduleById(scheduleId);
-
         if (schedule.getDayOfWeek() == null || schedule.getStartPeriod() == null) {
             throw new AppException(ErrorCode.SCHEDULE_TIME_NOT_SET, "Cần xếp giờ học trước khi tìm giảng viên phù hợp.");
         }
-
         return lecturerSuggestionEngine.suggest(schedule);
     }
 
     @Override
     public List<SlotSuggestionResponse> suggestSlotsForSchedule(UUID scheduleId, int topN) {
-        log.info("[ScheduleService] Nhận request gợi ý {} slot cho Schedule: {}", topN, scheduleId);
         return suggestionEngine.suggest(scheduleId, topN);
     }
-
-
-    // ── MANUAL ASSIGNMENT (GIAI ĐOẠN 1 & XỬ LÝ LỖI) ──────────────────────────
 
     @Override
     @Transactional
@@ -169,9 +151,10 @@ public class ScheduleServiceImpl implements IScheduleService {
             validateLecturerConflict(schedule.getLecturer(), request.getDayOfWeek(), startPeriod, endPeriod, scheduleId);
         }
 
+        validateParentChildConflict(schedule.getClassSection(), request.getDayOfWeek(), startPeriod, endPeriod);
+
         Schedule saved = scheduleRepository.save(schedule);
-        log.info("[Schedule] Đã xếp thời gian (Thứ {}, tiết {}-{}) cho schedule {}",
-                request.getDayOfWeek(), startPeriod, endPeriod, scheduleId);
+        log.info("[Schedule] Đã xếp thời gian (Thứ {}, tiết {}-{}) cho schedule {}", request.getDayOfWeek(), startPeriod, endPeriod, scheduleId);
         return toResponse(saved);
     }
 
@@ -206,8 +189,7 @@ public class ScheduleServiceImpl implements IScheduleService {
             if (room.getCapacity() != null) {
                 int maxStudents = schedule.getClassSection().getCapacity();
                 if (maxStudents > room.getCapacity()) {
-                    throw new AppException(ErrorCode.ROOM_CAPACITY_EXCEEDED,
-                            "Phòng " + room.getName() + " không đủ sức chứa cho lớp có chỉ tiêu " + maxStudents + " SV");
+                    throw new AppException(ErrorCode.ROOM_CAPACITY_EXCEEDED, "Phòng không đủ sức chứa cho lớp");
                 }
             }
 
@@ -298,9 +280,6 @@ public class ScheduleServiceImpl implements IScheduleService {
         scheduleRepository.save(schedule);
     }
 
-
-    // ── CÁC HÀM GET DỮ LIỆU (READ-ONLY) ──────────────────────────────────────
-
     @Override
     public org.springframework.data.domain.Page<ScheduleResponse> getSchedulesBySemester(UUID semesterId, org.springframework.data.domain.Pageable pageable) {
         return scheduleRepository.findBySemesterId(semesterId, pageable).map(this::toResponse);
@@ -337,15 +316,14 @@ public class ScheduleServiceImpl implements IScheduleService {
         List<UUID> idsToFetch = new java.util.ArrayList<>();
         idsToFetch.add(cs.getId());
 
-        // Tìm thêm các anh em họ hàng (child hoặc parent chung môn học)
         List<ClassSection> siblings = classSectionRepository.findBySubjectIdAndSemesterId(
                 cs.getSubject().getId(), cs.getSemester().getId());
 
         UUID parentId = cs.getParentSection() != null ? cs.getParentSection().getId() : cs.getId();
-        
+
         for (ClassSection sibling : siblings) {
             if (!sibling.getId().equals(cs.getId())) {
-                boolean isSameFamily = sibling.getId().equals(parentId) 
+                boolean isSameFamily = sibling.getId().equals(parentId)
                         || (sibling.getParentSection() != null && sibling.getParentSection().getId().equals(parentId));
                 if (isSameFamily) {
                     idsToFetch.add(sibling.getId());
@@ -356,7 +334,6 @@ public class ScheduleServiceImpl implements IScheduleService {
         List<ScheduleResponse> responses = scheduleRepository.findByClassSection_IdIn(idsToFetch)
                 .stream().map(this::toResponse).collect(Collectors.toList());
 
-        // Sort: Subject -> SectionCode -> Day -> StartPeriod
         responses.sort(java.util.Comparator
                 .comparing(ScheduleResponse::getSubjectName, java.util.Comparator.nullsLast(String::compareTo))
                 .thenComparing(ScheduleResponse::getSectionCode, java.util.Comparator.nullsLast(String::compareTo))
@@ -371,9 +348,8 @@ public class ScheduleServiceImpl implements IScheduleService {
         Semester semester = semesterRepository.findById(semesterId)
                 .orElseThrow(() -> new AppException(ErrorCode.SEMESTER_NOT_FOUND));
 
-        // Bỏ qua unpaged để fetch toàn bộ mảng List lịch
         List<Schedule> allSchedules = scheduleRepository.findBySemesterId(semesterId, org.springframework.data.domain.Pageable.unpaged()).getContent();
-        
+
         List<Schedule> assignedSchedules = allSchedules.stream()
                 .filter(s -> s.getDayOfWeek() != null)
                 .collect(Collectors.toList());
@@ -392,7 +368,7 @@ public class ScheduleServiceImpl implements IScheduleService {
                 ));
 
         response.setContentType("application/pdf");
-        
+
         String safeSemesterName = java.text.Normalizer.normalize(semester.getName(), java.text.Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "")
                 .replaceAll("[^a-zA-Z0-9\\s]", "")
@@ -449,11 +425,11 @@ public class ScheduleServiceImpl implements IScheduleService {
                     table.addCell(new com.lowagie.text.Phrase(s.getSectionCode() != null ? s.getSectionCode() : "", normalFont));
                     table.addCell(new com.lowagie.text.Phrase(s.getDayOfWeekName() != null ? s.getDayOfWeekName() : "", normalFont));
                     table.addCell(new com.lowagie.text.Phrase(s.getStartPeriod() != null ? s.getStartPeriod().toString() : "", normalFont));
-                    
-                    String periods = (s.getStartPeriod() != null && s.getEndPeriod() != null) 
+
+                    String periods = (s.getStartPeriod() != null && s.getEndPeriod() != null)
                             ? (s.getEndPeriod() - s.getStartPeriod() + 1) + " tiết" : "";
                     table.addCell(new com.lowagie.text.Phrase(periods, normalFont));
-                    
+
                     table.addCell(new com.lowagie.text.Phrase(s.getRoomName() != null ? s.getRoomName() : "E-Learning", normalFont));
                     table.addCell(new com.lowagie.text.Phrase(s.getLecturerName() != null ? s.getLecturerName() : "Chưa phân công", normalFont));
                 }
@@ -468,9 +444,6 @@ public class ScheduleServiceImpl implements IScheduleService {
     public ScheduleResponse getScheduleById(UUID id) {
         return toResponse(findScheduleById(id));
     }
-
-
-    // ── PRIVATE HELPERS ───────────────────────────────────────────────────────
 
     private Schedule findScheduleById(UUID id) {
         return scheduleRepository.findById(id)
@@ -501,6 +474,41 @@ public class ScheduleServiceImpl implements IScheduleService {
         if (!conflicts.isEmpty()) {
             throw new AppException(ErrorCode.LECTURER_CONFLICT);
         }
+    }
+
+    private void validateParentChildConflict(ClassSection section, Integer dayOfWeek, Integer startPeriod, Integer endPeriod) {
+        if (section.getParentSection() != null) {
+            List<Schedule> parentSchedules = scheduleRepository.findByClassSection_Id(section.getParentSection().getId());
+            for (Schedule p : parentSchedules) {
+                if (isTimeOverlap(p, dayOfWeek, startPeriod, endPeriod)) {
+                    throw new AppException(ErrorCode.INVALID_SCHEDULE_TIME,
+                            "Lịch thực hành bị đè lên giờ học của lớp lý thuyết gốc (" + section.getParentSection().getSectionCode() + ")");
+                }
+            }
+        } else {
+            List<ClassSection> childSections = classSectionRepository.findByParentSectionId(section.getId());
+            if (!childSections.isEmpty()) {
+                List<UUID> childIds = childSections.stream().map(ClassSection::getId).collect(Collectors.toList());
+                List<Schedule> childSchedules = scheduleRepository.findByClassSection_IdIn(childIds);
+
+                for (Schedule c : childSchedules) {
+                    if (isTimeOverlap(c, dayOfWeek, startPeriod, endPeriod)) {
+                        throw new AppException(ErrorCode.INVALID_SCHEDULE_TIME,
+                                "Lịch lý thuyết bị đè lên giờ học của lớp thực hành (" + c.getClassSection().getSectionCode() + ")");
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean isTimeOverlap(Schedule s, Integer testDay, Integer testStart, Integer testEnd) {
+        if (s.getDayOfWeek() == null || s.getStartPeriod() == null || s.getEndPeriod() == null) {
+            return false;
+        }
+        if (!s.getDayOfWeek().equals(testDay)) {
+            return false;
+        }
+        return s.getStartPeriod() <= testEnd && s.getEndPeriod() >= testStart;
     }
 
     private ScheduleResponse toResponse(Schedule s) {

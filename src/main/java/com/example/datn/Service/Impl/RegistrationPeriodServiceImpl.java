@@ -1,6 +1,7 @@
 package com.example.datn.Service.Impl;
 
 import com.example.datn.DTO.Request.RegistrationPeriodRequest;
+import com.example.datn.DTO.Request.RegistrationPeriodUpdateRequest;
 import com.example.datn.DTO.Response.RegistrationPeriodResponse;
 import com.example.datn.Exception.AppException;
 import com.example.datn.Exception.ErrorCode;
@@ -32,13 +33,19 @@ public class RegistrationPeriodServiceImpl implements IRegistrationPeriodService
     @Transactional
     public RegistrationPeriodResponse createRegistrationPeriod(RegistrationPeriodRequest request) {
         log.info("[RegistrationPeriodService] Tạo đợt đăng ký: {}", request.getName());
+        Semester semester= semesterRepository.findByIsCurrentTrue().orElseThrow(()-> new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION, "Không tìm thấy học kỳ hiện tại"));
 
-        Semester semester = semesterRepository.findById(request.getSemesterId())
-                .orElseThrow(() -> new AppException(ErrorCode.SEMESTER_NOT_FOUND));
 
-        if (request.getStartTime() != null && request.getEndTime() != null &&
-                request.getStartTime().isAfter(request.getEndTime())) {
-            throw new AppException(ErrorCode.INVALID_DATE_RANGE);
+        validateTimeRange(request);
+
+        if (registrationPeriodRepository.existsBySemesterIdAndName(semester.getId(), request.getName())) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Tên đợt đăng ký đã tồn tại trong học kỳ này");
+        }
+
+        long overlapCount = registrationPeriodRepository.countOverlappingPeriods(
+                semester.getId(), request.getStartTime(), request.getEndTime());
+        if (overlapCount > 0) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Thời gian của đợt đăng ký này bị trùng lặp với đợt khác");
         }
 
         RegistrationPeriod entity = registrationPeriodMapper.toEntity(request, semester);
@@ -49,24 +56,19 @@ public class RegistrationPeriodServiceImpl implements IRegistrationPeriodService
 
     @Override
     @Transactional
-    public RegistrationPeriodResponse updateRegistrationPeriod(UUID id, RegistrationPeriodRequest request) {
+    public RegistrationPeriodResponse updateRegistrationPeriod(UUID id, RegistrationPeriodUpdateRequest request) {
         log.info("[RegistrationPeriodService] Cập nhật đợt đăng ký: {}", id);
-
-        RegistrationPeriod entity = registrationPeriodRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION, "Không tìm thấy đợt đăng ký"));
-
-        Semester semester = semesterRepository.findById(request.getSemesterId())
-                .orElseThrow(() -> new AppException(ErrorCode.SEMESTER_NOT_FOUND));
-
-        if (request.getStartTime() != null && request.getEndTime() != null &&
-                request.getStartTime().isAfter(request.getEndTime())) {
-            throw new AppException(ErrorCode.INVALID_DATE_RANGE);
+        if (request.getStartTime() == null || request.getEndTime() == null) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Thời gian bắt đầu và kết thúc không được để trống");
         }
-
-        registrationPeriodMapper.updateEntityFromRequest(entity, request, semester);
-        RegistrationPeriod updated = registrationPeriodRepository.save(entity);
-
-        return registrationPeriodMapper.toResponse(updated);
+        if (!request.getStartTime().isBefore(request.getEndTime())) {
+            throw new AppException(ErrorCode.INVALID_DATE_RANGE, "Thời gian kết thúc phải diễn ra sau thời gian bắt đầu");
+        }
+        RegistrationPeriod registrationPeriod=registrationPeriodRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION, "Không tìm thấy đợt đăng ký"));
+        registrationPeriod.setStartTime(request.getStartTime());
+        registrationPeriod.setEndTime(request.getEndTime());
+        return registrationPeriodMapper.toResponse(registrationPeriodRepository.save(registrationPeriod));
     }
 
     @Override
@@ -75,6 +77,7 @@ public class RegistrationPeriodServiceImpl implements IRegistrationPeriodService
         log.info("[RegistrationPeriodService] Xóa đợt đăng ký: {}", id);
         RegistrationPeriod entity = registrationPeriodRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION, "Không tìm thấy đợt đăng ký"));
+
         registrationPeriodRepository.delete(entity);
     }
 
@@ -95,5 +98,14 @@ public class RegistrationPeriodServiceImpl implements IRegistrationPeriodService
     public Page<RegistrationPeriodResponse> getRegistrationPeriodsBySemester(UUID semesterId, Pageable pageable) {
         return registrationPeriodRepository.findBySemesterId(semesterId, pageable)
                 .map(registrationPeriodMapper::toResponse);
+    }
+
+    private void validateTimeRange(RegistrationPeriodRequest request) {
+        if (request.getStartTime() == null || request.getEndTime() == null) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Thời gian bắt đầu và kết thúc không được để trống");
+        }
+        if (!request.getStartTime().isBefore(request.getEndTime())) {
+            throw new AppException(ErrorCode.INVALID_DATE_RANGE, "Thời gian kết thúc phải diễn ra sau thời gian bắt đầu");
+        }
     }
 }

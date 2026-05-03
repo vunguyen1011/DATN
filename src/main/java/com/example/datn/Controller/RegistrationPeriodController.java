@@ -1,6 +1,7 @@
-package com.example.datn.Controller;
+        package com.example.datn.Controller;
 
 import com.example.datn.DTO.Request.RegistrationPeriodRequest;
+import com.example.datn.DTO.Request.RegistrationPeriodUpdateRequest;
 import com.example.datn.DTO.Response.ApiResponse;
 import com.example.datn.DTO.Response.RegistrationPeriodResponse;
 import com.example.datn.Service.Interface.IRegistrationPeriodService;
@@ -36,7 +37,7 @@ public class RegistrationPeriodController {
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<RegistrationPeriodResponse> updateRegistrationPeriod(
             @PathVariable UUID id,
-            @Valid @RequestBody RegistrationPeriodRequest request) {
+            @Valid @RequestBody RegistrationPeriodUpdateRequest request) {
         return ApiResponse.<RegistrationPeriodResponse>builder()
                 .code(1000)
                 .message("Cập nhật đợt đăng ký thành công")

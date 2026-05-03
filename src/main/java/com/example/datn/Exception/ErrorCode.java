@@ -1,5 +1,7 @@
 package com.example.datn.Exception;
 
+import com.example.datn.Model.Enrollment;
+
 public enum ErrorCode {
 
     UNAUTHENTICATED(401, "Unauthenticated"),
@@ -107,8 +109,12 @@ public enum ErrorCode {
     EXCEL_READ_ERROR(2004, "Lỗi hệ thống khi đọc dữ liệu từ file Excel"),
     INVALID_FILE_FORMAT(2005, "Định dạng file không hợp lệ. Vui lòng tải lên file Excel (.xlsx)"),
     EXCEL_DATA_INVALID(2006, "Dữ liệu trong file Excel không hợp lệ hoặc thiếu thông tin bắt buộc"),
-    EXCEL_IMPORT_PARTIAL_SUCCESS(2007, "Import thành công một phần, một số dòng bị lỗi hoặc trùng lặp");
+    EXCEL_IMPORT_PARTIAL_SUCCESS(2007, "Import thành công một phần, một số dòng bị lỗi hoặc trùng lặp"),
 
+    //2100 - 2199: Enrollment & Registration
+   ENROLLMENT_NOT_FOUND(2101, "Không tìm thấy đăng ký"),
+   PERIOD_COHORT_NOT_FOUND(2102, "Không tìm thấy cấu hình đợt đăng ký cho khóa học"),
+    REGISTRATION_NOT_FOUND(2103, "Không tìm thấy đợt đăng ký nào cho khóa học này");
     private final int code;
     private final String message;
 

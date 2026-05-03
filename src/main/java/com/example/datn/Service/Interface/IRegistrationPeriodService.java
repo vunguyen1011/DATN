@@ -1,6 +1,7 @@
 package com.example.datn.Service.Interface;
 
 import com.example.datn.DTO.Request.RegistrationPeriodRequest;
+import com.example.datn.DTO.Request.RegistrationPeriodUpdateRequest;
 import com.example.datn.DTO.Response.RegistrationPeriodResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -11,7 +12,7 @@ public interface IRegistrationPeriodService {
 
     RegistrationPeriodResponse createRegistrationPeriod(RegistrationPeriodRequest request);
 
-    RegistrationPeriodResponse updateRegistrationPeriod(UUID id, RegistrationPeriodRequest request);
+    RegistrationPeriodResponse updateRegistrationPeriod(UUID id, RegistrationPeriodUpdateRequest request);
 
     void deleteRegistrationPeriod(UUID id);
 
