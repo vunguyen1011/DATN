@@ -22,7 +22,7 @@ public class StudentGradeController {
      * Admin nhập / cập nhật điểm cho một enrollment.
      * POST /api/grades
      */
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN','USER','LECTURER')")
     @PostMapping
     public ApiResponse<StudentGradeResponse> upsertGrade(@Valid @RequestBody StudentGradeRequest request) {
         return ApiResponse.<StudentGradeResponse>builder()

@@ -35,6 +35,15 @@ public class PeriodCohortServiceImpl implements IPeriodCohortService {
         RegistrationPeriod registrationPeriod = registrationPeriodRepository.findById(request.getRegistrationPeriodId())
                 .orElseThrow(() -> new AppException(ErrorCode.REGISTRATION_NOT_FOUND)); // You might want to add REGISTRATION_PERIOD_NOT_FOUND
 
+        if (request.getStartTime().isAfter(request.getEndTime())) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Thời gian bắt đầu phải trước thời gian kết thúc");
+        }
+
+        if (request.getStartTime().isBefore(registrationPeriod.getStartTime()) ||
+            request.getEndTime().isAfter(registrationPeriod.getEndTime())) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Thời gian của cấu hình phải nằm trong khoảng thời gian của đợt đăng ký chính");
+        }
+
         Cohort cohort = null;
         if (request.getCohortId() != null) {
             cohort = cohortRepository.findById(request.getCohortId())
@@ -79,6 +88,18 @@ public class PeriodCohortServiceImpl implements IPeriodCohortService {
         // 1. Tìm bản ghi cũ
         PeriodCohort periodCohort = periodCohortRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_REQUEST, "Không tìm thấy cấu hình thời gian"));
+
+        if (request.getStartTime().isAfter(request.getEndTime())) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Thời gian bắt đầu phải trước thời gian kết thúc");
+        }
+
+        RegistrationPeriod registrationPeriod = periodCohort.getRegistrationPeriod();
+        if (request.getStartTime().isBefore(registrationPeriod.getStartTime()) ||
+            request.getEndTime().isAfter(registrationPeriod.getEndTime())) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Thời gian của cấu hình phải nằm trong khoảng thời gian của đợt đăng ký chính");
+        }
+
+        checkOverlap(periodCohort.getCohort() != null ? periodCohort.getCohort().getId() : null, request.getStartTime(), request.getEndTime(), id);
 
         // 2. Chỉ cập nhật thời gian
         periodCohort.setStartTime(request.getStartTime());
