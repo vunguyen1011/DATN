@@ -7,6 +7,8 @@ import java.util.UUID;
 
 @Data
 public class EnrollRequest {
-    @NotNull(message = "classSectionId is required")
-    private UUID classSectionId;
+    @NotNull(message = "theoryClassId is required")
+    private UUID theoryClassId;
+    
+    private UUID labClassId;
 }

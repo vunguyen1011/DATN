@@ -3,6 +3,7 @@ package com.example.datn.Controller;
 import com.example.datn.DTO.Request.EnrollRequest;
 import com.example.datn.DTO.Response.ApiResponse;
 import com.example.datn.DTO.Response.EnrollmentResponse;
+import com.example.datn.DTO.Response.EnrollmentSimpleResponse;
 import com.example.datn.DTO.Response.RegistrationStatusResponse;
 import com.example.datn.DTO.Response.SubjectResponse;
 import com.example.datn.Service.Interface.IRegistrationService;
@@ -34,8 +35,8 @@ public class RegistrationController {
 
     @PreAuthorize("hasRole('USER')")
     @PostMapping("/enroll")
-    public ApiResponse<EnrollmentResponse> enroll(@RequestBody EnrollRequest request) {
-        return ApiResponse.<EnrollmentResponse>builder()
+    public ApiResponse<List<EnrollmentSimpleResponse>> enroll(@RequestBody EnrollRequest request) {
+        return ApiResponse.<List<EnrollmentSimpleResponse>>builder()
                 .code(1000)
                 .message("Đăng ký lớp học phần thành công")
                 .result(registrationService.enroll(request))

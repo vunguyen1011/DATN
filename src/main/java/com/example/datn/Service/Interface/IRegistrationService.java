@@ -10,7 +10,7 @@ import java.util.UUID;
 
 public interface IRegistrationService {
     RegistrationStatusResponse getRegistrationStatus();
-    EnrollmentResponse enroll(EnrollRequest request);
+    List<com.example.datn.DTO.Response.EnrollmentSimpleResponse> enroll(EnrollRequest request);
     void cancelEnrollment(UUID classSectionId);
     List<EnrollmentResponse> getMyTimetable();
 }

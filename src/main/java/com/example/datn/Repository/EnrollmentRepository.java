@@ -4,6 +4,7 @@ import com.example.datn.ENUM.EnrollmentStatus;
 import com.example.datn.Model.Enrollment;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
@@ -25,6 +26,11 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, UUID> {
             "AND e.classSection.semester.id = :semesterId " +
             "AND e.status = :status")
     boolean existsByStudentAndSubjectAndSemester(@Param("studentId") UUID studentId, @Param("subjectId") UUID subjectId, @Param("semesterId") UUID semesterId, @Param("status") EnrollmentStatus status);
+
+    @Query("SELECT e.classSection.id FROM Enrollment e WHERE e.student.id = :studentId " +
+            "AND e.classSection.semester.id = :semesterId " +
+            "AND e.status = :status")
+    List<UUID> findEnrolledSectionIdsByStudentAndSemester(@Param("studentId") UUID studentId, @Param("semesterId") UUID semesterId, @Param("status") EnrollmentStatus status);
 
     @Query("SELECT e FROM Enrollment e WHERE e.student.id = :studentId " +
             "AND e.classSection.semester.id = :semesterId " +

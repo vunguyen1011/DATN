@@ -3,6 +3,7 @@ package com.example.datn.Repository;
 import com.example.datn.Model.ClassSection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -22,6 +23,10 @@ public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT cs FROM ClassSection cs WHERE cs.id = :id")
     Optional<ClassSection> findByIdWithLock(@Param("id") UUID id);
+
+    @EntityGraph(attributePaths = {"semester", "subject", "parentSection"})
+    @Query("SELECT cs FROM ClassSection cs WHERE cs.id = :id")
+    Optional<ClassSection> findByIdWithDetails(@Param("id") UUID id);
 
     int countBySemesterIdAndSubjectComponent_SubjectIdAndParentSectionIsNull(UUID semesterId, UUID subjectId);
     long countBySemesterId(UUID semesterId);
@@ -69,7 +74,7 @@ public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID
             "WHERE s.code LIKE CONCAT('%', :keyword, '%') OR s.name LIKE CONCAT('%', :keyword, '%')")
     List<ClassSection> findBySubjectCodeOrName(@Param("keyword") String keyword);
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Modifying
     @Transactional
     @Query("UPDATE ClassSection cs SET cs.status = :openedStatus " +
             "WHERE cs.semester.id = :semesterId AND cs.status = :pendingStatus")
@@ -79,12 +84,12 @@ public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID
             @Param("pendingStatus") com.example.datn.ENUM.SectionStatus pendingStatus
     );
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Modifying
     @Query("UPDATE ClassSection cs SET cs.enrolledCount = cs.enrolledCount + 1 " +
             "WHERE cs.id = :id AND cs.enrolledCount < cs.capacity")
     int tryIncrementEnrolledCount(@Param("id") UUID id);
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Modifying
     @Query("UPDATE ClassSection cs SET cs.enrolledCount = cs.enrolledCount - 1 " +
             "WHERE cs.id = :id AND cs.enrolledCount > 0")
     int tryDecrementEnrolledCount(@Param("id") UUID id);

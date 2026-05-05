@@ -30,6 +30,18 @@ public class EnrollmentMapper {
                 .build();
     }
 
+    public com.example.datn.DTO.Response.EnrollmentSimpleResponse toSimpleResponse(Enrollment enrollment) {
+        if (enrollment == null) return null;
+        
+        return com.example.datn.DTO.Response.EnrollmentSimpleResponse.builder()
+                .id(enrollment.getId())
+                .status(enrollment.getStatus() != null ? enrollment.getStatus() : null)
+                .enrollmentDate(enrollment.getEnrollmentDate())
+                .sectionCode(enrollment.getClassSection() != null ? enrollment.getClassSection().getSectionCode() : null)
+                .subjectName(enrollment.getClassSection() != null && enrollment.getClassSection().getSubject() != null ? enrollment.getClassSection().getSubject().getName() : null)
+                .build();
+    }
+
     private ClassSectionResponse mapClassSection(ClassSection classSection) {
         if (classSection == null) return null;
 
