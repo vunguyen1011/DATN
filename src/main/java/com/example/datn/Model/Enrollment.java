@@ -5,7 +5,11 @@ import lombok.*;
 import java.util.UUID;
 
 @Entity
-@Table(name = "enrollments")
+@Table(name = "enrollments", indexes = {
+        @Index(name = "idx_enrollment_student_status", columnList = "student_id, status"),
+        @Index(name = "idx_enrollment_class_section", columnList = "class_section_id"),
+        @Index(name = "idx_enrollment_student_section", columnList = "student_id, class_section_id", unique = true)
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

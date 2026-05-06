@@ -11,7 +11,9 @@ import java.util.UUID;
 @AllArgsConstructor
 @Setter
 @Getter
-@Table(name = "prerequisites")
+@Table(name = "prerequisites", indexes = {
+        @Index(name = "idx_prerequisite_subject", columnList = "subject_id")
+})
 
 public class Prerequisite {
     @Id

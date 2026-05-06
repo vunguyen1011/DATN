@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -24,7 +25,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-
 @Service
 @RequiredArgsConstructor
 public class RegistrationServiceImpl implements IRegistrationService {
@@ -37,9 +37,12 @@ public class RegistrationServiceImpl implements IRegistrationService {
     private final StudentGradeRepository studentGradeRepository;
     private final PrerequisiteRepository prerequisiteRepository;
     private final EnrollmentMapper enrollmentMapper;
+    private final TransactionTemplate transactionTemplate;
 
     @Value("${app.registration.max-credits:25}")
     private int maxCreditsPerSemester;
+
+    // --- HELPER METHODS (Dữ liệu tĩnh nên cân nhắc @Cacheable ở bước sau) ---
 
     private Student getCurrentStudent() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -53,133 +56,76 @@ public class RegistrationServiceImpl implements IRegistrationService {
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_REQUEST, "Ngoài thời gian đăng ký tín chỉ"));
     }
 
+    // --- CORE LOGIC ---
+
     @Override
-    @Transactional
+    // KHÔNG dùng @Transactional ở đây để tối ưu Connection Pool
     public List<com.example.datn.DTO.Response.EnrollmentSimpleResponse> enroll(EnrollRequest request) {
-        //Lấy thông tin sinh viên hiện tại
+
+        // 1. GIAI ĐOẠN VALIDATION (NGOÀI TRANSACTION)
         Student student = getCurrentStudent();
-        //Kiểm tra xem có đang trong đợt đăng ký không
         PeriodCohort activePeriod = getActivePeriodCohort(student.getCohort().getId());
         UUID semesterId = activePeriod.getRegistrationPeriod().getSemester().getId();
-        // Lấy thông tin lớp lý thuyết
+
+        // Tải thông tin lớp học (Sử dụng FindById thông thường, Connection trả về ngay)
         ClassSection theorySection = classSectionRepository.findById(request.getTheoryClassId())
                 .orElseThrow(() -> new AppException(ErrorCode.NO_CLASS_SECTIONS_FOUND, "Không tìm thấy lớp lý thuyết"));
-        // Kiểm tra lớp lý thuyết có thuộc học kỳ đang đăng ký không
-        if (!theorySection.getSemester().getId().equals(semesterId)) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp học phần không thuộc học kỳ hiện tại");
-        }
-        // Kiểm tra lớp lý thuyết có phải là lớp gốc không (không có parent)
-        if (theorySection.getParentSection() != null) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "theoryClassId phải là mã của lớp lý thuyết gốc");
-        }
-        // Kiểm tra xem môn học có lớp thực hành hay không
-        boolean subjectHasLabs = classSectionRepository.existsByParentSectionId(theorySection.getId());
-        // Nếu có lớp thực hành, kiểm tra xem người dùng có chọn lớp thực hành không và lớp đó có hợp lệ không
-        ClassSection labSection = null;
-        if (request.getLabClassId() != null) {
-            labSection = classSectionRepository.findById(request.getLabClassId())
-                    .orElseThrow(() -> new AppException(ErrorCode.NO_CLASS_SECTIONS_FOUND, "Không tìm thấy lớp thực hành"));
 
-            if (labSection.getParentSection() == null || !labSection.getParentSection().getId().equals(theorySection.getId())) {
-                throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp thực hành không thuộc về lớp lý thuyết đã chọn");
-            }
-        } else if (subjectHasLabs) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Môn học này có lớp thực hành, vui lòng chọn 1 ca thực hành");
-        }
-        // Kiểm tra xem sinh viên đã đăng ký lớp nào của môn này chưa
+        validateClassBasics(theorySection, semesterId);
+
+        // Xử lý lớp thực hành (Lab)
+        ClassSection labSection = validateAndGetLabSection(request, theorySection);
+
+        // Kiểm tra trùng môn & Tải danh sách đã đăng ký
         List<Enrollment> currentEnrollments = enrollmentRepository.findActiveEnrollmentsBySemester(
                 student.getId(), semesterId, EnrollmentStatus.REGISTERED);
-        // Kiểm tra trùng môn học
-        for (Enrollment en : currentEnrollments) {
-            ClassSection enrolledSec = en.getClassSection();
-            if (enrolledSec.getSubject().getId().equals(theorySection.getSubject().getId())) {
-                throw new AppException(ErrorCode.INVALID_REQUEST, "Bạn đã đăng ký một lớp của môn học này rồi");
-            }
-        }
-        // Kiểm tra tổng số tín chỉ nếu đăng ký lớp này
-        if (theorySection.getEnrolledCount() >= theorySection.getCapacity()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp lý thuyết đã đủ sĩ số");
-        }
-        if (labSection != null && labSection.getEnrolledCount() >= labSection.getCapacity()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp thực hành đã đủ sĩ số");
-        }
-        // Kiểm tra điều kiện tiên quyết
+
+        validateDuplicateSubject(currentEnrollments, theorySection);
+
+        // Kiểm tra điều kiện tiên quyết (Đã được tối ưu)
         checkPrerequisitesOptimized(student.getId(), theorySection.getSubject().getId());
-        // Kiểm tra xung đột lịch học với các lớp đã đăng ký
-        List<UUID> enrolledSectionIds = currentEnrollments.stream()
-                .map(en -> en.getClassSection().getId())
-                .collect(Collectors.toList());
 
-        if (labSection != null) {
-            int internalConflict = scheduleRepository.countOverlappingSchedules(theorySection.getId(), Collections.singletonList(labSection.getId()));
-            if (internalConflict > 0) {
-                throw new AppException(ErrorCode.INVALID_REQUEST, "Lịch lớp lý thuyết và thực hành đang chọn bị trùng nhau");
-            }
-        }
+        // Kiểm tra trùng lịch (Dùng Query DB nhưng gom lại một chỗ ngoài Transaction)
+        validateSchedules(theorySection, labSection, currentEnrollments);
 
-        if (!enrolledSectionIds.isEmpty()) {
-            int conflictCount = scheduleRepository.countOverlappingSchedules(theorySection.getId(), enrolledSectionIds);
-            if (conflictCount > 0) {
-                throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp lý thuyết trùng lịch với lớp đã đăng ký");
-            }
-            if (labSection != null) {
-                int labConflictCount = scheduleRepository.countOverlappingSchedules(labSection.getId(), enrolledSectionIds);
-                if (labConflictCount > 0) {
-                    throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp thực hành trùng lịch với lớp đã đăng ký");
-                }
-            }
-        }
-
-
-
-        // PRE-FETCH LAZY DATA BEFORE ACQUIRING THE LOCK
+        // PRE-FETCH: Load dữ liệu Lazy trước khi vào Transaction để tránh LazyInitializationException
         theorySection.getSubject().getName();
-        if (labSection != null) {
-            labSection.getSubject().getName();
-        }
+        if (labSection != null) labSection.getSubject().getName();
 
-        Enrollment theoryEnrollment = enrollmentRepository.findByStudentIdAndClassSectionId(student.getId(), theorySection.getId())
-                .orElse(Enrollment.builder()
-                        .student(student)
-                        .classSection(theorySection)
-                        .build());
-        theoryEnrollment.setStatus(EnrollmentStatus.REGISTERED);
-        theoryEnrollment.setEnrollmentDate(LocalDateTime.now());
+        // Chuẩn bị các đối tượng Enrollment (Trạng thái transient - chưa save)
+        Enrollment theoryEnrollment = prepareEnrollment(student, theorySection);
+        final Enrollment finalLabEnrollment = (labSection != null) ? prepareEnrollment(student, labSection) : null;
+        final ClassSection finalLabSection = labSection;
 
-        Enrollment labEnrollment = null;
-        if (labSection != null) {
-            labEnrollment = enrollmentRepository.findByStudentIdAndClassSectionId(student.getId(), labSection.getId())
-                    .orElse(Enrollment.builder()
-                            .student(student)
-                            .classSection(labSection)
-                            .build());
-            labEnrollment.setStatus(EnrollmentStatus.REGISTERED);
-            labEnrollment.setEnrollmentDate(LocalDateTime.now());
-        }
+        // 2. GIAI ĐOẠN PERSISTENCE (TRONG TRANSACTION)
+        // Connection chỉ bị chiếm dụng từ đây
+        return transactionTemplate.execute(status -> {
+            try {
+                // Atomic Update: Increment kèm check sĩ số tại tầng DB
+                if (classSectionRepository.tryIncrementEnrolledCount(theorySection.getId()) == 0) {
+                    throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp lý thuyết đã đủ sĩ số");
+                }
 
-        // ---- LOCK ACQUIRED HERE ----
-        int updatedTheory = classSectionRepository.tryIncrementEnrolledCount(theorySection.getId());
-        if (updatedTheory == 0) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp lý thuyết đã đủ sĩ số");
-        }
+                if (finalLabSection != null) {
+                    if (classSectionRepository.tryIncrementEnrolledCount(finalLabSection.getId()) == 0) {
+                        throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp thực hành đã đủ sĩ số");
+                    }
+                }
 
-        if (labSection != null) {
-            int updatedLab = classSectionRepository.tryIncrementEnrolledCount(labSection.getId());
-            if (updatedLab == 0) {
-                // Phải rollback lý thuyết nếu thực hành hết chỗ (Spring tự handle via @Transactional)
-                throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp thực hành đã đủ sĩ số");
+                // Lưu bản ghi
+                List<com.example.datn.DTO.Response.EnrollmentSimpleResponse> responses = new ArrayList<>();
+                responses.add(enrollmentMapper.toSimpleResponse(enrollmentRepository.save(theoryEnrollment)));
+
+                if (finalLabEnrollment != null) {
+                    responses.add(enrollmentMapper.toSimpleResponse(enrollmentRepository.save(finalLabEnrollment)));
+                }
+
+                return responses;
+            } catch (Exception e) {
+                status.setRollbackOnly(); // Đảm bảo Rollback nếu có lỗi xảy ra
+                throw e;
             }
-        }
-
-        List<com.example.datn.DTO.Response.EnrollmentSimpleResponse> responses = new ArrayList<>();
-        
-        responses.add(enrollmentMapper.toSimpleResponse(enrollmentRepository.save(theoryEnrollment)));
-
-        if (labEnrollment != null) {
-            responses.add(enrollmentMapper.toSimpleResponse(enrollmentRepository.save(labEnrollment)));
-        }
-
-        return responses;
+        });
     }
 
     @Override
@@ -204,6 +150,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
         enrollmentRepository.save(theoryEnrollment);
         classSectionRepository.tryDecrementEnrolledCount(theoryClassSectionId);
 
+        // Hủy các lớp con (Lab) liên quan
         List<Enrollment> currentEnrollments = enrollmentRepository.findActiveEnrollmentsBySemester(
                 student.getId(), theorySection.getSemester().getId(), EnrollmentStatus.REGISTERED);
 
@@ -216,6 +163,67 @@ public class RegistrationServiceImpl implements IRegistrationService {
                 break;
             }
         }
+    }
+
+    // --- CÁC HÀM VALIDATION TÁCH RỜI (CLEAN CODE) ---
+
+    private void validateClassBasics(ClassSection theory, UUID currentSemesterId) {
+        if (!theory.getSemester().getId().equals(currentSemesterId)) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp học phần không thuộc học kỳ hiện tại");
+        }
+        if (theory.getParentSection() != null) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Mã ID phải là của lớp lý thuyết gốc");
+        }
+    }
+
+    private ClassSection validateAndGetLabSection(EnrollRequest request, ClassSection theory) {
+        boolean subjectHasLabs = classSectionRepository.existsByParentSectionId(theory.getId());
+        if (request.getLabClassId() != null) {
+            ClassSection lab = classSectionRepository.findById(request.getLabClassId())
+                    .orElseThrow(() -> new AppException(ErrorCode.NO_CLASS_SECTIONS_FOUND, "Không tìm thấy lớp thực hành"));
+            if (lab.getParentSection() == null || !lab.getParentSection().getId().equals(theory.getId())) {
+                throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp thực hành không thuộc về lớp lý thuyết");
+            }
+            return lab;
+        } else if (subjectHasLabs) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Môn học này yêu cầu chọn 1 ca thực hành");
+        }
+        return null;
+    }
+
+    private void validateDuplicateSubject(List<Enrollment> current, ClassSection target) {
+        for (Enrollment en : current) {
+            if (en.getClassSection().getSubject().getId().equals(target.getSubject().getId())) {
+                throw new AppException(ErrorCode.INVALID_REQUEST, "Bạn đã đăng ký môn học này rồi");
+            }
+        }
+    }
+
+    private void validateSchedules(ClassSection theory, ClassSection lab, List<Enrollment> current) {
+        List<UUID> enrolledIds = current.stream().map(en -> en.getClassSection().getId()).collect(Collectors.toList());
+
+        if (lab != null) {
+            if (scheduleRepository.countOverlappingSchedules(theory.getId(), Collections.singletonList(lab.getId())) > 0) {
+                throw new AppException(ErrorCode.INVALID_REQUEST, "Trùng lịch giữa lý thuyết và thực hành");
+            }
+        }
+
+        if (!enrolledIds.isEmpty()) {
+            if (scheduleRepository.countOverlappingSchedules(theory.getId(), enrolledIds) > 0) {
+                throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp lý thuyết trùng lịch với các môn đã đăng ký");
+            }
+            if (lab != null && scheduleRepository.countOverlappingSchedules(lab.getId(), enrolledIds) > 0) {
+                throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp thực hành trùng lịch với các môn đã đăng ký");
+            }
+        }
+    }
+
+    private Enrollment prepareEnrollment(Student student, ClassSection section) {
+        Enrollment enrollment = enrollmentRepository.findByStudentIdAndClassSectionId(student.getId(), section.getId())
+                .orElse(Enrollment.builder().student(student).classSection(section).build());
+        enrollment.setStatus(EnrollmentStatus.REGISTERED);
+        enrollment.setEnrollmentDate(LocalDateTime.now());
+        return enrollment;
     }
 
     private void checkPrerequisitesOptimized(UUID studentId, UUID subjectId) {

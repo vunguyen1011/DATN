@@ -10,7 +10,11 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "class_sections")
+@Table(name = "class_sections", indexes = {
+        @Index(name = "idx_class_section_semester", columnList = "semester_id"),
+        @Index(name = "idx_class_section_subject_semester", columnList = "subject_id, semester_id"),
+        @Index(name = "idx_class_section_parent", columnList = "parent_section_id")
+})
 @Getter
 @Setter
 @NoArgsConstructor
