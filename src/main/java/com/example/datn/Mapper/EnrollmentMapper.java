@@ -60,6 +60,7 @@ public class EnrollmentMapper {
                 .subjectCode(classSection.getSubject() != null ? classSection.getSubject().getCode() : null)
                 .parentSectionId(classSection.getParentSection() != null ? classSection.getParentSection().getId() : null)
                 .schedules(scheduleResponses)
+                .credit(classSection.getSubject().getCredits())
                 .build();
     }
 

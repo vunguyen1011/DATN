@@ -21,6 +21,7 @@ public class ClassSectionResponse {
     private String subjectComponentType;
     private String subjectName;
     private String subjectCode;
+    private Integer credit;
     private UUID parentSectionId;
     private UUID semesterId;
     private Integer capacity;
