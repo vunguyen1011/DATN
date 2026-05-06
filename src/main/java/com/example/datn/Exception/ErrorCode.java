@@ -111,10 +111,16 @@ public enum ErrorCode {
     EXCEL_DATA_INVALID(2006, "Dữ liệu trong file Excel không hợp lệ hoặc thiếu thông tin bắt buộc"),
     EXCEL_IMPORT_PARTIAL_SUCCESS(2007, "Import thành công một phần, một số dòng bị lỗi hoặc trùng lặp"),
 
-    //2100 - 2199: Enrollment & Registration
-   ENROLLMENT_NOT_FOUND(2101, "Không tìm thấy đăng ký"),
-   PERIOD_COHORT_NOT_FOUND(2102, "Không tìm thấy cấu hình đợt đăng ký cho khóa học"),
-    REGISTRATION_NOT_FOUND(2103, "Không tìm thấy đợt đăng ký nào cho khóa học này");
+    // 2100 - 2199: Enrollment & Registration
+    ENROLLMENT_NOT_FOUND(2101, "Không tìm thấy đăng ký"),
+    PERIOD_COHORT_NOT_FOUND(2102, "Không tìm thấy cấu hình đợt đăng ký cho khóa học"),
+    REGISTRATION_NOT_FOUND(2103, "Không tìm thấy đợt đăng ký nào cho khóa học này"),
+    INVOICE_NOT_FOUND(2201, "Không tìm thấy hóa đơn học phí"),
+    INVOICE_ALREADY_PAID(2202, "Hóa đơn này đã được thanh toán đủ"),
+    PAYMENT_FAILED(2203, "Thanh toán thất bại hoặc đã bị hủy"),
+    INVALID_PAYMENT_SIGNATURE(2204, "Chữ ký giao dịch không hợp lệ (Sai Checksum)"),
+    TRANSACTION_ALREADY_PROCESSED(2205, "Giao dịch này đã được xử lý trước đó");
+
     private final int code;
     private final String message;
 

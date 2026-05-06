@@ -2,5 +2,6 @@ package com.example.datn.ENUM;
 
 public enum EnrollmentStatus {
     REGISTERED,
-    CANCELLED
+    CANCELLED,
+    ENROLLED
 }

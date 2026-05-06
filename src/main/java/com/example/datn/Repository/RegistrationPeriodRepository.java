@@ -1,5 +1,7 @@
 package com.example.datn.Repository;
 
+import com.example.datn.ENUM.InvoiceStatus;
+import com.example.datn.Model.Invoice;
 import com.example.datn.Model.RegistrationPeriod;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -48,4 +50,11 @@ public interface RegistrationPeriodRepository extends JpaRepository<Registration
             @Param("excludeId") UUID excludeId,
             @Param("startTime") LocalDateTime startTime,
             @Param("endTime") LocalDateTime endTime);
+
+    @Query("SELECT i FROM Invoice i WHERE i.student.id = :studentId " +
+            "AND (:status IS NULL OR i.status = :status)")
+    Page<Invoice> findByStudentIdAndStatusWithPagination(
+            @Param("studentId") UUID studentId,
+            @Param("status") InvoiceStatus status,
+            Pageable pageable);
 }

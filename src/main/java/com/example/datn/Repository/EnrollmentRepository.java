@@ -7,33 +7,41 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface EnrollmentRepository extends JpaRepository<Enrollment, UUID> {
-    Optional<Enrollment> findByStudentIdAndClassSectionId(UUID studentId, UUID classSectionId);
+        Optional<Enrollment> findByStudentIdAndClassSectionId(UUID studentId, UUID classSectionId);
 
-    @Query("SELECT COALESCE(SUM(e.classSection.subject.credits), 0) FROM Enrollment e " +
-            "WHERE e.student.id = :studentId " +
-            "AND e.classSection.semester.id = :semesterId " +
-            "AND e.status = :status")
-    int sumCreditsByStudentAndSemester(@Param("studentId") UUID studentId, @Param("semesterId") UUID semesterId, @Param("status") EnrollmentStatus status);
+        @Query("SELECT COALESCE(SUM(e.classSection.subject.credits), 0) FROM Enrollment e " +
+                        "WHERE e.student.id = :studentId " +
+                        "AND e.classSection.semester.id = :semesterId " +
+                        "AND e.status = :status")
+        int sumCreditsByStudentAndSemester(@Param("studentId") UUID studentId, @Param("semesterId") UUID semesterId,
+                        @Param("status") EnrollmentStatus status);
 
-    @Query("SELECT COUNT(e) > 0 FROM Enrollment e " +
-            "WHERE e.student.id = :studentId " +
-            "AND e.classSection.subject.id = :subjectId " +
-            "AND e.classSection.semester.id = :semesterId " +
-            "AND e.status = :status")
-    boolean existsByStudentAndSubjectAndSemester(@Param("studentId") UUID studentId, @Param("subjectId") UUID subjectId, @Param("semesterId") UUID semesterId, @Param("status") EnrollmentStatus status);
+        @Query("SELECT COUNT(e) > 0 FROM Enrollment e " +
+                        "WHERE e.student.id = :studentId " +
+                        "AND e.classSection.subject.id = :subjectId " +
+                        "AND e.classSection.semester.id = :semesterId " +
+                        "AND e.status = :status")
+        boolean existsByStudentAndSubjectAndSemester(@Param("studentId") UUID studentId,
+                        @Param("subjectId") UUID subjectId, @Param("semesterId") UUID semesterId,
+                        @Param("status") EnrollmentStatus status);
 
-    @Query("SELECT e.classSection.id FROM Enrollment e WHERE e.student.id = :studentId " +
-            "AND e.classSection.semester.id = :semesterId " +
-            "AND e.status = :status")
-    List<UUID> findEnrolledSectionIdsByStudentAndSemester(@Param("studentId") UUID studentId, @Param("semesterId") UUID semesterId, @Param("status") EnrollmentStatus status);
+        @Query("SELECT e.classSection.id FROM Enrollment e WHERE e.student.id = :studentId " +
+                        "AND e.classSection.semester.id = :semesterId " +
+                        "AND e.status = :status")
+        List<UUID> findEnrolledSectionIdsByStudentAndSemester(@Param("studentId") UUID studentId,
+                        @Param("semesterId") UUID semesterId, @Param("status") EnrollmentStatus status);
 
-    @Query("SELECT e FROM Enrollment e WHERE e.student.id = :studentId " +
-            "AND e.classSection.semester.id = :semesterId " +
-            "AND e.status = :status")
-    List<Enrollment> findActiveEnrollmentsBySemester(@Param("studentId") UUID studentId, @Param("semesterId") UUID semesterId, @Param("status") EnrollmentStatus status);
+        @Query("SELECT e FROM Enrollment e WHERE e.student.id = :studentId " +
+                        "AND e.classSection.semester.id = :semesterId " +
+                        "AND e.status = :status")
+        List<Enrollment> findActiveEnrollmentsBySemester(@Param("studentId") UUID studentId,
+                        @Param("semesterId") UUID semesterId, @Param("status") EnrollmentStatus status);
+        List<Enrollment> findByEnrollmentDateBetweenAndStatus(LocalDateTime startTime, LocalDateTime endTime, EnrollmentStatus status);
+
 }

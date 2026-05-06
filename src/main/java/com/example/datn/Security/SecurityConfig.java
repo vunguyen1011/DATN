@@ -40,7 +40,8 @@ public class SecurityConfig {
             "/v3/api-docs/**",      // Mở cửa cho các file config bên trong
             "/swagger-ui/**",
             "/swagger-ui.html",
-            "/api/test/**"
+            "/api/test/**",
+            "/api/tuitions/vnpay-return"
     };
 
     @Bean
