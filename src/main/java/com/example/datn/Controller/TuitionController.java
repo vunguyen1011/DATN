@@ -95,7 +95,7 @@ public class TuitionController {
     @PreAuthorize("hasRole('USER')")
     public ResponseEntity<ApiResponse<Page<InvoiceResponse>>> getMyInvoicesPaged(
             @RequestParam(required = false) InvoiceStatus status,
-            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -112,7 +112,7 @@ public class TuitionController {
     public ResponseEntity<ApiResponse<Page<InvoiceResponse>>> getAllInvoicesForAdmin(
             @RequestParam(required = false) InvoiceStatus status,
             @RequestParam(required = false) UUID semesterId,
-            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
         Page<InvoiceResponse> result = tuitionService.getAllInvoicesForAdmin(status, semesterId, page, size);

@@ -305,7 +305,7 @@ public class TuitionServiceImpl implements ITuitionService {
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
         // Spring Data JPA đếm trang bắt đầu từ 0, nên Client gửi lên page = 1 thì ta phải trừ đi 1
-        Pageable pageable = PageRequest.of(page - 1, size, Sort.by("createdAt").descending());
+        Pageable pageable = PageRequest.of(page , size, Sort.by("createdAt").descending());
 
         Page<Invoice> invoicePage = invoiceRepository.findByStudentIdAndStatusWithPagination(
                 student.getId(), status, pageable);
@@ -328,7 +328,7 @@ public class TuitionServiceImpl implements ITuitionService {
     @Override
     public Page<InvoiceResponse> getAllInvoicesForAdmin(InvoiceStatus status, UUID semesterId, int page, int size) {
         // Vẫn trừ đi 1 vì Spring đếm trang từ 0
-        Pageable pageable = PageRequest.of(page - 1, size, Sort.by("createdAt").descending());
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
         Page<Invoice> invoicePage = invoiceRepository.findAllForAdminWithFilters(status, semesterId, pageable);
 
