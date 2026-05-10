@@ -1,7 +1,10 @@
 package com.example.datn.Service.Impl;
 
+import com.example.datn.Config.EnrollmentCacheManager;
+import com.example.datn.DTO.Request.EnrollmentSaveRequest;
 import com.example.datn.DTO.Request.EnrollRequest;
 import com.example.datn.DTO.Response.EnrollmentResponse;
+import com.example.datn.DTO.Response.EnrollmentSimpleResponse;
 import com.example.datn.DTO.Response.RegistrationStatusResponse;
 import com.example.datn.ENUM.EnrollmentStatus;
 import com.example.datn.Exception.AppException;
@@ -9,22 +12,23 @@ import com.example.datn.Exception.ErrorCode;
 import com.example.datn.Mapper.EnrollmentMapper;
 import com.example.datn.Model.*;
 import com.example.datn.Repository.*;
+import com.example.datn.Service.Interface.IRedisService;
 import com.example.datn.Service.Interface.IRegistrationService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RegistrationServiceImpl implements IRegistrationService {
@@ -37,15 +41,33 @@ public class RegistrationServiceImpl implements IRegistrationService {
     private final StudentGradeRepository studentGradeRepository;
     private final PrerequisiteRepository prerequisiteRepository;
     private final EnrollmentMapper enrollmentMapper;
-    private final TransactionTemplate transactionTemplate;
+    private final IRedisService redisService;
+    private final AsyncEnrollmentPersister asyncEnrollmentPersister;
+    private final EnrollmentCacheManager enrollmentCacheManager;
 
     @Value("${app.registration.max-credits:25}")
     private int maxCreditsPerSemester;
 
-    // --- HELPER METHODS (Dữ liệu tĩnh nên cân nhắc @Cacheable ở bước sau) ---
+    // ─────────────────────────────────────────────────────
+    // HELPER METHODS
+    // ─────────────────────────────────────────────────────
 
     private Student getCurrentStudent() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null
+                && authentication.getPrincipal() instanceof com.example.datn.Security.MyUserDetail userDetails) {
+            if (userDetails.getStudentId() != null) {
+                Student lightweightStudent = new Student();
+                lightweightStudent.setId(userDetails.getStudentId());
+                if (userDetails.getCohortId() != null) {
+                    Cohort cohort = new Cohort();
+                    cohort.setId(userDetails.getCohortId());
+                    lightweightStudent.setCohort(cohort);
+                }
+                return lightweightStudent;
+            }
+        }
+        String username = authentication.getName();
         return studentRepository.findByUser_Username(username)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
     }
@@ -56,85 +78,94 @@ public class RegistrationServiceImpl implements IRegistrationService {
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_REQUEST, "Ngoài thời gian đăng ký tín chỉ"));
     }
 
-    // --- CORE LOGIC ---
+    // ─────────────────────────────────────────────────────
+    // CORE: ENROLL
+    // ─────────────────────────────────────────────────────
 
     @Override
-    // KHÔNG dùng @Transactional ở đây để tối ưu Connection Pool
-    public List<com.example.datn.DTO.Response.EnrollmentSimpleResponse> enroll(EnrollRequest request) {
+    public List<EnrollmentSimpleResponse> enroll(EnrollRequest request) {
 
-        // 1. GIAI ĐOẠN VALIDATION (NGOÀI TRANSACTION)
+        // ── GIAI ĐOẠN 1: VALIDATION (ngoài Transaction) ─────────────────
         Student student = getCurrentStudent();
         PeriodCohort activePeriod = getActivePeriodCohort(student.getCohort().getId());
         UUID semesterId = activePeriod.getRegistrationPeriod().getSemester().getId();
 
-        // Tải thông tin lớp học (Sử dụng FindById thông thường, Connection trả về ngay)
         ClassSection theorySection = classSectionRepository.findById(request.getTheoryClassId())
                 .orElseThrow(() -> new AppException(ErrorCode.NO_CLASS_SECTIONS_FOUND, "Không tìm thấy lớp lý thuyết"));
 
         validateClassBasics(theorySection, semesterId);
-
-        // Xử lý lớp thực hành (Lab)
         ClassSection labSection = validateAndGetLabSection(request, theorySection);
 
-        // Kiểm tra trùng môn & Tải danh sách đã đăng ký
         List<Enrollment> currentEnrollments = enrollmentRepository.findActiveEnrollmentsBySemester(
                 student.getId(), semesterId, EnrollmentStatus.REGISTERED);
 
         validateDuplicateSubject(currentEnrollments, theorySection);
-
-        // Kiểm tra điều kiện tiên quyết (Đã được tối ưu)
         checkPrerequisitesOptimized(student.getId(), theorySection.getSubject().getId());
 
-        // Kiểm tra trùng lịch (Dùng Query DB nhưng gom lại một chỗ ngoài Transaction)
-        validateSchedules(theorySection, labSection, currentEnrollments);
+        // Kiểm tra trùng lịch: 1 query batch duy nhất lấy tất cả lịch liên quan rồi so
+        // sánh trong RAM
+        validateSchedulesWithBatchQuery(theorySection, labSection, currentEnrollments);
 
-        // PRE-FETCH: Load dữ liệu Lazy trước khi vào Transaction để tránh LazyInitializationException
-        theorySection.getSubject().getName();
-        if (labSection != null) labSection.getSubject().getName();
+        String theorySubjectName = theorySection.getSubject().getName();
+        String labSubjectName = (labSection != null) ? labSection.getSubject().getName() : null;
 
-        // Chuẩn bị các đối tượng Enrollment (Trạng thái transient - chưa save)
-        Enrollment theoryEnrollment = prepareEnrollment(student, theorySection);
-        final Enrollment finalLabEnrollment = (labSection != null) ? prepareEnrollment(student, labSection) : null;
-        final ClassSection finalLabSection = labSection;
+        // ── GIAI ĐOẠN 2: REDIS LUA SCRIPT ────────
+        int theoryResult = redisService.tryAcquireSlot(theorySection.getId(), student.getId());
+        if (theoryResult == 0) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Bạn đã đăng ký lớp học phần này rồi");
+        }
+        if (theoryResult == -1) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp lý thuyết đã hết chỗ");
+        }
 
-        // 2. GIAI ĐOẠN PERSISTENCE (TRONG TRANSACTION)
-        // Connection chỉ bị chiếm dụng từ đây
-        return transactionTemplate.execute(status -> {
-            try {
-                // Atomic Update: Increment kèm check sĩ số tại tầng DB
-                if (classSectionRepository.tryIncrementEnrolledCount(theorySection.getId()) == 0) {
-                    throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp lý thuyết đã đủ sĩ số");
-                }
-
-                if (finalLabSection != null) {
-                    if (classSectionRepository.tryIncrementEnrolledCount(finalLabSection.getId()) == 0) {
-                        throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp thực hành đã đủ sĩ số");
-                    }
-                }
-
-                // Lưu bản ghi
-                List<com.example.datn.DTO.Response.EnrollmentSimpleResponse> responses = new ArrayList<>();
-                responses.add(enrollmentMapper.toSimpleResponse(enrollmentRepository.save(theoryEnrollment)));
-
-                if (finalLabEnrollment != null) {
-                    responses.add(enrollmentMapper.toSimpleResponse(enrollmentRepository.save(finalLabEnrollment)));
-                }
-
-                return responses;
-            } catch (Exception e) {
-                status.setRollbackOnly(); // Đảm bảo Rollback nếu có lỗi xảy ra
-                throw e;
+        if (labSection != null) {
+            int labResult = redisService.tryAcquireSlot(labSection.getId(), student.getId());
+            if (labResult != 1) {
+                redisService.releaseSlot(theorySection.getId(), student.getId());
+                String msg = (labResult == 0) ? "Bạn đã đăng ký lớp thực hành này rồi" : "Lớp thực hành đã hết chỗ";
+                throw new AppException(ErrorCode.INVALID_REQUEST, msg);
             }
-        });
+        }
+
+        // ── GIAI ĐOẠN 3: CHUẨN BỊ OBJECT & TRẢ KẾT QUẢ NGAY ───────────
+        Enrollment theoryEnrollment = prepareEnrollment(student, theorySection);
+        List<Enrollment> toSave = new ArrayList<>();
+        toSave.add(theoryEnrollment);
+
+        List<EnrollmentSimpleResponse> responses = new ArrayList<>();
+        responses.add(buildSimpleResponse(theoryEnrollment, theorySubjectName));
+
+        if (labSection != null) {
+            Enrollment labEnrollment = prepareEnrollment(student, labSection);
+            toSave.add(labEnrollment);
+            responses.add(buildSimpleResponse(labEnrollment, labSubjectName));
+        }
+
+        // ── GIAI ĐOẠN 4: ASYNC SAVE ─────────────
+        // Convert sang DTO TRONG HTTP thread (session còn sống) để tránh StaleObjectStateException
+        List<EnrollmentSaveRequest> saveRequests = toSave.stream()
+                .map(EnrollmentSaveRequest::from)
+                .collect(Collectors.toList());
+        asyncEnrollmentPersister.saveToDatabaseAsync(saveRequests, true);
+
+        // ── GIAI ĐOẠN 5: CACHE INVALIDATION ─────────────────────────────
+        enrollmentCacheManager.evictEnrolledSections(student.getId(), semesterId);
+
+        return responses;
     }
 
+    // ─────────────────────────────────────────────────────
+    // CANCEL
+    // ─────────────────────────────────────────────────────
+
     @Override
-    @Transactional
+    // ĐÃ BỎ @Transactional Ở ĐÂY ĐỂ ĐẨY XUỐNG ASYNC
     public void cancelEnrollment(UUID theoryClassSectionId) {
         Student student = getCurrentStudent();
         getActivePeriodCohort(student.getCohort().getId());
 
-        Enrollment theoryEnrollment = enrollmentRepository.findByStudentIdAndClassSectionId(student.getId(), theoryClassSectionId)
+        Enrollment theoryEnrollment = enrollmentRepository
+                .findByStudentIdAndClassSectionId(student.getId(), theoryClassSectionId)
                 .orElseThrow(() -> new AppException(ErrorCode.ENROLLMENT_NOT_FOUND, "Không tìm thấy dữ liệu đăng ký"));
 
         if (theoryEnrollment.getStatus() != EnrollmentStatus.REGISTERED) {
@@ -143,14 +174,18 @@ public class RegistrationServiceImpl implements IRegistrationService {
 
         ClassSection theorySection = theoryEnrollment.getClassSection();
         if (theorySection.getParentSection() != null) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Vui lòng truyền ID của lớp lý thuyết để hủy toàn bộ môn học");
+            throw new AppException(ErrorCode.INVALID_REQUEST,
+                    "Vui lòng truyền ID của lớp lý thuyết để hủy toàn bộ môn học");
         }
 
-        theoryEnrollment.setStatus(EnrollmentStatus.CANCELLED);
-        enrollmentRepository.save(theoryEnrollment);
-        classSectionRepository.tryDecrementEnrolledCount(theoryClassSectionId);
+        List<Enrollment> enrollmentsToCancel = new ArrayList<>();
 
-        // Hủy các lớp con (Lab) liên quan
+        // Hủy Lý thuyết và trả slot Redis
+        theoryEnrollment.setStatus(EnrollmentStatus.CANCELLED);
+        enrollmentsToCancel.add(theoryEnrollment);
+        redisService.releaseSlot(theoryClassSectionId, student.getId());
+
+        // Hủy Thực hành đi kèm (nếu có) và trả slot Redis
         List<Enrollment> currentEnrollments = enrollmentRepository.findActiveEnrollmentsBySemester(
                 student.getId(), theorySection.getSemester().getId(), EnrollmentStatus.REGISTERED);
 
@@ -158,14 +193,77 @@ public class RegistrationServiceImpl implements IRegistrationService {
             ClassSection sec = en.getClassSection();
             if (sec.getParentSection() != null && sec.getParentSection().getId().equals(theoryClassSectionId)) {
                 en.setStatus(EnrollmentStatus.CANCELLED);
-                enrollmentRepository.save(en);
-                classSectionRepository.tryDecrementEnrolledCount(sec.getId());
+                enrollmentsToCancel.add(en);
+                redisService.releaseSlot(sec.getId(), student.getId());
                 break;
             }
         }
+
+        // Đẩy việc lưu DB trạng thái CANCEL xuống worker chạy ngầm
+        // Convert sang DTO TRONG HTTP thread (session còn sống) để tránh StaleObjectStateException
+        List<EnrollmentSaveRequest> cancelRequests = enrollmentsToCancel.stream()
+                .map(EnrollmentSaveRequest::from)
+                .collect(Collectors.toList());
+        asyncEnrollmentPersister.saveToDatabaseAsync(cancelRequests, false);
+        enrollmentCacheManager.evictEnrolledSections(student.getId(), theorySection.getSemester().getId());
     }
 
-    // --- CÁC HÀM VALIDATION TÁCH RỜI (CLEAN CODE) ---
+    // ─────────────────────────────────────────────────────
+    // QUERIES
+    // ─────────────────────────────────────────────────────
+
+    @Override
+    public Page<EnrollmentResponse> getAllEnrollmentInClassSection(UUID classSectionId, Pageable pageable) {
+        return enrollmentRepository
+                .findByClassSection_IdAndStatus(classSectionId, EnrollmentStatus.REGISTERED, pageable)
+                .map(enrollmentMapper::toResponse);
+    }
+
+    public UUID getCurrentStudentCohortId() {
+        return getCurrentStudent().getCohort().getId();
+    }
+
+    @Override
+    public RegistrationStatusResponse getRegistrationStatus() {
+        UUID cohortId = getCurrentStudentCohortId();
+        return getRegistrationStatusByCohortId(cohortId);
+    }
+
+    @Cacheable(value = "registrationStatus", key = "#cohortId")
+    @Transactional(readOnly = true)
+    public RegistrationStatusResponse getRegistrationStatusByCohortId(UUID cohortId) {
+        Optional<PeriodCohort> activePeriodOpt = periodCohortRepository
+                .findOngoingCohortPeriod(cohortId, LocalDateTime.now());
+
+        if (activePeriodOpt.isEmpty()) {
+            return RegistrationStatusResponse.builder().isEligible(false).message("Ngoài đợt đăng ký").build();
+        }
+        RegistrationPeriod rp = activePeriodOpt.get().getRegistrationPeriod();
+        return RegistrationStatusResponse.builder()
+                .isEligible(true)
+                .periodName(rp.getName())
+                .startTime(activePeriodOpt.get().getStartTime())
+                .endTime(activePeriodOpt.get().getEndTime())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EnrollmentResponse> getMyTimetable() {
+        Student student = getCurrentStudent();
+        Optional<PeriodCohort> activePeriodOpt = periodCohortRepository
+                .findOngoingCohortPeriod(student.getCohort().getId(), LocalDateTime.now());
+        if (activePeriodOpt.isEmpty())
+            return List.of();
+
+        return enrollmentRepository.findActiveEnrollmentsBySemester(student.getId(),
+                activePeriodOpt.get().getRegistrationPeriod().getSemester().getId(), EnrollmentStatus.REGISTERED)
+                .stream().map(enrollmentMapper::toResponse).collect(Collectors.toList());
+    }
+
+    // ─────────────────────────────────────────────────────
+    // VALIDATION HELPERS
+    // ─────────────────────────────────────────────────────
 
     private void validateClassBasics(ClassSection theory, UUID currentSemesterId) {
         if (!theory.getSemester().getId().equals(currentSemesterId)) {
@@ -180,7 +278,8 @@ public class RegistrationServiceImpl implements IRegistrationService {
         boolean subjectHasLabs = classSectionRepository.existsByParentSectionId(theory.getId());
         if (request.getLabClassId() != null) {
             ClassSection lab = classSectionRepository.findById(request.getLabClassId())
-                    .orElseThrow(() -> new AppException(ErrorCode.NO_CLASS_SECTIONS_FOUND, "Không tìm thấy lớp thực hành"));
+                    .orElseThrow(
+                            () -> new AppException(ErrorCode.NO_CLASS_SECTIONS_FOUND, "Không tìm thấy lớp thực hành"));
             if (lab.getParentSection() == null || !lab.getParentSection().getId().equals(theory.getId())) {
                 throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp thực hành không thuộc về lớp lý thuyết");
             }
@@ -199,72 +298,96 @@ public class RegistrationServiceImpl implements IRegistrationService {
         }
     }
 
-    private void validateSchedules(ClassSection theory, ClassSection lab, List<Enrollment> current) {
-        List<UUID> enrolledIds = current.stream().map(en -> en.getClassSection().getId()).collect(Collectors.toList());
+    // Kiểm tra trùng lịch bằng 1 batch query duy nhất rồi so sánh trong RAM.
+    // Tránh các vấn đề của approach cũ:
+    // - scheduleRepository.countOverlappingSchedules() gọi nhiều lần = nhiều query
+    // - theory.getSchedules() = LazyInitializationException (ClassSection không có
+    // @OneToMany schedules)
+    private void validateSchedulesWithBatchQuery(ClassSection theory, ClassSection lab, List<Enrollment> current) {
+        // Tạp hợp tất cả ID cần lấy lịch trong 1 query batch
+        List<UUID> sectionIdsToFetch = new ArrayList<>();
+        sectionIdsToFetch.add(theory.getId());
+        if (lab != null)
+            sectionIdsToFetch.add(lab.getId());
+        current.forEach(en -> sectionIdsToFetch.add(en.getClassSection().getId()));
 
-        if (lab != null) {
-            if (scheduleRepository.countOverlappingSchedules(theory.getId(), Collections.singletonList(lab.getId())) > 0) {
-                throw new AppException(ErrorCode.INVALID_REQUEST, "Trùng lịch giữa lý thuyết và thực hành");
-            }
+        // 1 query duy nhất lấy toàn bộ lịch cần kiểm tra
+        List<Schedule> allSchedules = scheduleRepository.findByClassSection_IdIn(sectionIdsToFetch);
+
+        // Phân nhóm theo classSectionId trong RAM (không gọi DB nữa)
+        Map<UUID, List<Schedule>> scheduleMap = allSchedules.stream()
+                .collect(Collectors.groupingBy(s -> s.getClassSection().getId()));
+
+        List<Schedule> theorySchedules = scheduleMap.getOrDefault(theory.getId(), List.of());
+        List<Schedule> labSchedules = lab != null ? scheduleMap.getOrDefault(lab.getId(), List.of()) : List.of();
+        List<Schedule> newSchedules = new ArrayList<>(theorySchedules);
+        newSchedules.addAll(labSchedules);
+
+        List<Schedule> currentSchedules = current.stream()
+                .flatMap(en -> scheduleMap.getOrDefault(en.getClassSection().getId(), List.of()).stream())
+                .collect(Collectors.toList());
+
+        // So sánh in-memory — không chạm DB
+        if (lab != null && hasOverlap(theorySchedules, labSchedules)) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Trùng lịch giữa lý thuyết và thực hành");
         }
-
-        if (!enrolledIds.isEmpty()) {
-            if (scheduleRepository.countOverlappingSchedules(theory.getId(), enrolledIds) > 0) {
-                throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp lý thuyết trùng lịch với các môn đã đăng ký");
-            }
-            if (lab != null && scheduleRepository.countOverlappingSchedules(lab.getId(), enrolledIds) > 0) {
-                throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp thực hành trùng lịch với các môn đã đăng ký");
-            }
+        if (hasOverlap(newSchedules, currentSchedules)) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Lịch học bị trùng với các môn đã đăng ký");
         }
     }
 
+    // ĐÃ THÊM: HÀM HELPER SO SÁNH LỊCH HỌC
+    private boolean hasOverlap(List<Schedule> list1, List<Schedule> list2) {
+        for (Schedule s1 : list1) {
+            for (Schedule s2 : list2) {
+                if (s1.getDayOfWeek().equals(s2.getDayOfWeek())) {
+                    if (s1.getStartPeriod() <= s2.getEndPeriod() && s2.getStartPeriod() <= s1.getEndPeriod()) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    // ĐÃ SỬA: TỰ CẤP PHÁT UUID ĐỂ TRÁNH LỖI RESPONSE NULL ID
     private Enrollment prepareEnrollment(Student student, ClassSection section) {
-        Enrollment enrollment = enrollmentRepository.findByStudentIdAndClassSectionId(student.getId(), section.getId())
-                .orElse(Enrollment.builder().student(student).classSection(section).build());
+        Enrollment enrollment = enrollmentRepository
+                .findByStudentIdAndClassSectionId(student.getId(), section.getId())
+                .orElseGet(() -> {
+                    Enrollment newEn = Enrollment.builder()
+                            .student(studentRepository.getReferenceById(student.getId()))
+                            .classSection(section)
+                            .build();
+                    newEn.setId(UUID.randomUUID()); // Cấp phát UUID ngay tại đây
+                    return newEn;
+                });
         enrollment.setStatus(EnrollmentStatus.REGISTERED);
         enrollment.setEnrollmentDate(LocalDateTime.now());
         return enrollment;
     }
 
+    private EnrollmentSimpleResponse buildSimpleResponse(Enrollment enrollment, String subjectName) {
+        return EnrollmentSimpleResponse.builder()
+                .classSectionId(enrollment.getClassSection().getId())
+                .subjectName(subjectName)
+                .status(enrollment.getStatus())
+                .enrollmentDate(enrollment.getEnrollmentDate())
+                .build();
+    }
+
     private void checkPrerequisitesOptimized(UUID studentId, UUID subjectId) {
         List<Prerequisite> prerequisites = prerequisiteRepository.findBySubjectId(subjectId);
-        if (prerequisites == null || prerequisites.isEmpty()) return;
+        if (prerequisites == null || prerequisites.isEmpty())
+            return;
 
         Set<UUID> passedSubjectIds = studentGradeRepository.findPassedSubjectIdsByStudentId(studentId);
 
         for (Prerequisite prereq : prerequisites) {
             if (!passedSubjectIds.contains(prereq.getPrerequisiteSubject().getId())) {
-                throw new AppException(ErrorCode.INVALID_REQUEST, "Chưa đạt môn tiên quyết: " + prereq.getPrerequisiteSubject().getName());
+                throw new AppException(ErrorCode.INVALID_REQUEST,
+                        "Chưa đạt môn tiên quyết: " + prereq.getPrerequisiteSubject().getName());
             }
         }
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public RegistrationStatusResponse getRegistrationStatus() {
-        Student student = getCurrentStudent();
-        Optional<PeriodCohort> activePeriodOpt = periodCohortRepository.findOngoingCohortPeriod(student.getCohort().getId(), LocalDateTime.now());
-
-        if (activePeriodOpt.isEmpty()) {
-            return RegistrationStatusResponse.builder().isEligible(false).message("Ngoài đợt đăng ký").build();
-        }
-        RegistrationPeriod rp = activePeriodOpt.get().getRegistrationPeriod();
-        return RegistrationStatusResponse.builder()
-                .isEligible(true)
-                .periodName(rp.getName())
-                .startTime(activePeriodOpt.get().getStartTime())
-                .endTime(activePeriodOpt.get().getEndTime())
-                .build();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<EnrollmentResponse> getMyTimetable() {
-        Student student = getCurrentStudent();
-        Optional<PeriodCohort> activePeriodOpt = periodCohortRepository.findOngoingCohortPeriod(student.getCohort().getId(), LocalDateTime.now());
-        if (activePeriodOpt.isEmpty()) return List.of();
-
-        return enrollmentRepository.findActiveEnrollmentsBySemester(student.getId(), activePeriodOpt.get().getRegistrationPeriod().getSemester().getId(), EnrollmentStatus.REGISTERED)
-                .stream().map(enrollmentMapper::toResponse).collect(Collectors.toList());
     }
 }

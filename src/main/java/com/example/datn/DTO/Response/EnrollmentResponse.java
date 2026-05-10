@@ -9,7 +9,7 @@ import java.util.UUID;
 
 @Data
 @Builder
-public class EnrollmentResponse {
+public class    EnrollmentResponse {
     private UUID id;
     private ClassSectionResponse classSection;
     private LocalDateTime enrollmentDate;

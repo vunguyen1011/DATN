@@ -148,4 +148,16 @@ public class ClassSectionController {
                 .message("Đã phê duyêt " + pendingCount + " lớp học phần đang chờ phê duyệt trong học kỳ.")
                 .build();
     }
+    @GetMapping("/semester/{semesterId}/subjects-in-faculty/search")
+    public ApiResponse<List<SubjectResponse>> searchSubjectInFaculty(
+            @PathVariable UUID semesterId,
+            @RequestParam(required = false) String keyword
+    ) {
+
+        return ApiResponse.<List<SubjectResponse>>builder()
+                .code(1000)
+                .message("Tìm kiếm môn học trong khoa thành công")
+                .result(classSectionService.searchSubjectInFaculty(semesterId, keyword))
+                .build();
+    }
 }

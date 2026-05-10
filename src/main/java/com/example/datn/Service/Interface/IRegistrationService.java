@@ -4,6 +4,9 @@ import com.example.datn.DTO.Request.EnrollRequest;
 import com.example.datn.DTO.Response.EnrollmentResponse;
 import com.example.datn.DTO.Response.RegistrationStatusResponse;
 import com.example.datn.DTO.Response.SubjectResponse;
+import com.example.datn.Model.Enrollment;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.UUID;
@@ -13,4 +16,5 @@ public interface IRegistrationService {
     List<com.example.datn.DTO.Response.EnrollmentSimpleResponse> enroll(EnrollRequest request);
     void cancelEnrollment(UUID classSectionId);
     List<EnrollmentResponse> getMyTimetable();
+    Page<EnrollmentResponse> getAllEnrollmentInClassSection(UUID classSectionId, Pageable pageable);
 }

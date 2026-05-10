@@ -37,8 +37,17 @@ public class JwtFilter extends OncePerRequestFilter {
                 String username = jwtProvider.extractUsername(token);
                 if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                     List<SimpleGrantedAuthority> authorities = jwtProvider.getAuthoritiesFromToken(token);
+                    
+                    String studentIdStr = jwtProvider.extractClaimAsString(token, "studentId");
+                    String cohortIdStr = jwtProvider.extractClaimAsString(token, "cohortId");
+                    
+                    java.util.UUID studentId = studentIdStr != null ? java.util.UUID.fromString(studentIdStr) : null;
+                    java.util.UUID cohortId = cohortIdStr != null ? java.util.UUID.fromString(cohortIdStr) : null;
+                    
+                    MyUserDetail userDetails = new MyUserDetail(username, authorities, studentId, cohortId);
+
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            username,
+                            userDetails,
                             null,
                             authorities
                     );

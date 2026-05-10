@@ -5,6 +5,7 @@ import com.example.datn.Model.Enrollment;
 public enum ErrorCode {
 
     UNAUTHENTICATED(401, "Unauthenticated"),
+    UNAUTHORIZED(403, "Unauthorized"),
 
     // 900 - 999: Room
     ROOM_NOT_FOUND(901, "Room not found"),

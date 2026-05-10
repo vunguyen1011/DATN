@@ -167,4 +167,6 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
         boolean existsOverlapBetweenParentAndChild(
                 @Param("parentId") UUID parentId,
                 @Param("childId") UUID childId);
+
+        boolean existsByClassSection_IdAndLecturer_User_Username(UUID classSectionId, String username);
 }

@@ -24,6 +24,7 @@ public interface IClassSectionService {
     void cancelClassSection(UUID id);
     void closeClassSection(UUID id);
     List<ClassSection> getAllClassSectionsBySemesterId(UUID semesterId);
+    List<SubjectResponse> searchSubjectInFaculty(UUID semesterId, String keyword);
 
     List<SubjectResponse> getSubjectInFaculty(UUID semesterId);
     int approveAllPendingBySemester(UUID semesterId);

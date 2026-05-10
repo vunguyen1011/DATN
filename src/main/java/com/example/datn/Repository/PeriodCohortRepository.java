@@ -1,6 +1,7 @@
 package com.example.datn.Repository;
 
 import com.example.datn.Model.PeriodCohort;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,6 +16,7 @@ import java.util.UUID;
 public interface PeriodCohortRepository extends JpaRepository<PeriodCohort, UUID> {
 
     // Hàm này kết hợp JOIN FETCH của bạn và logic cho phép khóa (cohort) là NULL
+    @Cacheable(value = "ongoingCohortPeriod", key = "#cohortId != null ? #cohortId : 'GLOBAL_COHORT'")
     @Query("SELECT pc FROM PeriodCohort pc " +
             "JOIN FETCH pc.registrationPeriod rp " +
             "JOIN FETCH rp.semester s " +

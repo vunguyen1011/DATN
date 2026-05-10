@@ -84,14 +84,20 @@ public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID
             @Param("pendingStatus") com.example.datn.ENUM.SectionStatus pendingStatus
     );
 
+    /**
+     * Native SQL: bỏ qua Hibernate @Version management để tránh OptimisticLockException
+     * khi nhiều luồng async cùng update enrolled_count của cùng 1 ClassSection.
+     */
     @Modifying
-    @Query("UPDATE ClassSection cs SET cs.enrolledCount = cs.enrolledCount + 1 " +
-            "WHERE cs.id = :id AND cs.enrolledCount < cs.capacity")
+    @Transactional
+    @Query(value = "UPDATE class_sections SET enrolled_count = enrolled_count + 1 " +
+            "WHERE id = :id AND enrolled_count < capacity", nativeQuery = true)
     int tryIncrementEnrolledCount(@Param("id") UUID id);
 
     @Modifying
-    @Query("UPDATE ClassSection cs SET cs.enrolledCount = cs.enrolledCount - 1 " +
-            "WHERE cs.id = :id AND cs.enrolledCount > 0")
+    @Transactional
+    @Query(value = "UPDATE class_sections SET enrolled_count = enrolled_count - 1 " +
+            "WHERE id = :id AND enrolled_count > 0", nativeQuery = true)
     int tryDecrementEnrolledCount(@Param("id") UUID id);
 
 }

@@ -1,5 +1,6 @@
 package com.example.datn.Service.Impl;
 
+import com.example.datn.Repository.ClassSectionRepository;
 import com.example.datn.Service.Interface.IRedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import java.time.Duration;
 public class RedisService implements IRedisService {
 
     private final StringRedisTemplate redisTemplate;
+    private final ClassSectionRepository classSectionRepository;
 
     private static final String REFRESH_TOKEN_PREFIX = "RT:";
     private static final String OTP_PREFIX = "OTP:";
@@ -142,5 +144,90 @@ public class RedisService implements IRedisService {
 
     private String buildKey(String username) {
         return REFRESH_TOKEN_PREFIX + username;
+    }
+
+    @Override
+    public void saveRecommendation(String studentId, String jsonResponse, Duration duration) {
+        String key = "AI_REC:" + studentId;
+        try {
+            redisTemplate.opsForValue().set(key, jsonResponse, duration);
+            log.info("Đã lưu Recommendation vào Redis cho student: {}", studentId);
+        } catch (Exception e) {
+            log.error("Lỗi khi lưu Recommendation vào Redis", e);
+        }
+    }
+
+    @Override
+    public String getRecommendation(String studentId) {
+        String key = "AI_REC:" + studentId;
+        try {
+            return redisTemplate.opsForValue().get(key);
+        } catch (Exception e) {
+            log.error("Lỗi khi lấy Recommendation từ Redis", e);
+            return null;
+        }
+    }
+
+    @Override
+    public void syncClassCapacityToRedis(java.util.UUID semesterId) {
+        // Lấy toàn bộ lớp học phần trong học kỳ từ DB
+        java.util.List<com.example.datn.Model.ClassSection> sections =
+                classSectionRepository.findBySemesterId(semesterId);
+
+        int count = 0;
+        for (com.example.datn.Model.ClassSection section : sections) {
+            String slotKey = "class_slot:" + section.getId();
+            String setKey  = "class_students:" + section.getId();
+
+            // Số slot còn lại = capacity - enrolledCount (đảm bảo không âm)
+            int available = Math.max(0, section.getCapacity() - section.getEnrolledCount());
+
+            redisTemplate.opsForValue().set(slotKey, String.valueOf(available));
+            // Xoá Set sinh viên cũ (reset sạch để tránh dữ liệu thừa từ đợt trước)
+            redisTemplate.delete(setKey);
+            count++;
+        }
+        log.info("[SYNC] Đã đồng bộ {} lớp học phần của học kỳ {} lên Redis.", count, semesterId);
+    }
+
+
+    @Override
+    public int tryAcquireSlot(java.util.UUID classSectionId, java.util.UUID studentId) {
+        String slotKey = "class_slot:" + classSectionId;
+        String setKey = "class_students:" + classSectionId;
+
+        String luaScript = "local slotKey = KEYS[1]\n" +
+                "local setKey = KEYS[2]\n" +
+                "local studentId = ARGV[1]\n" +
+                "if redis.call('SISMEMBER', setKey, studentId) == 1 then\n" +
+                "    return 0\n" +
+                "end\n" +
+                "local current = redis.call('GET', slotKey)\n" +
+                "if current and tonumber(current) > 0 then\n" +
+                "    redis.call('DECR', slotKey)\n" +
+                "    redis.call('SADD', setKey, studentId)\n" +
+                "    return 1\n" +
+                "else\n" +
+                "    return -1\n" +
+                "end";
+
+        org.springframework.data.redis.core.script.DefaultRedisScript<Long> script =
+                new org.springframework.data.redis.core.script.DefaultRedisScript<>();
+        script.setScriptText(luaScript);
+        script.setResultType(Long.class);
+
+        Long result = redisTemplate.execute(script, java.util.Arrays.asList(slotKey, setKey), studentId.toString());
+        return result != null ? result.intValue() : -1;
+    }
+
+    @Override
+    public void releaseSlot(java.util.UUID classSectionId, java.util.UUID studentId) {
+        String slotKey = "class_slot:" + classSectionId;
+        String setKey = "class_students:" + classSectionId;
+
+        Long removed = redisTemplate.opsForSet().remove(setKey, studentId.toString());
+        if (removed != null && removed > 0) {
+            redisTemplate.opsForValue().increment(slotKey);
+        }
     }
 }

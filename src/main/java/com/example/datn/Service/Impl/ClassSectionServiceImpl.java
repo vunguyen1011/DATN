@@ -566,4 +566,30 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                 SectionStatus.PENDING  // Dùng đối tượng Enum, KHÔNG dùng chuỗi "PENDING"
         );
         }
+    @Override
+    public List<SubjectResponse> searchSubjectInFaculty(UUID semesterId, String keyword) {
+
+        List<String> excludedNames = List.of(
+                "Lý luận chính trị",
+                "Giáo dục thể chất",
+                "Ngoại ngữ"
+        );
+
+        String safeKeyword = keyword == null ? "" : keyword.trim().toLowerCase();
+
+        return classSectionRepository.findBySemesterId(semesterId)
+                .stream()
+                .filter(cs -> cs.getStatus() == SectionStatus.OPENED)
+                .map(ClassSection::getSubject)
+                .filter(Objects::nonNull)
+                .filter(Subject::getIsActive)
+                .filter(subject -> !excludedNames.contains(subject.getDepartmentName()))
+                .filter(subject ->
+                        subject.getName().toLowerCase().contains(safeKeyword)
+                                || subject.getCode().toLowerCase().contains(safeKeyword)
+                )
+                .distinct()
+                .map(subjectMapper::toResponse)
+                .collect(Collectors.toList());
+    }
 }

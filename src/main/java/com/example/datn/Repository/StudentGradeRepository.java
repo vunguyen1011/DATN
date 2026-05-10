@@ -1,6 +1,7 @@
 package com.example.datn.Repository;
 
 import com.example.datn.Model.StudentGrade;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -35,6 +36,7 @@ public interface StudentGradeRepository extends JpaRepository<StudentGrade, UUID
      * 1. Lọc bỏ môn đã qua khỏi danh sách đăng ký
      * 2. Kiểm tra điều kiện tiên quyết đã đáp ứng chưa
      */
+    @Cacheable(value = "passedSubjects", key = "#studentId")
     @Query("SELECT cs.subject.id FROM StudentGrade sg " +
            "JOIN sg.enrollment e " +
            "JOIN e.classSection cs " +
@@ -48,4 +50,6 @@ public interface StudentGradeRepository extends JpaRepository<StudentGrade, UUID
             @Param("studentId") UUID studentId,
             @Param("subjectId") UUID subjectId);
 
+    @Query("SELECT sg FROM StudentGrade sg WHERE sg.enrollment.classSection.id = :classSectionId")
+    List<StudentGrade> findAllByClassSectionId(@Param("classSectionId") UUID classSectionId);
 }

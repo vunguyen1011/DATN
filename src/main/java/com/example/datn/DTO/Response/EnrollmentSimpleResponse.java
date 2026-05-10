@@ -15,6 +15,7 @@ import java.util.UUID;
 @NoArgsConstructor
 public class EnrollmentSimpleResponse {
     private UUID id;
+    private UUID classSectionId; // ID lớp học phần - dùng để client biết đã đăng ký lớp nào
     private EnrollmentStatus status;
     private LocalDateTime enrollmentDate;
     private String sectionCode;

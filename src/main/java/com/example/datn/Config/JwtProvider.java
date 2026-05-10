@@ -18,6 +18,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import com.example.datn.Repository.StudentRepository;
+import com.example.datn.Model.Student;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -26,6 +29,7 @@ import java.util.stream.Collectors;
 
 public class JwtProvider {
     private final CustomUserService userService;
+    private final StudentRepository studentRepository;
 
     @Value("${jwt.signerKey}")
     private String secretKey;
@@ -44,15 +48,24 @@ public class JwtProvider {
         List<String> roles = user.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList());
-        return Jwts.builder()
+                
+        JwtBuilder builder = Jwts.builder()
                 .setSubject(username)
                 .setIssuer("NguyenVu")
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis()+timeExpiration))
-                .claim("roles",roles)
-                .signWith(getKey())
-                .compact();
-
+                .claim("roles",roles);
+                
+        if (roles.contains("ROLE_USER") || roles.contains("USER")) {
+            Optional<Student> studentOpt = studentRepository.findByUser_Username(username);
+            if (studentOpt.isPresent()) {
+                Student student = studentOpt.get();
+                builder.claim("studentId", student.getId().toString());
+                builder.claim("cohortId", student.getCohort().getId().toString());
+            }
+        }
+        
+        return builder.signWith(getKey()).compact();
     }
     public String genAccessToken(String username){
         return genToken(username,jwtExpiration);
@@ -70,6 +83,10 @@ public class JwtProvider {
     public <T> T extractClaim(String token, Function<Claims,T> claimsResolver){
         Claims claims=extractAllClaims(token);
         return claimsResolver.apply(claims);
+    }
+    public String extractClaimAsString(String token, String claimKey) {
+        Claims claims = extractAllClaims(token);
+        return claims.get(claimKey, String.class);
     }
     public boolean validateToken(String token) {
         try {

@@ -23,4 +23,19 @@ public interface IRedisService {
     String getResetToken(String email);
 
     void deleteResetToken(String email);
+
+    void saveRecommendation(String studentId, String jsonResponse, Duration duration);
+
+    String getRecommendation(String studentId);
+
+    /**
+     * Đồng bộ sĩ số CÒN LẠI của toàn bộ lớp học phần trong một học kỳ lên Redis.
+     * PHẢI gọi API này TRƯỚC KHI mở đợt đăng ký để Redis có data.
+     * @param semesterId ID học kỳ cần đồng bộ
+     */
+    void syncClassCapacityToRedis(java.util.UUID semesterId);
+
+    int tryAcquireSlot(java.util.UUID classSectionId, java.util.UUID studentId);
+
+    void releaseSlot(java.util.UUID classSectionId, java.util.UUID studentId);
 }

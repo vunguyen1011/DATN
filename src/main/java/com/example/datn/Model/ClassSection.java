@@ -70,4 +70,7 @@ public class ClassSection {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+    @Version
+    @Builder.Default
+    private Long version = 0L;
 }
