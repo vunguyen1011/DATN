@@ -38,4 +38,5 @@ public interface IRedisService {
     int tryAcquireSlot(java.util.UUID classSectionId, java.util.UUID studentId);
 
     void releaseSlot(java.util.UUID classSectionId, java.util.UUID studentId);
+    void clearRegistrationData();
 }

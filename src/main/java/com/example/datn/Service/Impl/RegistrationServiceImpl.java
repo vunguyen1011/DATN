@@ -390,4 +390,9 @@ public class RegistrationServiceImpl implements IRegistrationService {
             }
         }
     }
+
+    @Override
+    public void clearRedisDataAfterRegistration() {
+        redisService.clearRegistrationData();
+    }
 }

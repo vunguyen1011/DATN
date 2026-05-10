@@ -17,4 +17,5 @@ public interface IRegistrationService {
     void cancelEnrollment(UUID classSectionId);
     List<EnrollmentResponse> getMyTimetable();
     Page<EnrollmentResponse> getAllEnrollmentInClassSection(UUID classSectionId, Pageable pageable);
+    void clearRedisDataAfterRegistration();
 }

@@ -27,6 +27,7 @@ public class RegistrationController {
 
     private final IRegistrationService registrationService;
 
+
     @PreAuthorize("hasRole('USER')")
     @GetMapping("/status")
     public ApiResponse<RegistrationStatusResponse> getRegistrationStatus() {
@@ -85,5 +86,15 @@ public class RegistrationController {
     ) {
         Pageable pageable = PageRequest.of(page, size);
         return registrationService.getAllEnrollmentInClassSection(classSectionId,pageable);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @DeleteMapping("/clear-redis")
+    public ApiResponse<Void> clearRedisDataAfterRegistration() {
+        registrationService.clearRedisDataAfterRegistration();
+        return ApiResponse.<Void>builder()
+                .code(1000)
+                .message("Đã dọn dẹp toàn bộ dữ liệu đăng ký tín chỉ trên Redis thành công")
+                .build();
     }
 }

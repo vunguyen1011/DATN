@@ -230,4 +230,23 @@ public class RedisService implements IRedisService {
             redisTemplate.opsForValue().increment(slotKey);
         }
     }
+
+    @Override
+    public void clearRegistrationData() {
+        String slotKeyPattern = "class_slot:*";
+        String setKeyPattern = "class_students:*";
+
+        java.util.Set<String> slotKeys = redisTemplate.keys(slotKeyPattern);
+        java.util.Set<String> setKeys = redisTemplate.keys(setKeyPattern);
+
+        if (slotKeys != null && !slotKeys.isEmpty()) {
+            redisTemplate.delete(slotKeys);
+            log.info("Đã xóa {} key class_slot", slotKeys.size());
+        }
+
+        if (setKeys != null && !setKeys.isEmpty()) {
+            redisTemplate.delete(setKeys);
+            log.info("Đã xóa {} key class_students", setKeys.size());
+        }
+    }
 }
