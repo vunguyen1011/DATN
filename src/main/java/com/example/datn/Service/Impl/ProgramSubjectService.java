@@ -47,7 +47,7 @@ public class ProgramSubjectService implements IProgramSubjectService {
         SubjectGroupSection section = sectionRepository.findById(request.getSectionId())
                 .orElseThrow(() -> new AppException(ErrorCode.SECTION_NOT_FOUND));
 
-        checkProgramNotLocked(section);
+//        checkProgramNotLocked(section);
 
         if (psRepository.existsBySubjectIdAndSectionIdAndIsActiveTrue(request.getSubjectId(), request.getSectionId())) {
             throw new AppException(ErrorCode.SUBJECT_ALREADY_EXISTS_IN_SECTION);
