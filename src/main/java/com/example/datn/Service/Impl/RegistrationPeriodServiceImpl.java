@@ -57,12 +57,18 @@ public class RegistrationPeriodServiceImpl implements IRegistrationPeriodService
     @Override
     @Transactional
     public RegistrationPeriodResponse updateRegistrationPeriod(UUID id, RegistrationPeriodUpdateRequest request) {
+        Semester semester= semesterRepository.findByIsCurrentTrue().orElseThrow(()-> new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION, "Không tìm thấy học kỳ hiện tại"));
         log.info("[RegistrationPeriodService] Cập nhật đợt đăng ký: {}", id);
         if (request.getStartTime() == null || request.getEndTime() == null) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Thời gian bắt đầu và kết thúc không được để trống");
         }
         if (!request.getStartTime().isBefore(request.getEndTime())) {
             throw new AppException(ErrorCode.INVALID_DATE_RANGE, "Thời gian kết thúc phải diễn ra sau thời gian bắt đầu");
+        }
+        long overlapCount = registrationPeriodRepository.countOverlappingPeriods(
+                semester.getId(), request.getStartTime(), request.getEndTime());
+        if (overlapCount > 0) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Thời gian của đợt đăng ký này bị trùng lặp với đợt khác");
         }
         RegistrationPeriod registrationPeriod=registrationPeriodRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION, "Không tìm thấy đợt đăng ký"));
