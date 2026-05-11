@@ -125,7 +125,7 @@ public class ClassSectionServiceImpl implements IClassSectionService {
 
     @Override
     @Transactional
-    public String importClassSections( MultipartFile file) {
+    public String importClassSections(MultipartFile file) {
         Semester semester = semesterRepository.findByIsCurrentTrue().orElseThrow(()-> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND));
 
         List<ClassSection> parentsToSave = new ArrayList<>();
@@ -155,10 +155,7 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                         .collect(Collectors.groupingBy(c -> c.getSubject().getId()));
             }
 
-            // Lấy tất cả danh sách lớp hiện có trong kỳ để check Suffix
             List<ClassSection> existingSectionsInSemester = classSectionRepository.findBySemesterId(semester.getId());
-
-            // Dùng Map để lưu lại Max Suffix hiện tại của từng môn học
             Map<String, Integer> currentMaxParentSuffixMap = new HashMap<>();
 
             for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
@@ -206,16 +203,13 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                     List<SubjectComponent> theories = components.stream().filter(c -> c.getType() == ComponentType.THEORY).collect(Collectors.toList());
                     List<SubjectComponent> practices = components.stream().filter(c -> c.getType() == ComponentType.PRACTICE).collect(Collectors.toList());
 
-                    // Khởi tạo Max Suffix nếu môn này chưa từng được quét
                     if (!currentMaxParentSuffixMap.containsKey(subjectCode)) {
                         int max = getMaxSuffixForSubject(existingSectionsInSemester, subjectCode);
                         currentMaxParentSuffixMap.put(subjectCode, max);
                     }
 
-                    // 1. Sinh các lớp Lý thuyết (Parent)
                     for (SubjectComponent theory : theories) {
                         for (int i = 0; i < numberOfSections; i++) {
-                            // Cập nhật Suffix mới nhất (chống trùng lặp tuyệt đối)
                             int nextSuffix = currentMaxParentSuffixMap.get(subjectCode) + 1;
                             currentMaxParentSuffixMap.put(subjectCode, nextSuffix);
 
@@ -232,10 +226,13 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                         }
                     }
 
-                    // 2. Sinh các lớp Thực hành (Child)
+                    if (!rowParents.isEmpty()) {
+                        rowParents = classSectionRepository.saveAll(rowParents);
+                        parentsToSave.addAll(rowParents);
+                    }
+
                     for (SubjectComponent practice : practices) {
                         if (rowParents.isEmpty()) {
-                            // Ngoại lệ: Môn chỉ có TH, không có LT
                             for (int i = 0; i < numberOfSections; i++) {
                                 int nextSuffix = currentMaxParentSuffixMap.get(subjectCode) + 1;
                                 currentMaxParentSuffixMap.put(subjectCode, nextSuffix);
@@ -250,15 +247,17 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                                         .build();
                                 rowParents.add(section);
                             }
+                            if (!rowParents.isEmpty()) {
+                                rowParents = classSectionRepository.saveAll(rowParents);
+                                parentsToSave.addAll(rowParents);
+                            }
                         } else {
-                            // Tự động bung Child từ Parent
                             for (ClassSection parent : rowParents) {
-                                int baseCapacity = parent.getCapacity() / splitRatio; // Phần nguyên
-                                int remainder = parent.getCapacity() % splitRatio;    // Phần dư (nếu chia lẻ)
+                                int baseCapacity = parent.getCapacity() / splitRatio;
+                                int remainder = parent.getCapacity() % splitRatio;
 
                                 for (int k = 0; k < splitRatio; k++) {
                                     int actualCapacity = baseCapacity;
-                                    // Nhồi số sinh viên dư vào lớp thực hành cuối cùng
                                     if (k == splitRatio - 1) {
                                         actualCapacity += remainder;
                                     }
@@ -278,7 +277,6 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                         }
                     }
 
-                    parentsToSave.addAll(rowParents);
                     childrenToSave.addAll(rowChildren);
                     successRows++;
 
@@ -289,12 +287,7 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                 }
             }
 
-            int totalSaved = 0;
-
-            if (!parentsToSave.isEmpty()) {
-                classSectionRepository.saveAll(parentsToSave);
-                totalSaved += parentsToSave.size();
-            }
+            int totalSaved = parentsToSave.size();
 
             if (!childrenToSave.isEmpty()) {
                 classSectionRepository.saveAll(childrenToSave);
