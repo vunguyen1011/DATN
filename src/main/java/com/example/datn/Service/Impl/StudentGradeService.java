@@ -16,6 +16,8 @@ import com.example.datn.Service.Interface.IStudentGradeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +37,7 @@ public class StudentGradeService implements IStudentGradeService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "passedSubjects", key = "#result.studentId")
     public StudentGradeResponse updateMidtermScore(UUID enrollmentId, Double midtermScore) {
         StudentGrade grade = getOrCreateGrade(enrollmentId);
         grade.setMidtermScore(midtermScore);
@@ -47,6 +50,7 @@ public class StudentGradeService implements IStudentGradeService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "passedSubjects", key = "#result.studentId")
     public StudentGradeResponse updateFinalScore(UUID enrollmentId, Double finalScore) {
         StudentGrade grade = getOrCreateGrade(enrollmentId);
         grade.setFinalScore(finalScore);
@@ -89,6 +93,7 @@ public class StudentGradeService implements IStudentGradeService {
                 .collect(Collectors.toList());
     }
 
+    @Cacheable(value = "passedSubjects", key = "#studentId")
     public Set<UUID> getPassedSubjectIds(UUID studentId) {
         return studentGradeRepository.findPassedSubjectIdsByStudentId(studentId);
     }

@@ -16,7 +16,6 @@ public interface PrerequisiteRepository extends JpaRepository<Prerequisite, UUID
 
     // 1. Tìm tất cả các điều kiện tiên quyết CỦA một môn học cụ thể
     // Dùng cho API: GET /api/subjects/{id}/prerequisites
-    @Cacheable(value = "prerequisites", key = "#subjectId")
     List<Prerequisite> findBySubjectId(UUID subjectId);
 
     // 2. Xóa tất cả điều kiện tiên quyết cũ trước khi cập nhật mới

@@ -14,4 +14,5 @@ public interface IPeriodCohortService {
     List<PeriodCohortResponse> getByRegistrationPeriodId(UUID periodId);
     PeriodCohortResponse update(UUID id, PeriodCohortUpdateRequest request);
     void delete(UUID id);
+    com.example.datn.Model.PeriodCohort getOngoingCohortPeriod(UUID cohortId, java.time.LocalDateTime currentTime);
 }

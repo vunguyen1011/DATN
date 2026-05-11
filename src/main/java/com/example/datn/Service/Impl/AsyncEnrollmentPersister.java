@@ -16,6 +16,7 @@ public class AsyncEnrollmentPersister {
 
     private final EnrollmentSaveHelper enrollmentSaveHelper;
     private final IRedisService redisService;
+    private final com.example.datn.Config.EnrollmentCacheManager enrollmentCacheManager;
 
     @Async("dbSaveExecutor")
     public void saveToDatabaseAsync(List<EnrollmentSaveRequest> requests, boolean isEnroll) {
@@ -58,6 +59,11 @@ public class AsyncEnrollmentPersister {
                     break;
                 }
             }
+        }
+        // Xóa cache sau khi tất cả đã được lưu xong vào DB
+        if (!requests.isEmpty()) {
+            EnrollmentSaveRequest first = requests.get(0);
+            enrollmentCacheManager.evictEnrolledSections(first.studentId());
         }
     }
 }

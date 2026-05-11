@@ -36,7 +36,6 @@ public interface StudentGradeRepository extends JpaRepository<StudentGrade, UUID
      * 1. Lọc bỏ môn đã qua khỏi danh sách đăng ký
      * 2. Kiểm tra điều kiện tiên quyết đã đáp ứng chưa
      */
-    @Cacheable(value = "passedSubjects", key = "#studentId")
     @Query("SELECT cs.subject.id FROM StudentGrade sg " +
            "JOIN sg.enrollment e " +
            "JOIN e.classSection cs " +

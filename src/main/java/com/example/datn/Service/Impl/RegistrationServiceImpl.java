@@ -12,12 +12,14 @@ import com.example.datn.Exception.ErrorCode;
 import com.example.datn.Mapper.EnrollmentMapper;
 import com.example.datn.Model.*;
 import com.example.datn.Repository.*;
+import com.example.datn.Service.Interface.IPeriodCohortService;
 import com.example.datn.Service.Interface.IRedisService;
 import com.example.datn.Service.Interface.IRegistrationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -40,10 +42,12 @@ public class RegistrationServiceImpl implements IRegistrationService {
     private final ScheduleRepository scheduleRepository;
     private final StudentGradeRepository studentGradeRepository;
     private final PrerequisiteRepository prerequisiteRepository;
+    private final SemesterRepository semesterRepository;
     private final EnrollmentMapper enrollmentMapper;
     private final IRedisService redisService;
     private final AsyncEnrollmentPersister asyncEnrollmentPersister;
     private final EnrollmentCacheManager enrollmentCacheManager;
+    private final IPeriodCohortService periodCohortService;
 
     @Value("${app.registration.max-credits:25}")
     private int maxCreditsPerSemester;
@@ -73,9 +77,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
     }
 
     private PeriodCohort getActivePeriodCohort(UUID cohortId) {
-        LocalDateTime now = LocalDateTime.now();
-        return periodCohortRepository.findOngoingCohortPeriod(cohortId, now)
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_REQUEST, "Ngoài thời gian đăng ký tín chỉ"));
+        return periodCohortService.getOngoingCohortPeriod(cohortId, LocalDateTime.now());
     }
 
     // ─────────────────────────────────────────────────────
@@ -147,10 +149,6 @@ public class RegistrationServiceImpl implements IRegistrationService {
                 .map(EnrollmentSaveRequest::from)
                 .collect(Collectors.toList());
         asyncEnrollmentPersister.saveToDatabaseAsync(saveRequests, true);
-
-        // ── GIAI ĐOẠN 5: CACHE INVALIDATION ─────────────────────────────
-        enrollmentCacheManager.evictEnrolledSections(student.getId(), semesterId);
-
         return responses;
     }
 
@@ -205,7 +203,6 @@ public class RegistrationServiceImpl implements IRegistrationService {
                 .map(EnrollmentSaveRequest::from)
                 .collect(Collectors.toList());
         asyncEnrollmentPersister.saveToDatabaseAsync(cancelRequests, false);
-        enrollmentCacheManager.evictEnrolledSections(student.getId(), theorySection.getSemester().getId());
     }
 
     // ─────────────────────────────────────────────────────
@@ -249,16 +246,22 @@ public class RegistrationServiceImpl implements IRegistrationService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "enrolledSections", key = "T(com.example.datn.Util.SecurityUtils).getCurrentStudentId()", condition = "T(com.example.datn.Util.SecurityUtils).getCurrentStudentId() != null")
     public List<EnrollmentResponse> getMyTimetable() {
         Student student = getCurrentStudent();
-        Optional<PeriodCohort> activePeriodOpt = periodCohortRepository
-                .findOngoingCohortPeriod(student.getCohort().getId(), LocalDateTime.now());
-        if (activePeriodOpt.isEmpty())
-            return List.of();
 
-        return enrollmentRepository.findActiveEnrollmentsBySemester(student.getId(),
-                activePeriodOpt.get().getRegistrationPeriod().getSemester().getId(), EnrollmentStatus.REGISTERED)
-                .stream().map(enrollmentMapper::toResponse).collect(Collectors.toList());
+        // 1. Lấy Học kỳ hiện tại thay vì phụ thuộc vào Đợt đăng ký
+        Semester currentSemester = semesterRepository.findByIsCurrentTrue()
+                .orElseThrow(() -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND, "Không tìm thấy học kỳ hiện tại"));
+
+        // 2. Trả về danh sách môn học sinh viên đã đăng ký trong học kỳ đó
+        return enrollmentRepository.findActiveEnrollmentsBySemester(
+                        student.getId(),
+                        currentSemester.getId(),
+                        EnrollmentStatus.REGISTERED)
+                .stream()
+                .map(enrollmentMapper::toResponse)
+                .collect(Collectors.toList());
     }
 
     // ─────────────────────────────────────────────────────

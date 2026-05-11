@@ -24,9 +24,8 @@ public class EnrollmentCacheManager {
      * @param studentId  ID của sinh viên
      * @param semesterId ID của học kỳ
      */
-    @CacheEvict(value = "enrolledSections", key = "#studentId + ':' + #semesterId")
-    public void evictEnrolledSections(UUID studentId, UUID semesterId) {
+    @CacheEvict(value = "enrolledSections", key = "#studentId")
+    public void evictEnrolledSections(UUID studentId) {
         // Phương thức này chỉ có nhiệm vụ trigger @CacheEvict qua Spring AOP proxy
-        // Không cần thân hàm
     }
 }

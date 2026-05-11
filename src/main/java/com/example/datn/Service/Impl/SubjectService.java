@@ -13,6 +13,8 @@ import com.example.datn.Repository.SectionDefaultSubjectRepository;
 import com.example.datn.Repository.SubjectRepository;
 import com.example.datn.Service.Interface.ISubjectService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -124,6 +126,7 @@ public class SubjectService implements ISubjectService {
     }
 
     @Override
+    @Cacheable(value = "prerequisites", key = "#subjectId")
     public List<SubjectResponse> getPrerequisites(UUID subjectId) {
         if (!subjectRepository.existsByIdAndIsActiveTrue(subjectId)) {
             throw new AppException(ErrorCode.SUBJECT_NOT_FOUND);
@@ -135,6 +138,7 @@ public class SubjectService implements ISubjectService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "prerequisites", key = "#subjectId")
     public void updatePrerequisites(UUID subjectId, List<UUID> prerequisiteIds) {
         Subject subject = subjectRepository.findByIdAndIsActiveTrue(subjectId)
                 .orElseThrow(() -> new AppException(ErrorCode.SUBJECT_NOT_FOUND));

@@ -13,6 +13,8 @@ import com.example.datn.Repository.PeriodCohortRepository;
 import com.example.datn.Repository.RegistrationPeriodRepository;
 import com.example.datn.Service.Interface.IPeriodCohortService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +33,7 @@ public class PeriodCohortServiceImpl implements IPeriodCohortService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "ongoingCohortPeriod", allEntries = true)
     public PeriodCohortResponse create(PeriodCohortRequest request) {
         RegistrationPeriod registrationPeriod = registrationPeriodRepository.findById(request.getRegistrationPeriodId())
                 .orElseThrow(() -> new AppException(ErrorCode.REGISTRATION_NOT_FOUND)); // You might want to add REGISTRATION_PERIOD_NOT_FOUND
@@ -62,6 +65,13 @@ public class PeriodCohortServiceImpl implements IPeriodCohortService {
     }
 
     @Override
+    @Cacheable(value = "ongoingCohortPeriod", key = "#cohortId != null ? #cohortId : 'GLOBAL_COHORT'")
+    public PeriodCohort getOngoingCohortPeriod(UUID cohortId, LocalDateTime currentTime) {
+        return periodCohortRepository.findOngoingCohortPeriod(cohortId, currentTime)
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_REQUEST, "Ngoài thời gian đăng ký tín chỉ"));
+    }
+
+    @Override
     public PeriodCohortResponse getById(UUID id) {
         PeriodCohort periodCohort = periodCohortRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.PERIOD_COHORT_NOT_FOUND));
@@ -84,6 +94,7 @@ public class PeriodCohortServiceImpl implements IPeriodCohortService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "ongoingCohortPeriod", allEntries = true)
     public PeriodCohortResponse update(UUID id, PeriodCohortUpdateRequest request) {
         // 1. Tìm bản ghi cũ
         PeriodCohort periodCohort = periodCohortRepository.findById(id)
@@ -110,6 +121,7 @@ public class PeriodCohortServiceImpl implements IPeriodCohortService {
     }
     @Override
     @Transactional
+    @CacheEvict(value = "ongoingCohortPeriod", allEntries = true)
     public void delete(UUID id) {
         if (!periodCohortRepository.existsById(id)) {
             throw new AppException(ErrorCode.PERIOD_COHORT_NOT_FOUND);

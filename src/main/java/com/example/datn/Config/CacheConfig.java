@@ -40,7 +40,7 @@ public class CacheConfig {
                 "scheduleOverlap"        // Cache kết quả kiểm tra trùng lịch (theo cặp sectionId)
         );
         cacheManager.setCaffeine(Caffeine.newBuilder()
-                .expireAfterWrite(60, TimeUnit.MINUTES)
+                .expireAfterWrite(1, TimeUnit.MINUTES) // Giảm xuống 1 phút để dữ liệu luôn mới
                 .maximumSize(1000));
         return cacheManager;
     }

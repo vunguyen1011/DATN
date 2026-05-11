@@ -63,7 +63,6 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, UUID> {
         List<UUID> findEnrolledSectionIdsByStudentAndSemester(@Param("studentId") UUID studentId,
                         @Param("semesterId") UUID semesterId, @Param("status") EnrollmentStatus status);
 
-        @Cacheable(value = "enrolledSections", key = "#studentId + ':' + #semesterId")
         @Query("SELECT e FROM Enrollment e WHERE e.student.id = :studentId " +
                         "AND e.classSection.semester.id = :semesterId " +
                         "AND e.status = :status")
