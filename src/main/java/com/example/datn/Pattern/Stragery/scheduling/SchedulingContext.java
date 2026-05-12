@@ -9,36 +9,29 @@ import java.util.UUID;
 /**
  * Phase 1 – Data container chứa toàn bộ in-memory matrices cho 1 lần chạy scheduling.
  *
- * <ul>
- *   <li>day  : 2 (Thứ 2) → 8 (Chủ nhật) → index [day - 2]</li>
- *   <li>period: 1 → 15   → index [period - 1]</li>
- * </ul>
- *
- * Tất cả dữ liệu được scope theo semesterId để không lẫn giữa các học kỳ.
+ * SỬ DỤNG DIRECT INDEXING (Không cần trừ Offset):
+ * - day   : 2 (Thứ 2) → 8 (Chủ nhật) → matrix[2] tới matrix[8]
+ * - period: 1 → 16                   → matrix[1] tới matrix[16] (Hỗ trợ E-learning)
  */
 @Getter
 public class SchedulingContext {
 
-    public static final int DAY_COUNT    = 7;   // Thứ 2 → Chủ nhật (index 0-6)
-    public static final int PERIOD_COUNT = 15;  // Tiết 1 → 15    (index 0-14)
+    // Nới rộng kích thước mảng để dùng trực tiếp Index thực tế.
+    public static final int DAY_COUNT    = 9;   // Index 0..8 (Dùng 2..8)
+    public static final int PERIOD_COUNT = 17;  // Index 0..16 (Dùng 1..16)
+
     private final UUID semesterId;
 
-    /** roomId → [day-index][period-index] = true nếu phòng bận */
+    /** roomId → [day][period] = true nếu phòng bận */
     private final Map<UUID, boolean[][]> roomBusy = new HashMap<>();
 
-    /** lecturerId → [day-index][period-index] = true nếu GV bận */
+    /** lecturerId → [day][period] = true nếu GV bận */
     private final Map<UUID, boolean[][]> lecturerBusy = new HashMap<>();
 
-    /**
-     * subjectId → [day-index][period-index] = số lớp môn đó đang mở cùng lúc.
-     * Dùng cho Look-Ahead Capacity check.
-     */
+    /** subjectId → [day][period] = số lớp môn đó đang mở cùng lúc. */
     private final Map<UUID, int[][]> subjectConcurrentMatrix = new HashMap<>();
 
-    /**
-     * subjectId → số lớp tối đa có thể mở song song
-     * = số GV có thể dạy môn đó trong kỳ.
-     */
+    /** subjectId → số lớp tối đa có thể mở song song */
     private final Map<UUID, Integer> maxConcurrentBySubject = new HashMap<>();
 
     /** lecturerId → tổng số tiết hiện đang được phân công trong semester */
@@ -48,55 +41,59 @@ public class SchedulingContext {
         this.semesterId = semesterId;
     }
 
-    // ── Helper: convert day/period sang array index ───────────────────────────
+    // ── Helper: Dynamic Safe Bounds Check ─────────────────────────────────────
 
-    /** dayOfWeek (2–8) → array index (0–6) */
-    public static int dayIdx(int dayOfWeek) {
-        return dayOfWeek - 2;
-    }
-
-    /** period (1–15) → array index (0–14) */
-    public static int periodIdx(int period) {
-        return period - 1;
+    private boolean isOutOfBounds(int day, int period) {
+        return day < 2 || day >= DAY_COUNT || period < 1 || period >= PERIOD_COUNT;
     }
 
     // ── Room matrix helpers ───────────────────────────────────────────────────
 
     public boolean isRoomBusy(UUID roomId, int dayOfWeek, int period) {
+        if (isOutOfBounds(dayOfWeek, period)) return true;
+
         boolean[][] matrix = roomBusy.get(roomId);
         if (matrix == null) return false;
-        return matrix[dayIdx(dayOfWeek)][periodIdx(period)];
+        return matrix[dayOfWeek][period];
     }
 
     public void setRoomBusy(UUID roomId, int dayOfWeek, int startPeriod, int endPeriod, boolean busy) {
+        if (isOutOfBounds(dayOfWeek, startPeriod) || isOutOfBounds(dayOfWeek, endPeriod)) return;
+
         roomBusy.computeIfAbsent(roomId, k -> new boolean[DAY_COUNT][PERIOD_COUNT]);
         boolean[][] m = roomBusy.get(roomId);
         for (int p = startPeriod; p <= endPeriod; p++) {
-            m[dayIdx(dayOfWeek)][periodIdx(p)] = busy;
+            m[dayOfWeek][p] = busy;
         }
     }
 
     // ── Lecturer matrix helpers ───────────────────────────────────────────────
 
     public boolean isLecturerBusy(UUID lecturerId, int dayOfWeek, int period) {
+        if (isOutOfBounds(dayOfWeek, period)) return true;
+
         boolean[][] matrix = lecturerBusy.get(lecturerId);
         if (matrix == null) return false;
-        return matrix[dayIdx(dayOfWeek)][periodIdx(period)];
+        return matrix[dayOfWeek][period];
     }
 
     public void setLecturerBusy(UUID lecturerId, int dayOfWeek, int startPeriod, int endPeriod, boolean busy) {
+        if (isOutOfBounds(dayOfWeek, startPeriod) || isOutOfBounds(dayOfWeek, endPeriod)) return;
+
         lecturerBusy.computeIfAbsent(lecturerId, k -> new boolean[DAY_COUNT][PERIOD_COUNT]);
         boolean[][] m = lecturerBusy.get(lecturerId);
         for (int p = startPeriod; p <= endPeriod; p++) {
-            m[dayIdx(dayOfWeek)][periodIdx(p)] = busy;
+            m[dayOfWeek][p] = busy;
         }
     }
 
     public boolean hasLecturerClassOnDay(UUID lecturerId, int dayOfWeek) {
+        if (dayOfWeek < 2 || dayOfWeek >= DAY_COUNT) return false;
+
         boolean[][] matrix = lecturerBusy.get(lecturerId);
         if (matrix == null) return false;
-        for (int p = 0; p < PERIOD_COUNT; p++) {
-            if (matrix[dayIdx(dayOfWeek)][p]) return true;
+        for (int p = 1; p < PERIOD_COUNT; p++) {
+            if (matrix[dayOfWeek][p]) return true;
         }
         return false;
     }
@@ -104,16 +101,20 @@ public class SchedulingContext {
     // ── Subject concurrent matrix helpers ────────────────────────────────────
 
     public int getSubjectConcurrent(UUID subjectId, int dayOfWeek, int period) {
+        if (isOutOfBounds(dayOfWeek, period)) return 999;
+
         int[][] matrix = subjectConcurrentMatrix.get(subjectId);
         if (matrix == null) return 0;
-        return matrix[dayIdx(dayOfWeek)][periodIdx(period)];
+        return matrix[dayOfWeek][period];
     }
 
     public void updateSubjectConcurrent(UUID subjectId, int dayOfWeek, int startPeriod, int endPeriod, int delta) {
+        if (isOutOfBounds(dayOfWeek, startPeriod) || isOutOfBounds(dayOfWeek, endPeriod)) return;
+
         subjectConcurrentMatrix.computeIfAbsent(subjectId, k -> new int[DAY_COUNT][PERIOD_COUNT]);
         int[][] m = subjectConcurrentMatrix.get(subjectId);
         for (int p = startPeriod; p <= endPeriod; p++) {
-            m[dayIdx(dayOfWeek)][periodIdx(p)] += delta;
+            m[dayOfWeek][p] += delta;
         }
     }
 
