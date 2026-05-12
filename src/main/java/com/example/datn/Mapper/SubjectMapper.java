@@ -15,7 +15,7 @@ public class SubjectMapper {
                 .name(request.getName())
                 .credits(request.getCredits())
                 .departmentName(request.getDepartmentName())
-                .totalPeriods(request.getTotalPeriods())
+                .totalPeriods(0)
                 .isActive(true) // Mặc định khi tạo mới
                 .coffee(request.getCoefficient())
                 .build();
@@ -40,7 +40,7 @@ public class SubjectMapper {
         subject.setName(request.getName());
         subject.setCredits(request.getCredits());
         subject.setDepartmentName(request.getDepartmentName());
-        subject.setTotalPeriods(request.getTotalPeriods());
+//        subject.setTotalPeriods(request.getTotalPeriods());
         subject.setCoffee(request.getCoefficient());
     }
 }

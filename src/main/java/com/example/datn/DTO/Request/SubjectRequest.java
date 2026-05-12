@@ -27,8 +27,8 @@ public class SubjectRequest {
     @NotBlank(message = "Bộ môn/Khoa quản lý không được để trống")
     private String departmentName;
 
-    @Min(value = 0, message = "Tổng số tiết không được âm")
-    private Integer totalPeriods;
+//    @Min(value = 0, message = "Tổng số tiết không được âm")
+//    private Integer totalPeriods;
     @NotNull(message = "Hệ số không được để trống")
     @Min(value =0, message = "Hệ số phải lớn hơn hoặc bằng 0")
     private  Double coefficient;
