@@ -158,9 +158,9 @@ public class SubjectComponentServiceImpl implements ISubjectComponentService {
 
         int proposedSum = currentSum + newPeriods;
 
-        if (proposedSum > subjectTotalPeriods) {
+        if (proposedSum != subjectTotalPeriods) {
             throw new AppException(ErrorCode.INVALID_REQUEST,
-                    String.format("Tổng số tiết các thành phần (%d) vượt quá quy mô của môn học (%d tiết)",
+                    String.format("Tổng số tiết các thành phần không hợp lệ ",
                             proposedSum, subjectTotalPeriods));
         }
     }
