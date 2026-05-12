@@ -286,10 +286,54 @@ public class ScheduleServiceImpl implements IScheduleService {
     }
 
     @Override
+    public org.springframework.data.domain.Page<ScheduleResponse> getUnassignedSchedules(UUID semesterId, org.springframework.data.domain.Pageable pageable) {
+        return scheduleRepository.findUnassignedBySemesterId(semesterId, pageable).map(this::toResponse);
+    }
+
+    @Override
     public org.springframework.data.domain.Page<ScheduleResponse> getSchedulesByLecturer(String lecturerCode, UUID semesterId, org.springframework.data.domain.Pageable pageable) {
         Semester currentSemester = semesterRepository.findByIsCurrentTrue()
                 .orElseThrow(() -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND));
         return scheduleRepository.findByLecturerAndSemester(lecturerCode, currentSemester.getId(), pageable).map(this::toResponse);
+    }
+
+    @Override
+    public LecturerScheduleSummaryResponse getLecturerScheduleSummary(String lecturerCode, UUID semesterId) {
+        List<Schedule> schedules = scheduleRepository.findAllByLecturerAndSemester(lecturerCode, semesterId);
+
+        Lecturer lecturer = lecturerRepository.findByLecturerCode(lecturerCode)
+                .orElseThrow(() -> new AppException(ErrorCode.LECTURER_NOT_FOUND));
+
+        int totalPeriods = 0;
+        List<LecturerScheduleSummaryResponse.ScheduleDetail> details = new java.util.ArrayList<>();
+
+        for (Schedule s : schedules) {
+            if (s.getStartPeriod() != null && s.getEndPeriod() != null) {
+                totalPeriods += (s.getEndPeriod() - s.getStartPeriod() + 1);
+            }
+
+            details.add(LecturerScheduleSummaryResponse.ScheduleDetail.builder()
+                    .subjectName(s.getClassSection().getSubject().getName())
+                    .sectionCode(s.getClassSection().getSectionCode())
+                    .dayOfWeek(s.getDayOfWeek())
+                    .dayOfWeekName(toDayName(s.getDayOfWeek()))
+                    .startPeriod(s.getStartPeriod())
+                    .endPeriod(s.getEndPeriod())
+                    .roomName(s.getRoom() != null ? s.getRoom().getName() : null)
+                    .build());
+        }
+
+        details.sort(java.util.Comparator
+                .comparing(LecturerScheduleSummaryResponse.ScheduleDetail::getDayOfWeek, java.util.Comparator.nullsLast(Integer::compareTo))
+                .thenComparing(LecturerScheduleSummaryResponse.ScheduleDetail::getStartPeriod, java.util.Comparator.nullsLast(Integer::compareTo)));
+
+        return LecturerScheduleSummaryResponse.builder()
+                .lecturerCode(lecturer.getLecturerCode())
+                .lecturerName(lecturer.getFullName())
+                .totalClasses(schedules.size())
+                .totalPeriods(totalPeriods)
+                .schedules(details)
+                .build();
     }
 
     @Override

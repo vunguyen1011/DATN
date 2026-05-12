@@ -185,6 +185,20 @@ public class ScheduleController {
                         .build();
         }
 
+        @GetMapping("/semester/{semesterId}/unassigned")
+        @PreAuthorize("hasAnyRole('ADMIN','DEAN')")
+        public ApiResponse<org.springframework.data.domain.Page<ScheduleResponse>> getUnassignedSchedules(
+                @PathVariable UUID semesterId,
+                @RequestParam(defaultValue = "0") int page,
+                @RequestParam(defaultValue = "10") int size) {
+                org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+                return ApiResponse.<org.springframework.data.domain.Page<ScheduleResponse>>builder()
+                        .code(1000)
+                        .message("Lấy danh sách lịch học chưa được xếp thành công")
+                        .result(scheduleService.getUnassignedSchedules(semesterId, pageable))
+                        .build();
+        }
+
         @GetMapping("/semester/{semesterId}/export-pdf")
         @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER', 'USER', 'DEAN')") // ĐÃ SỬA: USERgỉ -> USER
         public void exportSemesterScheduleToPdf(
@@ -221,6 +235,18 @@ public class ScheduleController {
                         .code(1000)
                         .message("Lấy lịch dạy của giảng viên thành công")
                         .result(scheduleService.getSchedulesByLecturer(lecturerCode, semesterId, pageable))
+                        .build();
+        }
+
+        @GetMapping("/lecturer/{lecturerCode}/semester/{semesterId}/summary")
+        @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER','DEAN')")
+        public ApiResponse<LecturerScheduleSummaryResponse> getLecturerScheduleSummary(
+                @PathVariable String lecturerCode,
+                @PathVariable UUID semesterId) {
+                return ApiResponse.<LecturerScheduleSummaryResponse>builder()
+                        .code(1000)
+                        .message("Lấy tổng quan lịch dạy của giảng viên thành công")
+                        .result(scheduleService.getLecturerScheduleSummary(lecturerCode, semesterId))
                         .build();
         }
 

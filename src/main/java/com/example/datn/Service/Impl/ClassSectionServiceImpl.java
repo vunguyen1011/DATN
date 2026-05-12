@@ -4,10 +4,7 @@ import com.example.datn.DTO.Response.ClassSectionResponse;
 import com.example.datn.ENUM.SectionStatus;
 import com.example.datn.Exception.AppException;
 import com.example.datn.Exception.ErrorCode;
-import com.example.datn.Model.ClassSection;
-import com.example.datn.Model.Semester;
-import com.example.datn.Model.Subject;
-import com.example.datn.Model.SubjectComponent;
+import com.example.datn.Model.*;
 import com.example.datn.Repository.ClassSectionRepository;
 import com.example.datn.Repository.SemesterRepository;
 import com.example.datn.Repository.SubjectComponentRepository;
@@ -538,7 +535,7 @@ public class ClassSectionServiceImpl implements IClassSectionService {
 
     @Override
     public List<SubjectResponse> getSubjectInFaculty(UUID semesterId) {
-        List<String> excludedNames = List.of("Lý luận chính trị", "Giáo dục thể chất", "Ngoại ngữ");
+        List<String> excludedNames = List.of( "Giáo dục thể chất");
 
         return classSectionRepository.findBySemesterId(semesterId)
                 .stream()
@@ -553,12 +550,44 @@ public class ClassSectionServiceImpl implements IClassSectionService {
     @Override
     @Transactional
     public int approveAllPendingBySemester(UUID semesterId) {
+        // 1. Lấy tất cả lớp đang PENDING
+        List<ClassSection> pendingSections = classSectionRepository
+                .findBySemesterIdAndStatus(semesterId, SectionStatus.PENDING);
+
+        if (pendingSections.isEmpty()) {
+            return 0; // Không có lớp nào cần duyệt thì return 0 luôn cho nhanh
+        }
+
+        // 2. Tìm xem có lớp PENDING nào CHƯA ĐƯỢC XẾP LỊCH không
+        List<ClassSection> unscheduledSections = new ArrayList<>();
+
+        for (ClassSection section : pendingSections) {
+            List<Schedule> schedules = scheduleRepository.findByClassSection_Id(section.getId());
+
+            // Lớp được coi là đã xếp lịch khi có dữ liệu Schedule và có đủ Thứ + Tiết
+            boolean isFullyScheduled = !schedules.isEmpty() && schedules.stream()
+                    .allMatch(s -> s.getDayOfWeek() != null && s.getStartPeriod() != null);
+
+            if (!isFullyScheduled) {
+                unscheduledSections.add(section);
+            }
+        }
+
+        // 3. ĐÂY MỚI LÀ CHỖ BẮT LỖI CỦA BẠN: Ném lỗi nếu tồn tại lớp chưa được xếp lịch
+        if (!unscheduledSections.isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_REQUEST,
+                    "Không thể duyệt hàng loạt! Vẫn còn " + unscheduledSections.size() +
+                            " lớp học phần đang PENDING nhưng CHƯA ĐƯỢC XẾP LỊCH HOÀN CHỈNH. Vui lòng xếp lịch cho chúng hoặc duyệt thủ công từng lớp.");
+        }
+
+        // 4. Nếu vượt qua cửa ải trên (tức là 100% lớp PENDING đều đã có lịch), tự tin chạy câu lệnh Update mù
         return classSectionRepository.approveAllPendingBySemester(
                 semesterId,
-                SectionStatus.OPENED,  // Dùng đối tượng Enum, KHÔNG dùng chuỗi "OPENED"
-                SectionStatus.PENDING  // Dùng đối tượng Enum, KHÔNG dùng chuỗi "PENDING"
+                SectionStatus.OPENED,
+                SectionStatus.PENDING
         );
-        }
+    }
+
     @Override
     public List<SubjectResponse> searchSubjectInFaculty(UUID semesterId, String keyword) {
 

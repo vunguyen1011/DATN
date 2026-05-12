@@ -22,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatterBuilder;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,7 +40,7 @@ public class ExcelService implements IExcelService {
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
     private final FacultyRepository facultyRepository;
-    private   final LecturerRepository lecturerRepository;
+    private final LecturerRepository lecturerRepository;
 
     private static final String[] HEADERS = {
             "STT", "Mã sinh viên", "Họ và tên", "Giới tính", "Số điện thoại", "Địa chỉ", "Tên Lớp", "Mã Ngành", "Tên Khóa"
@@ -244,7 +245,8 @@ public class ExcelService implements IExcelService {
             throw new AppException(ErrorCode.EXCEL_READ_ERROR);
         }
     }
-@Override
+
+    @Override
     public void downloadTemplateLecturer(HttpServletResponse response) throws IOException {
         try (Workbook workbook = new XSSFWorkbook()) {
             Sheet hiddenSheet = workbook.createSheet("HiddenData");
@@ -279,10 +281,9 @@ public class ExcelService implements IExcelService {
             unlockedTextStyle.setLocked(false);
             unlockedTextStyle.setDataFormat(workbook.createDataFormat().getFormat("@"));
 
-            // Format cột ngày sinh
             CellStyle unlockedDateStyle = workbook.createCellStyle();
             unlockedDateStyle.setLocked(false);
-            unlockedDateStyle.setDataFormat(workbook.createDataFormat().getFormat("dd/mm/yyyy"));
+            unlockedDateStyle.setDataFormat(workbook.createDataFormat().getFormat("mm/dd/yyyy"));
 
             CellStyle lockedSTTStyle = workbook.createCellStyle();
             lockedSTTStyle.setLocked(true);
@@ -296,8 +297,8 @@ public class ExcelService implements IExcelService {
                 cell.setCellValue(LECTURER_HEADERS[i]);
                 cell.setCellStyle(headerStyle);
                 if (i == 0) sheet.setColumnWidth(i, 6 * 256);
-                else if (i == 3) sheet.setColumnWidth(i, 20 * 256); // Ngày sinh
-                else if (i == 6) sheet.setColumnWidth(i, 40 * 256); // Địa chỉ
+                else if (i == 3) sheet.setColumnWidth(i, 20 * 256);
+                else if (i == 6) sheet.setColumnWidth(i, 40 * 256);
                 else sheet.setColumnWidth(i, 18 * 256);
             }
 
@@ -310,7 +311,7 @@ public class ExcelService implements IExcelService {
                         cell.setCellValue(i);
                     } else if (j == 1 || j == 5) {
                         cell.setCellStyle(unlockedTextStyle);
-                    } else if (j == 3) { // Cột ngày sinh
+                    } else if (j == 3) {
                         cell.setCellStyle(unlockedDateStyle);
                     } else {
                         cell.setCellStyle(unlockedStyle);
@@ -319,16 +320,16 @@ public class ExcelService implements IExcelService {
             }
 
             DataValidationHelper helper = sheet.getDataValidationHelper();
-            addValidation(sheet, helper, "GenderList_Lec", 4); // Cột E
-            addValidation(sheet, helper, "DegreeList", 7);     // Cột H
-            addValidation(sheet, helper, "FacultyList", 8);    // Cột I
-            addValidation(sheet, helper, "MajorList_Lec", 9);  // Cột J
+            addValidation(sheet, helper, "GenderList_Lec", 4);
+            addValidation(sheet, helper, "DegreeList", 7);
+            addValidation(sheet, helper, "FacultyList", 8);
+            addValidation(sheet, helper, "MajorList_Lec", 9);
 
             sheet.protectSheet("admin_datn_2026");
             workbook.write(response.getOutputStream());
-
         }
     }
+
     @Override
     @Transactional
     public String saveLecturersFromExcel(MultipartFile file) {
@@ -341,7 +342,6 @@ public class ExcelService implements IExcelService {
             DataFormatter formatter = new DataFormatter();
             if (!isValidLecturerHeader(sheet.getRow(0))) throw new AppException(ErrorCode.EXCEL_HEADER_MISMATCH);
 
-            // Lấy danh sách username để check trùng
             List<String> usernamesInExcel = new ArrayList<>();
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
@@ -352,13 +352,11 @@ public class ExcelService implements IExcelService {
 
             Set<String> existingUsernames = new HashSet<>(userRepository.findUsernamesByUsernameIn(usernamesInExcel));
 
-            // Map dữ liệu Khoa và Ngành
             Map<String, Faculty> facultyMap = facultyRepository.findAll().stream()
                     .collect(Collectors.toMap(Faculty::getCode, f -> f, (e, r) -> e));
             Map<String, Major> majorMap = majorRepository.findAll().stream()
                     .collect(Collectors.toMap(Major::getCode, m -> m, (e, r) -> e));
 
-            // Lấy Role cho Giảng viên (Chú ý: tên Role trong DB của bạn phải khớp, ví dụ: ROLE_LECTURER hoặc ROLE_TEACHER)
             Role lecturerRole = roleRepository.findByName("ROLE_LECTURER")
                     .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
 
@@ -366,8 +364,6 @@ public class ExcelService implements IExcelService {
             List<Lecturer> lecturersToSave = new ArrayList<>();
             List<UserRole> userRolesToSave = new ArrayList<>();
             List<String> skippedLecturers = new ArrayList<>();
-
-            java.time.format.DateTimeFormatter dateFormatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
@@ -383,22 +379,32 @@ public class ExcelService implements IExcelService {
 
                 String fullName = formatter.formatCellValue(row.getCell(2)).trim();
 
-                // Xử lý Ngày sinh
                 LocalDate dateOfBirth = null;
                 Cell dobCell = row.getCell(3);
-                if (dobCell != null) {
+                if (dobCell != null && dobCell.getCellType() != CellType.BLANK) {
                     try {
                         if (DateUtil.isCellDateFormatted(dobCell)) {
                             dateOfBirth = dobCell.getLocalDateTimeCellValue().toLocalDate();
+                        } else if (dobCell.getCellType() == CellType.NUMERIC) {
+                            dateOfBirth = dobCell.getLocalDateTimeCellValue().toLocalDate();
                         } else {
-                            String dobStr = formatter.formatCellValue(dobCell).trim();
+                            String dobStr = formatter.formatCellValue(dobCell).replaceAll("[^0-9/\\-]", "").trim();
+
                             if (!dobStr.isEmpty()) {
-                                dateOfBirth = LocalDate.parse(dobStr, dateFormatter);
+                                java.time.format.DateTimeFormatter flexibleFormatter = new DateTimeFormatterBuilder()
+                                        .appendOptional(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                        .appendOptional(java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy"))
+                                        .appendOptional(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy"))
+                                        .appendOptional(java.time.format.DateTimeFormatter.ofPattern("d-M-yyyy"))
+                                        .toFormatter();
+
+                                dateOfBirth = LocalDate.parse(dobStr, flexibleFormatter);
                             }
                         }
                     } catch (Exception e) {
-                        skippedLecturers.add(lecturerCode + " (Sai format Ngày sinh)");
-                        continue; // Bỏ qua GV này nếu format ngày sinh sai
+                        String errorValue = formatter.formatCellValue(dobCell);
+                        skippedLecturers.add(lecturerCode + " (Sai format Ngày sinh: '" + errorValue + "')");
+                        continue;
                     }
                 }
 
@@ -421,14 +427,11 @@ public class ExcelService implements IExcelService {
 
                 Gender genderEnum = genderStr.equalsIgnoreCase("Nam") ? Gender.MALE : (genderStr.equalsIgnoreCase("Nữ") ? Gender.FEMALE : Gender.OTHER);
 
-                // Mật khẩu gốc để gửi email
-                String rawPassword = lecturerCode;
-
                 User newUser = User.builder()
                         .username(lecturerCode)
                         .fullName(fullName)
-                        .email(lecturerCode.toLowerCase() + "@thanglong.edu.vn") // Domain email GV
-                        .password(passwordEncoder.encode(rawPassword))
+                        .email(lecturerCode.toLowerCase() + "@thanglong.edu.vn")
+                        .password(passwordEncoder.encode(lecturerCode))
                         .isActive(true)
                         .isLocked(false)
                         .build();
@@ -459,10 +462,7 @@ public class ExcelService implements IExcelService {
                 userRepository.saveAll(usersToSave);
                 userRoleRepository.saveAll(userRolesToSave);
                 lecturerRepository.saveAll(lecturersToSave);
-
-
-                }
-
+            }
 
             return skippedLecturers.isEmpty() ?
                     "Import thành công " + lecturersToSave.size() + " giảng viên." :
@@ -474,7 +474,6 @@ public class ExcelService implements IExcelService {
         }
     }
 
-    // Cần thêm hàm này vì hàm isValidHeader cũ đang cứng bằng biến HEADERS của sinh viên
     private boolean isValidLecturerHeader(Row row) {
         if (row == null) return false;
         DataFormatter formatter = new DataFormatter();
@@ -483,6 +482,7 @@ public class ExcelService implements IExcelService {
         }
         return true;
     }
+
     private void createNamedRange(Workbook wb, String name, int col, int size) {
         Name namedRange = wb.createName();
         namedRange.setNameName(name);
@@ -499,9 +499,13 @@ public class ExcelService implements IExcelService {
 
     private CellStyle createHeaderStyle(Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
-        Font font = workbook.createFont(); font.setBold(true); font.setColor(IndexedColors.WHITE.getIndex());
-        style.setFont(font); style.setFillForegroundColor(IndexedColors.BLUE_GREY.getIndex());
-        style.setFillPattern(FillPatternType.SOLID_FOREGROUND); style.setAlignment(HorizontalAlignment.CENTER);
+        Font font = workbook.createFont();
+        font.setBold(true);
+        font.setColor(IndexedColors.WHITE.getIndex());
+        style.setFont(font);
+        style.setFillForegroundColor(IndexedColors.BLUE_GREY.getIndex());
+        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        style.setAlignment(HorizontalAlignment.CENTER);
         return style;
     }
 

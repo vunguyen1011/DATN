@@ -1,5 +1,6 @@
 package com.example.datn.Repository;
 
+import com.example.datn.ENUM.SectionStatus;
 import com.example.datn.Model.ClassSection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -100,5 +101,8 @@ public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID
     @Query(value = "UPDATE class_sections SET enrolled_count = enrolled_count - 1 " +
             "WHERE id = :id AND enrolled_count > 0", nativeQuery = true)
     int tryDecrementEnrolledCount(@Param("id") UUID id);
+
+    List<ClassSection> findBySemesterIdAndStatus(UUID id, SectionStatus status);
+
 
 }

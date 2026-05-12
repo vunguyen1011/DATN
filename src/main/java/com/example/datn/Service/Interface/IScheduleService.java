@@ -31,6 +31,8 @@ public interface IScheduleService {
 
     Page<ScheduleResponse> getSchedulesBySemester(UUID semesterId, Pageable pageable);
 
+    Page<ScheduleResponse> getUnassignedSchedules(UUID semesterId, Pageable pageable);
+
     void exportSemesterScheduleToPdf(UUID semesterId, jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException;
 
     ScheduleResponse assignLecturer(UUID scheduleId, ScheduleLecturerRequest request);
@@ -42,6 +44,8 @@ public interface IScheduleService {
     List<SubjectResponse> getPendingSchedulesForHOD(String username, UUID semesterId);
 
     Page<ScheduleResponse> getSchedulesByLecturer(String lecturerCode, UUID semesterId, Pageable pageable);
+
+    LecturerScheduleSummaryResponse getLecturerScheduleSummary(String lecturerCode, UUID semesterId);
 
     java.util.Map<String, List<ScheduleResponse>> getSchedulesByClassSection(UUID classSectionId);
 

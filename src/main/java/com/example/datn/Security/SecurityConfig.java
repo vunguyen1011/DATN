@@ -62,10 +62,10 @@ public class SecurityConfig {
                         .successHandler(customOAuth2SuccessHandler)
                 )
                 // 2. Cấu hình thứ tự chạy của các Filter
-                // Đặt RateLimitFilter lên trước tiên
-                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
-                // Đặt JwtFilter chạy ngay sau RateLimitFilter
-                .addFilterAfter(jwtFilter, RateLimitFilter.class)
+                // Đặt JwtFilter lên trước UsernamePasswordAuthenticationFilter
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                // Đặt RateLimitFilter chạy ngay sau JwtFilter
+                .addFilterAfter(rateLimitFilter, JwtFilter.class)
 
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint(customAuthEntryPoint)

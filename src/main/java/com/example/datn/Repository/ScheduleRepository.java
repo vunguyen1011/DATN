@@ -139,4 +139,19 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
                 @Param("childId") UUID childId);
 
         boolean existsByClassSection_IdAndLecturer_User_Username(UUID classSectionId, String username);
+        List<Schedule> findByClassSection(UUID id);
+
+        @EntityGraph(attributePaths = { "classSection", "classSection.subject", "room", "lecturer" })
+        @Query("SELECT s FROM Schedule s WHERE s.classSection.semester.id = :semesterId AND s.dayOfWeek IS NULL")
+        org.springframework.data.domain.Page<Schedule> findUnassignedBySemesterId(@Param("semesterId") UUID semesterId, org.springframework.data.domain.Pageable pageable);
+
+        @EntityGraph(attributePaths = { "classSection", "classSection.subject", "room", "lecturer" })
+        @Query("""
+        SELECT s FROM Schedule s
+        WHERE s.lecturer.lecturerCode = :lecturerCode
+          AND s.classSection.semester.id = :semesterId
+    """)
+        List<Schedule> findAllByLecturerAndSemester(
+                @Param("lecturerCode") String lecturerCode,
+                @Param("semesterId") UUID semesterId);
 }

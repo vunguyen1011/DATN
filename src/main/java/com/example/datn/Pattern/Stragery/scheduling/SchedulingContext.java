@@ -22,32 +22,32 @@ public class SchedulingContext {
 
     private final UUID semesterId;
 
-    /** roomId → [day][period] = true nếu phòng bận */
+   //  kiểm tra phòng
     private final Map<UUID, boolean[][]> roomBusy = new HashMap<>();
 
-    /** lecturerId → [day][period] = true nếu GV bận */
+   // kiểm tra giảng viên
     private final Map<UUID, boolean[][]> lecturerBusy = new HashMap<>();
 
-    /** subjectId → [day][period] = số lớp môn đó đang mở cùng lúc. */
+    // đếm số lớp đang mở song song của 1 môn học vào 1 slot thời gian
     private final Map<UUID, int[][]> subjectConcurrentMatrix = new HashMap<>();
 
-    /** subjectId → số lớp tối đa có thể mở song song */
+    // giới hạn số lớp song song tối đa của 1 môn học (dựa trên số lượng nhóm môn học)
     private final Map<UUID, Integer> maxConcurrentBySubject = new HashMap<>();
 
-    /** lecturerId → tổng số tiết hiện đang được phân công trong semester */
+    // Tổng số tiết giáo viên được phân
     private final Map<UUID, Integer> lecturerCurrentLoad = new HashMap<>();
 
     public SchedulingContext(UUID semesterId) {
         this.semesterId = semesterId;
     }
 
-    // ── Helper: Dynamic Safe Bounds Check ─────────────────────────────────────
+
 
     private boolean isOutOfBounds(int day, int period) {
         return day < 2 || day >= DAY_COUNT || period < 1 || period >= PERIOD_COUNT;
     }
 
-    // ── Room matrix helpers ───────────────────────────────────────────────────
+
 
     public boolean isRoomBusy(UUID roomId, int dayOfWeek, int period) {
         if (isOutOfBounds(dayOfWeek, period)) return true;
@@ -67,8 +67,8 @@ public class SchedulingContext {
         }
     }
 
-    // ── Lecturer matrix helpers ───────────────────────────────────────────────
 
+    // Kiểm tra xem giảng viên có bận vào slot thời gian cụ thể hay không
     public boolean isLecturerBusy(UUID lecturerId, int dayOfWeek, int period) {
         if (isOutOfBounds(dayOfWeek, period)) return true;
 
@@ -76,7 +76,7 @@ public class SchedulingContext {
         if (matrix == null) return false;
         return matrix[dayOfWeek][period];
     }
-
+    // Đánh dấu giảng viên bận/rảnh vào slot thời gian cụ thể
     public void setLecturerBusy(UUID lecturerId, int dayOfWeek, int startPeriod, int endPeriod, boolean busy) {
         if (isOutOfBounds(dayOfWeek, startPeriod) || isOutOfBounds(dayOfWeek, endPeriod)) return;
 
@@ -86,7 +86,7 @@ public class SchedulingContext {
             m[dayOfWeek][p] = busy;
         }
     }
-
+        //Kiểm tra xem giảng viên có lịch dạy hay không
     public boolean hasLecturerClassOnDay(UUID lecturerId, int dayOfWeek) {
         if (dayOfWeek < 2 || dayOfWeek >= DAY_COUNT) return false;
 
@@ -98,8 +98,8 @@ public class SchedulingContext {
         return false;
     }
 
-    // ── Subject concurrent matrix helpers ────────────────────────────────────
-
+    // ── Subject concurrent matrix helpers
+    //kiểm tra số lớp đang mở song song của 1 môn học vào 1 slot thời gian
     public int getSubjectConcurrent(UUID subjectId, int dayOfWeek, int period) {
         if (isOutOfBounds(dayOfWeek, period)) return 999;
 
@@ -107,7 +107,7 @@ public class SchedulingContext {
         if (matrix == null) return 0;
         return matrix[dayOfWeek][period];
     }
-
+    //Tăng giảm số lớp đang mở song song của 1 môn học vào 1 slot thời gian (delta có thể là +1 hoặc -1)
     public void updateSubjectConcurrent(UUID subjectId, int dayOfWeek, int startPeriod, int endPeriod, int delta) {
         if (isOutOfBounds(dayOfWeek, startPeriod) || isOutOfBounds(dayOfWeek, endPeriod)) return;
 

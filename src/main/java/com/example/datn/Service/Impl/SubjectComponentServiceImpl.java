@@ -46,10 +46,6 @@ public class SubjectComponentServiceImpl implements ISubjectComponentService {
 
         int finalTotalPeriods = calculateTotalPeriods(request);
 
-        // Tùy chọn: BƯỚC CHẶN THEO TÍN CHỈ (Nếu bạn quản lý bằng tín chỉ)
-        // int maxAllowedPeriods = subject.getCredits() * 15;
-        // validateComponentPeriods(subject, finalTotalPeriods, null, maxAllowedPeriods);
-
         RoomType roomType = null;
         if (request.getRequiredRoomTypeId() != null) {
             roomType = roomTypeRepository.findById(request.getRequiredRoomTypeId())
@@ -61,7 +57,7 @@ public class SubjectComponentServiceImpl implements ISubjectComponentService {
 
         SubjectComponent savedEntity = subjectComponentRepository.save(entity);
 
-        // Đồng bộ tổng số tiết lên Subject
+        // Kích hoạt đồng bộ hóa: Tự động tính và cập nhật tổng số tiết cho Subject
         syncSubjectTotalPeriods(subject);
 
         return subjectComponentMapper.toResponse(savedEntity);
@@ -92,7 +88,7 @@ public class SubjectComponentServiceImpl implements ISubjectComponentService {
 
         SubjectComponent savedEntity = subjectComponentRepository.save(entity);
 
-        // Đồng bộ tổng số tiết lên Subject sau khi update
+        // Kích hoạt đồng bộ hóa sau khi update
         syncSubjectTotalPeriods(subject);
 
         return subjectComponentMapper.toResponse(savedEntity);
@@ -127,39 +123,37 @@ public class SubjectComponentServiceImpl implements ISubjectComponentService {
 
         subjectComponentRepository.delete(entity);
 
-        // Cần flush để lệnh delete được đẩy xuống DB trước khi query tính tổng
+        // Ép JPA thực thi lệnh Delete xuống DB ngay lập tức trước khi query lại để tính tổng
         subjectComponentRepository.flush();
 
-        // Đồng bộ tổng số tiết lên Subject sau khi xóa
+        // Kích hoạt đồng bộ hóa sau khi xóa (Tổng số tiết sẽ bị trừ đi tương ứng)
         syncSubjectTotalPeriods(subject);
     }
 
     // --- HELPER METHODS ---
 
     private int calculateTotalPeriods(SubjectComponentRequest request) {
+        // Ưu tiên lấy tổng số tiết nếu Frontend truyền thẳng xuống
         if (request.getTotalPeriods() != null && request.getTotalPeriods() > 0) {
             return request.getTotalPeriods();
         }
+        // Tự tính dựa trên số tuần mặc định
         if (request.getSessionsPerWeek() != null && request.getPeriodsPerSession() != null) {
             return request.getSessionsPerWeek() * request.getPeriodsPerSession() * defaultSemesterWeeks;
         }
         throw new AppException(ErrorCode.INVALID_REQUEST, "Vui lòng cung cấp 'Tổng số tiết' hoặc ('Số buổi/tuần' và 'Số tiết/buổi')");
     }
 
-    /**
-     * Hàm đồng bộ tổng số tiết: Tự động query tất cả các thành phần hiện tại của môn học,
-     * cộng dồn lại và cập nhật vào thuộc tính totalPeriods của Subject.
-     */
     private void syncSubjectTotalPeriods(Subject subject) {
+        // Tìm toàn bộ các thành phần (Component) hiện đang thuộc về môn học này
         List<SubjectComponent> existingComponents = subjectComponentRepository.findBySubjectId(subject.getId());
 
-        int total = 0;
-        for (SubjectComponent comp : existingComponents) {
-            if (comp.getTotalPeriods() != null) {
-                total += comp.getTotalPeriods();
-            }
-        }
+        // Cộng dồn toàn bộ số tiết
+        int total = existingComponents.stream()
+                .mapToInt(comp -> comp.getTotalPeriods() != null ? comp.getTotalPeriods() : 0)
+                .sum();
 
+        // Cập nhật và lưu đè lên Môn học
         subject.setTotalPeriods(total);
         subjectRepository.save(subject);
     }

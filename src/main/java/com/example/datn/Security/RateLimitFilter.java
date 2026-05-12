@@ -10,6 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -38,9 +40,16 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        String clientIp = getClientIp(request);
-        String lockKey = "lock:ban:" + clientIp;
-        String bucketKey = "global_limit:ip:" + clientIp;
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String identifier;
+        if (auth != null && auth.isAuthenticated() && !auth.getName().equals("anonymousUser")) {
+            identifier = "user:" + auth.getName();
+        } else {
+            identifier = "ip:" + getClientIp(request);
+        }
+
+        String lockKey = "lock:ban:" + identifier;
+        String bucketKey = "global_limit:" + identifier;
 
         String isBanned = redisTemplate.opsForValue().get(lockKey);
         if (isBanned != null) {
@@ -53,7 +62,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (!result.isAllowed()) {
             redisTemplate.opsForValue().set(lockKey, "banned", BAN_DURATION_SECONDS, TimeUnit.SECONDS);
 
-            log.warn("IP {} đã bị khóa cố định {} giây do vượt ngưỡng.", clientIp, BAN_DURATION_SECONDS);
+            log.warn("Client {} đã bị khóa cố định {} giây do vượt ngưỡng.", identifier, BAN_DURATION_SECONDS);
             handleErrorResponse(response, "Cảnh báo spam! Bạn bị khóa thao tác trong 30 giây.");
             return;
         }

@@ -1,7 +1,5 @@
 package com.example.datn.Repository;
 
-import com.example.datn.ENUM.InvoiceStatus;
-import com.example.datn.Model.Invoice;
 import com.example.datn.Model.RegistrationPeriod;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -33,8 +31,10 @@ public interface RegistrationPeriodRepository extends JpaRepository<Registration
 
     boolean existsBySemesterIdAndName(UUID semesterId, String name);
 
+    // Dùng cho Update: Bỏ qua ID hiện tại khi check trùng tên
     boolean existsBySemesterIdAndNameAndIdNot(UUID semesterId, String name, UUID id);
 
+    // Dùng cho Create: Đếm số đợt trùng thời gian
     @Query("SELECT COUNT(r) FROM RegistrationPeriod r WHERE r.semester.id = :semesterId " +
             "AND r.startTime < :endTime AND r.endTime > :startTime")
     long countOverlappingPeriods(
@@ -42,19 +42,13 @@ public interface RegistrationPeriodRepository extends JpaRepository<Registration
             @Param("startTime") LocalDateTime startTime,
             @Param("endTime") LocalDateTime endTime);
 
+    // Dùng cho Update: Đếm số đợt trùng thời gian (Đã đổi tên và thứ tự tham số cho khớp với Service)
     @Query("SELECT COUNT(r) FROM RegistrationPeriod r WHERE r.semester.id = :semesterId " +
             "AND r.id != :excludeId " +
             "AND r.startTime < :endTime AND r.endTime > :startTime")
-    long countOverlappingPeriodsForUpdate(
+    long countOverlappingPeriodsExcludingId(
             @Param("semesterId") UUID semesterId,
-            @Param("excludeId") UUID excludeId,
             @Param("startTime") LocalDateTime startTime,
-            @Param("endTime") LocalDateTime endTime);
-
-    @Query("SELECT i FROM Invoice i WHERE i.student.id = :studentId " +
-            "AND (:status IS NULL OR i.status = :status)")
-    Page<Invoice> findByStudentIdAndStatusWithPagination(
-            @Param("studentId") UUID studentId,
-            @Param("status") InvoiceStatus status,
-            Pageable pageable);
+            @Param("endTime") LocalDateTime endTime,
+            @Param("excludeId") UUID excludeId);
 }
