@@ -24,7 +24,6 @@ public class Subject {
     private String departmentName; // VD: Công nghệ thông tin (Giúp phân loại môn học theo khoa)
     @Builder.Default
     private Boolean isActive = true;
-    private Integer theoryPeriod;   // VD: 30 tiết
-    private Integer practicePeriod; // VD: 15 tiết
+    private Integer totalPeriods;   // Tổng số tiết (VD: 45 tiết)
     private Double coffee;           // VD: 1 (Hệ số tính học phí, có thể dùng để điều chỉnh giá trị học phí cho môn học)
 }

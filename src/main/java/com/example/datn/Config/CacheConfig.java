@@ -1,5 +1,4 @@
-package com.example.datn.config; // Đã đổi thành viết thường theo chuẩn naming convention
-
+package com.example.datn.Config; // Đã đổi thành viết thường theo chuẩn naming convention
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;

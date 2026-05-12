@@ -24,6 +24,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
+    private final RateLimitFilter rateLimitFilter; // 1. Tiêm (Inject) RateLimitFilter vào đây
     private final CustomOAuth2SuccessHandler customOAuth2SuccessHandler;
     private final CustomAuthEntryPoint customAuthEntryPoint;
     private final HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository;
@@ -36,8 +37,8 @@ public class SecurityConfig {
             "/api/auths/reset-password",
             "/oauth2/**",
             "/login/oauth2/**",
-            "/v3/api-docs",         // Mở cửa cho đường dẫn gốc
-            "/v3/api-docs/**",      // Mở cửa cho các file config bên trong
+            "/v3/api-docs",
+            "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html",
             "/api/test/**",
@@ -60,7 +61,12 @@ public class SecurityConfig {
                                 .authorizationRequestRepository(cookieAuthorizationRequestRepository))
                         .successHandler(customOAuth2SuccessHandler)
                 )
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                // 2. Cấu hình thứ tự chạy của các Filter
+                // Đặt RateLimitFilter lên trước tiên
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+                // Đặt JwtFilter chạy ngay sau RateLimitFilter
+                .addFilterAfter(jwtFilter, RateLimitFilter.class)
+
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint(customAuthEntryPoint)
                 );

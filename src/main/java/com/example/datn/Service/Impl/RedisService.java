@@ -249,4 +249,13 @@ public class RedisService implements IRedisService {
             log.info("Đã xóa {} key class_students", setKeys.size());
         }
     }
+
+    @Override
+    public long incrementAndCheckRateLimit(String key, int windowInSeconds) {
+        Long count = redisTemplate.opsForValue().increment(key);
+        if (count != null && count == 1) {
+            redisTemplate.expire(key, Duration.ofSeconds(windowInSeconds));
+        }
+        return count != null ? count : 0;
+    }
 }

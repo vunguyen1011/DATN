@@ -24,6 +24,7 @@ public enum ErrorCode {
     INVALID_OTP(1011, "Mã OTP không hợp lệ"),
     INVALID_TOKEN(1112, "Token không hợp lệ hoặc đã hết hạn"),
     USER_ALREADY_HAS_ROLE(1013, "User đã có role này"),
+    PASSWORD_UNCHANGED(1014, "Mật khẩu mới không được trùng với mật khẩu cũ"),
 
     // 11xx: Major
     MAJOR_CODE_EXISTED(1101, "Mã ngành đã tồn tại"),

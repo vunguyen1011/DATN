@@ -55,7 +55,6 @@ public class ProgramTreeResponse {
 
         // Các thông tin chi tiết mới bổ sung
         private String departmentName;
-        private Integer theoryPeriod;
-        private Integer practicePeriod;
+        private Integer totalPeriods;
     }
 }

@@ -34,6 +34,7 @@ public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID
     boolean existsBySectionCode(String sectionCode);
     List<ClassSection> findBySemesterId(UUID id);
     List<ClassSection> findBySubjectId(UUID subjectId);
+    boolean existsBySubjectComponentId(UUID subjectComponentId);
 
     boolean existsByParentSectionId(UUID parentSectionId);
 

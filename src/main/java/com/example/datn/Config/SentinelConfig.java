@@ -13,12 +13,6 @@ import java.util.List;
 
 @Configuration
 public class SentinelConfig {
-
-    /**
-     * Đăng ký AspectJ để @SentinelResource hoạt động.
-     * Standalone sentinel-core không có Spring Cloud auto-config,
-     * tránh hoàn toàn lỗi ClassNotFoundException với Spring Boot 4.x.
-     */
     @Bean
     public SentinelResourceAspect sentinelResourceAspect() {
         return new SentinelResourceAspect();
@@ -30,7 +24,6 @@ public class SentinelConfig {
         FlowRule rule = new FlowRule();
         rule.setResource("enrollment_api");
         rule.setGrade(RuleConstant.FLOW_GRADE_QPS);
-        // Đặt giới hạn chịu tải tối đa: 1000 QPS cho API đăng ký
         // Khi traffic vượt ngưỡng này, Sentinel tự Load Shedding (fast-fail)
         rule.setCount(2000);
         rules.add(rule);

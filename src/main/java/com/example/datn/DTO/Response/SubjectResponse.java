@@ -20,9 +20,7 @@ public class SubjectResponse {
 
     private String departmentName;
 
-    private Integer theoryPeriod;
-
-    private Integer practicePeriod;
+    private Integer totalPeriods;
 
     private Boolean isActive;
     private Double coefficient;

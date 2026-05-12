@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Slf4j
@@ -107,6 +108,9 @@ public class RegistrationPeriodServiceImpl implements IRegistrationPeriodService
     }
 
     private void validateTimeRange(RegistrationPeriodRequest request) {
+        if(request.getStartTime().isBefore(LocalDateTime.now())){
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Thời gian bắt đầu không được diễn ra trong quá khứ");
+        }
         if (request.getStartTime() == null || request.getEndTime() == null) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Thời gian bắt đầu và kết thúc không được để trống");
         }

@@ -289,6 +289,8 @@ public class EducationProgramService implements IEducationProgramService {
                 .subjectName(sub.getName())
                 .subjectCode(sub.getCode())
                 .credits(sub.getCredits())
+                .departmentName(sub.getDepartmentName())
+                .totalPeriods(sub.getTotalPeriods())
                 .build();
     }
 

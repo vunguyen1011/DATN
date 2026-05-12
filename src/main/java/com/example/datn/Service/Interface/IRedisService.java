@@ -39,4 +39,5 @@ public interface IRedisService {
 
     void releaseSlot(java.util.UUID classSectionId, java.util.UUID studentId);
     void clearRegistrationData();
+    long incrementAndCheckRateLimit(String key, int windowInSeconds);
 }

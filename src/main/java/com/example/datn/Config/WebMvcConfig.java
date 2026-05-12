@@ -14,7 +14,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        // Áp dụng Interceptor cho toàn bộ các API bắt đầu bằng /api/
         registry.addInterceptor(rateLimitInterceptor)
-                .addPathPatterns("/api/registration/enroll"); // Chỉ áp dụng cho các API enrollment
+                .addPathPatterns("/api/**");
     }
 }

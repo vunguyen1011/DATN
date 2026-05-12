@@ -1,5 +1,6 @@
 package com.example.datn.Controller;
 
+import com.example.datn.Annotation.RateLimit;
 import com.example.datn.DTO.Request.EnrollRequest;
 import com.example.datn.DTO.Response.ApiResponse;
 import com.example.datn.DTO.Response.EnrollmentResponse;
@@ -43,6 +44,7 @@ public class RegistrationController {
     @PreAuthorize("hasRole('USER')")
     @PostMapping("/enroll")
     @SentinelResource(value = "enrollment_api", blockHandler = "handleEnrollmentBlock")
+    @RateLimit(requests = 5, window = 5)
     public ApiResponse<List<EnrollmentSimpleResponse>> enroll(@RequestBody EnrollRequest request) {
         return ApiResponse.<List<EnrollmentSimpleResponse>>builder()
                 .code(1000)

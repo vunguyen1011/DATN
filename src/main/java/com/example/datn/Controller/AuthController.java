@@ -1,5 +1,6 @@
 package com.example.datn.Controller;
 
+import com.example.datn.Annotation.RateLimit;
 import com.example.datn.DTO.Request.*;
 import com.example.datn.DTO.Response.ApiResponse;
 import com.example.datn.DTO.Response.TokenResponse;
@@ -25,6 +26,7 @@ public class AuthController {
     private final IExcelService excelService;
     private final IAuthService authService;
 
+    @RateLimit(requests = 5, window = 30)
     @PostMapping("/login")
     public ApiResponse<TokenResponse> login(@RequestBody LoginRequest request, HttpServletResponse response) {
         TokenResponse tokenResponse = authService.executeLogin("LOCAL", request, response);
@@ -53,6 +55,7 @@ public class AuthController {
                 .build();
     }
 
+    @RateLimit(requests = 5, window = 30)
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/import-excel")
     public ApiResponse<String> importStudentsFromExcel(@RequestParam("file") MultipartFile file) {
@@ -71,6 +74,7 @@ public class AuthController {
         response.setHeader("Content-Disposition", "attachment; filename=template_sinh_vien.xlsx");
         excelService.downloadTemplate(response);
     }
+
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/excel-template-lecturer")
     public void downloadTemplateLecturer(HttpServletResponse response) throws IOException {
@@ -78,7 +82,6 @@ public class AuthController {
         response.setHeader("Content-Disposition", "attachment; filename=template_giang_vien.xlsx");
         excelService.downloadTemplateLecturer(response);
     }
-
 
     @PostMapping("/logout")
     public ApiResponse<Void> logout(HttpServletResponse response) {
@@ -90,6 +93,7 @@ public class AuthController {
                 .build();
     }
 
+    @RateLimit(requests = 5, window = 30)
     @PostMapping("/change-password")
     public ApiResponse<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -100,6 +104,7 @@ public class AuthController {
                 .build();
     }
 
+    @RateLimit(requests = 5, window = 30)
     @PostMapping("/forgot-password")
     public ApiResponse<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.forgotPassword(request);
@@ -109,6 +114,7 @@ public class AuthController {
                 .build();
     }
 
+    @RateLimit(requests = 5, window = 30)
     @PostMapping("/verify-otp")
     public ApiResponse<String> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
         String resetToken = authService.verifyOtp(request);
@@ -119,6 +125,7 @@ public class AuthController {
                 .build();
     }
 
+    @RateLimit(requests = 5, window = 10)
     @PostMapping("/reset-password")
     public ApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request);
@@ -127,6 +134,8 @@ public class AuthController {
                 .message("Khôi phục mật khẩu thành công")
                 .build();
     }
+
+    @RateLimit(requests = 3, window = 30)
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/import-lecturers-excel")
     public ApiResponse<String> importLecturersFromExcel(@RequestParam("file") MultipartFile file) {
@@ -137,14 +146,11 @@ public class AuthController {
                 .result(resultMessage)
                 .build();
     }
+
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/assign")
-    public ApiResponse<Void> assignRoleToUser(
-            @RequestParam String username) { // Hứng tham số username từ URL
-
-        // Gọi xuống Service (nhớ đảm bảo bên Service cũng đã đổi tên biến thành username cho đồng bộ)
+    public ApiResponse<Void> assignRoleToUser(@RequestParam String username) {
         authService.assignRoleToUser(username);
-
         return ApiResponse.<Void>builder()
                 .code(1000)
                 .message("Bổ nhiệm Trưởng phòng thành công")

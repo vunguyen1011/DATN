@@ -86,9 +86,9 @@ public class TuitionController {
     public void vnpayReturn(@RequestParam java.util.Map<String, String> params, HttpServletResponse response) throws IOException {
         try {
             tuitionService.processVNPayReturn(params);
-            response.sendRedirect("http://localhost:3000/payment/success"); 
+            response.sendRedirect("http://localhost:5173/payment-success");
         } catch (Exception e) {
-            response.sendRedirect("http://localhost:3000/payment/failed");
+            response.sendRedirect("http://localhost:5173/payment-failed");
         }
     }
     @GetMapping("/my-invoices/paged")

@@ -129,6 +129,10 @@ public class AuthService implements IAuthService {
             throw new AppException(ErrorCode.PASSWORD_NOT_MATCH);
         }
 
+        if (request.getOldPassword().equals(request.getNewPassword())) {
+            throw new AppException(ErrorCode.PASSWORD_UNCHANGED);
+        }
+
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
@@ -180,6 +184,10 @@ public class AuthService implements IAuthService {
 
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new AppException(ErrorCode.PASSWORD_UNCHANGED);
+        }
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
