@@ -15,4 +15,5 @@ public interface IUserService {
     UserProfileResponse toggleUserStatus(UUID id);
     Page<UserProfileResponse> getAllUsersByRole(String roleName, Pageable pageable);
     Page<UserProfileResponse> getAllLecturer( Pageable pageable);
+    Page<UserProfileResponse> getLecturersByMajorId(UUID majorId, Pageable pageable);
 }

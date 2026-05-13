@@ -596,7 +596,6 @@ public class ClassSectionServiceImpl implements IClassSectionService {
 
         return classSectionRepository.findBySemesterId(semesterId)
                 .stream()
-                .filter(cs -> cs.getStatus() == SectionStatus.OPENED)
                 .map(ClassSection::getSubject)
                 .filter(Objects::nonNull)
                 .filter(Subject::getIsActive)

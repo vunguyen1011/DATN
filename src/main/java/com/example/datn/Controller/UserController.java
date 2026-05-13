@@ -91,13 +91,13 @@ public class UserController {
                 .result(response)
                 .build();
     }
-        @GetMapping("/lecturers")
-    public ApiResponse<Page<UserProfileResponse>> getAllLecturers(
+        @GetMapping("/lecturers/{majorId}")
+    public ApiResponse<Page<UserProfileResponse>> getAllLecturers(@PathVariable UUID majorId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<UserProfileResponse> response = userService.getAllLecturer(pageable);
+        Page<UserProfileResponse> response = userService.getLecturersByMajorId(majorId, pageable);
         return ApiResponse.<Page<UserProfileResponse>>builder()
                 .code(1000)
                 .message("Lấy danh sách giảng viên thành công")

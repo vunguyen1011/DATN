@@ -37,6 +37,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findHeadOfMajorByMajorId(@Param("majorId") UUID majorId);
     @Query("SELECT ur FROM UserRole ur WHERE ur.role = :role AND ur.user.id IN (SELECT l.user.id FROM Lecturer l WHERE l.major = :major)")
     List<UserRole> findOldHodByRoleAndMajor(@Param("role") Role role, @Param("major") Major major);
+
     
 
 }
