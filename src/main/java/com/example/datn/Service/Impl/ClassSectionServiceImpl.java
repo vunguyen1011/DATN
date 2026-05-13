@@ -591,11 +591,6 @@ public class ClassSectionServiceImpl implements IClassSectionService {
     @Override
     public List<SubjectResponse> searchSubjectInFaculty(UUID semesterId, String keyword) {
 
-        List<String> excludedNames = List.of(
-                "Lý luận chính trị",
-                "Giáo dục thể chất",
-                "Ngoại ngữ"
-        );
 
         String safeKeyword = keyword == null ? "" : keyword.trim().toLowerCase();
 
@@ -605,7 +600,6 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                 .map(ClassSection::getSubject)
                 .filter(Objects::nonNull)
                 .filter(Subject::getIsActive)
-                .filter(subject -> !excludedNames.contains(subject.getDepartmentName()))
                 .filter(subject ->
                         subject.getName().toLowerCase().contains(safeKeyword)
                                 || subject.getCode().toLowerCase().contains(safeKeyword)
