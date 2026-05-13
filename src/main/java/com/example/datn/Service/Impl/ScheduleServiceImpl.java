@@ -136,7 +136,7 @@ public class ScheduleServiceImpl implements IScheduleService {
         Integer startPeriod = request.getStartPeriod();
         Integer endPeriod = startPeriod + periods - 1;
 
-        if (startPeriod > endPeriod || endPeriod > 15) {
+        if (startPeriod > endPeriod || endPeriod > 13) {
             throw new AppException(ErrorCode.INVALID_PERIOD_RANGE);
         }
 

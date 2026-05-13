@@ -83,5 +83,12 @@ public class UserService implements IUserService {
         return users.map(this::getUserProfileDetail);
     }
 
+    @Override
+    public Page<UserProfileResponse> getAllLecturer( Pageable pageable) {
+        Page<User> users=userRepository.findByRoleNameAndIsActiveTrue("ROLE_LECTURER", pageable);
+        return users.map(this::getUserProfileDetail);
+    }
+
+
 
 }

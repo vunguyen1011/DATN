@@ -91,4 +91,17 @@ public class UserController {
                 .result(response)
                 .build();
     }
+        @GetMapping("/lecturers")
+    public ApiResponse<Page<UserProfileResponse>> getAllLecturers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<UserProfileResponse> response = userService.getAllLecturer(pageable);
+        return ApiResponse.<Page<UserProfileResponse>>builder()
+                .code(1000)
+                .message("Lấy danh sách giảng viên thành công")
+                .result(response)
+                .build();
+        }
 }
