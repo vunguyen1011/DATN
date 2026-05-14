@@ -20,8 +20,11 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
@@ -375,7 +378,10 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
         if (text == null) return "";
         return text.replaceAll("[\\n\\r{}]", "").trim();
     }
-
+    @Retryable(
+            retryFor = { HttpServerErrorException.ServiceUnavailable.class, HttpServerErrorException.class },
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 2000, multiplier = 2.0))
     private String callGeminiApi(String prompt) {
         if (geminiApiKey == null || geminiApiKey.isEmpty()) {
             throw new RuntimeException("API Key missing");

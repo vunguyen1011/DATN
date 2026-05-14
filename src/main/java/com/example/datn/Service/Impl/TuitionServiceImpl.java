@@ -68,6 +68,9 @@ public class TuitionServiceImpl implements ITuitionService {
     public int generateInvoicesForRegistrationPeriod(UUID registrationPeriodId) {
         RegistrationPeriod period = registrationPeriodRepository.findById(registrationPeriodId)
                 .orElseThrow(() -> new AppException(ErrorCode.REGISTRATION_NOT_FOUND));
+//        if(period.getEndTime().isAfter(LocalDateTime.now())) {
+//            throw new AppException(ErrorCode.INVALID_REQUEST, "Đăng ký học phần vẫn đang mở, chưa thể tạo hóa đơn");
+//        }
 
         List<Enrollment> enrollments = enrollmentRepository.findByEnrollmentDateBetweenAndStatus(
                 period.getStartTime(), period.getEndTime(), EnrollmentStatus.REGISTERED);

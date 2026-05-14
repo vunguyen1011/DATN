@@ -7,6 +7,9 @@ import java.time.LocalDateTime;
 
 @Data
 public class RegistrationPeriodUpdateRequest {
+
+    @NotNull(message = "Tên đợt đăng ký không được để trống")
+    private String name;
     @NotNull(message = "Thời gian bắt đầu không được để trống")
     private LocalDateTime startTime;
 

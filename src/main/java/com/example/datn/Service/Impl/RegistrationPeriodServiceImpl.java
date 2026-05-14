@@ -96,7 +96,7 @@ public class RegistrationPeriodServiceImpl implements IRegistrationPeriodService
                 }
             }
         }
-
+        registrationPeriod.setName(request.getName());
         registrationPeriod.setStartTime(request.getStartTime());
         registrationPeriod.setEndTime(request.getEndTime());
 

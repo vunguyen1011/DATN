@@ -302,11 +302,7 @@
                         }
                     }
                     if (isTeacherBusy) continue;
-                    // Randomize thứ tự phòng để tránh xếp theo cùng 1 pattern cứng nhắc, tăng cơ hội tìm được slot trống
-                    List<Room> randomizedRooms = new ArrayList<>(baseRooms);
-                    Collections.shuffle(randomizedRooms);
-
-                    for (Room room : randomizedRooms) {
+                    for (Room room : baseRooms) {
                         if (room.getCapacity() == null || room.getCapacity() < capacity) continue;
 
                         if (!isRoomFree(ctx, room.getId(), day, start, end)) {
