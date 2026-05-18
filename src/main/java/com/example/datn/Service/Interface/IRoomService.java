@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface IRoomService {
     List<Room> getAllRooms();
+    List<Room> getAvailableRooms(Integer dayOfWeek, Integer startPeriod, Integer endPeriod);
 }

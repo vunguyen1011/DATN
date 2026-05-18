@@ -31,6 +31,7 @@ public interface IRedisService {
     /**
      * Đồng bộ sĩ số CÒN LẠI của toàn bộ lớp học phần trong một học kỳ lên Redis.
      * PHẢI gọi API này TRƯỚC KHI mở đợt đăng ký để Redis có data.
+     * 
      * @param semesterId ID học kỳ cần đồng bộ
      */
     void syncClassCapacityToRedis(java.util.UUID semesterId);
@@ -38,6 +39,8 @@ public interface IRedisService {
     int tryAcquireSlot(java.util.UUID classSectionId, java.util.UUID studentId);
 
     void releaseSlot(java.util.UUID classSectionId, java.util.UUID studentId);
+
     void clearRegistrationData();
+
     long incrementAndCheckRateLimit(String key, int windowInSeconds);
 }

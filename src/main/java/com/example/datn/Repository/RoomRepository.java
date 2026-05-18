@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -25,4 +26,18 @@ public interface RoomRepository extends JpaRepository<Room, UUID> {
     @Query("SELECT r FROM Room r WHERE r.id = :id")
     Optional<Room> findByIdForUpdate(@Param("id") UUID id);
     Optional<Room> findByName(String  name);
+
+    @Query("""
+        SELECT r FROM Room r 
+        WHERE r.id NOT IN (
+            SELECT s.room.id FROM Schedule s 
+            WHERE s.room IS NOT NULL 
+              AND s.dayOfWeek = :dayOfWeek 
+              AND s.startPeriod <= :endPeriod 
+              AND s.endPeriod >= :startPeriod
+        )
+    """)
+    List<Room> findAvailableRooms(@Param("dayOfWeek") Integer dayOfWeek,
+                                  @Param("startPeriod") Integer startPeriod,
+                                  @Param("endPeriod") Integer endPeriod);
 }

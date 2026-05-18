@@ -104,8 +104,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
         validateDuplicateSubject(currentEnrollments, theorySection);
         checkPrerequisitesOptimized(student.getId(), theorySection.getSubject().getId());
 
-        // Kiểm tra trùng lịch: 1 query batch duy nhất lấy tất cả lịch liên quan rồi so
-        // sánh trong RAM
+
         validateSchedulesWithBatchQuery(theorySection, labSection, currentEnrollments);
 
         String theorySubjectName = theorySection.getSubject().getName();

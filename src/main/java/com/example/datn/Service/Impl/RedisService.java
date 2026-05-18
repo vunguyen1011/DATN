@@ -5,6 +5,7 @@ import com.example.datn.Service.Interface.IRedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -171,13 +172,13 @@ public class RedisService implements IRedisService {
     @Override
     public void syncClassCapacityToRedis(java.util.UUID semesterId) {
         // Lấy toàn bộ lớp học phần trong học kỳ từ DB
-        java.util.List<com.example.datn.Model.ClassSection> sections =
-                classSectionRepository.findBySemesterId(semesterId);
+        java.util.List<com.example.datn.Model.ClassSection> sections = classSectionRepository
+                .findBySemesterId(semesterId);
 
         int count = 0;
         for (com.example.datn.Model.ClassSection section : sections) {
             String slotKey = "class_slot:" + section.getId();
-            String setKey  = "class_students:" + section.getId();
+            String setKey = "class_students:" + section.getId();
 
             // Số slot còn lại = capacity - enrolledCount (đảm bảo không âm)
             int available = Math.max(0, section.getCapacity() - section.getEnrolledCount());
@@ -189,7 +190,6 @@ public class RedisService implements IRedisService {
         }
         log.info("[SYNC] Đã đồng bộ {} lớp học phần của học kỳ {} lên Redis.", count, semesterId);
     }
-
 
     @Override
     public int tryAcquireSlot(java.util.UUID classSectionId, java.util.UUID studentId) {
@@ -211,8 +211,7 @@ public class RedisService implements IRedisService {
                 "    return -1\n" +
                 "end";
 
-        org.springframework.data.redis.core.script.DefaultRedisScript<Long> script =
-                new org.springframework.data.redis.core.script.DefaultRedisScript<>();
+       DefaultRedisScript<Long> script = new org.springframework.data.redis.core.script.DefaultRedisScript<>();
         script.setScriptText(luaScript);
         script.setResultType(Long.class);
 

@@ -69,7 +69,8 @@ public class ScheduleServiceImpl implements IScheduleService {
                 .totalSections(totalSections)
                 .alreadyHadSchedule(alreadyExists)
                 .newlyCreated((long) newSections.size())
-                .message(newSections.isEmpty() ? "Tất cả lớp học phần đã có lịch" : "Đã tạo thành công " + newSections.size() + " lịch mới")
+                .message(newSections.isEmpty() ? "Tất cả lớp học phần đã có lịch"
+                        : "Đã tạo thành công " + newSections.size() + " lịch mới")
                 .build();
     }
 
@@ -90,7 +91,8 @@ public class ScheduleServiceImpl implements IScheduleService {
         Semester semester = semesterRepository.findById(semesterId)
                 .orElseThrow(() -> new AppException(ErrorCode.SEMESTER_NOT_FOUND));
 
-        List<Schedule> schedules = scheduleRepository.findBySemesterId(semesterId, org.springframework.data.domain.Pageable.unpaged()).getContent();
+        List<Schedule> schedules = scheduleRepository
+                .findBySemesterId(semesterId, org.springframework.data.domain.Pageable.unpaged()).getContent();
 
         int count = 0;
         for (Schedule s : schedules) {
@@ -104,14 +106,16 @@ public class ScheduleServiceImpl implements IScheduleService {
             }
         }
         scheduleRepository.saveAll(schedules);
-        log.info("[ScheduleService] Đã clear thành công {} lịch học không bị khóa cho học kỳ {}", count, semester.getName());
+        log.info("[ScheduleService] Đã clear thành công {} lịch học không bị khóa cho học kỳ {}", count,
+                semester.getName());
     }
 
     @Override
     public List<LecturerSuggestionResponse> suggestLecturersForSchedule(UUID scheduleId) {
         Schedule schedule = findScheduleById(scheduleId);
         if (schedule.getDayOfWeek() == null || schedule.getStartPeriod() == null) {
-            throw new AppException(ErrorCode.SCHEDULE_TIME_NOT_SET, "Cần xếp giờ học trước khi tìm giảng viên phù hợp.");
+            throw new AppException(ErrorCode.SCHEDULE_TIME_NOT_SET,
+                    "Cần xếp giờ học trước khi tìm giảng viên phù hợp.");
         }
         return lecturerSuggestionEngine.suggest(schedule);
     }
@@ -130,7 +134,8 @@ public class ScheduleServiceImpl implements IScheduleService {
         int periods = 3;
         if (schedule.getClassSection() != null && schedule.getClassSection().getSubjectComponent() != null) {
             Integer p = schedule.getClassSection().getSubjectComponent().getPeriodsPerSession();
-            if (p != null && p > 0) periods = p;
+            if (p != null && p > 0)
+                periods = p;
         }
 
         Integer startPeriod = request.getStartPeriod();
@@ -148,13 +153,15 @@ public class ScheduleServiceImpl implements IScheduleService {
             validateRoomConflict(schedule.getRoom(), request.getDayOfWeek(), startPeriod, endPeriod, scheduleId);
         }
         if (schedule.getLecturer() != null) {
-            validateLecturerConflict(schedule.getLecturer(), request.getDayOfWeek(), startPeriod, endPeriod, scheduleId);
+            validateLecturerConflict(schedule.getLecturer(), request.getDayOfWeek(), startPeriod, endPeriod,
+                    scheduleId);
         }
 
         validateParentChildConflict(schedule.getClassSection(), request.getDayOfWeek(), startPeriod, endPeriod);
 
         Schedule saved = scheduleRepository.save(schedule);
-        log.info("[Schedule] Đã xếp thời gian (Thứ {}, tiết {}-{}) cho schedule {}", request.getDayOfWeek(), startPeriod, endPeriod, scheduleId);
+        log.info("[Schedule] Đã xếp thời gian (Thứ {}, tiết {}-{}) cho schedule {}", request.getDayOfWeek(),
+                startPeriod, endPeriod, scheduleId);
         return toResponse(saved);
     }
 
@@ -193,8 +200,10 @@ public class ScheduleServiceImpl implements IScheduleService {
                 }
             }
 
-            if (schedule.getDayOfWeek() != null && schedule.getStartPeriod() != null && schedule.getEndPeriod() != null) {
-                validateRoomConflict(room, schedule.getDayOfWeek(), schedule.getStartPeriod(), schedule.getEndPeriod(), scheduleId);
+            if (schedule.getDayOfWeek() != null && schedule.getStartPeriod() != null
+                    && schedule.getEndPeriod() != null) {
+                validateRoomConflict(room, schedule.getDayOfWeek(), schedule.getStartPeriod(), schedule.getEndPeriod(),
+                        scheduleId);
             }
         }
 
@@ -231,7 +240,8 @@ public class ScheduleServiceImpl implements IScheduleService {
         if (request.getLecturerCode() != null) {
             lecturer = lecturerRepository.findByLecturerCode(request.getLecturerCode())
                     .orElseThrow(() -> new AppException(ErrorCode.LECTURER_NOT_FOUND));
-            validateLecturerConflict(lecturer, schedule.getDayOfWeek(), schedule.getStartPeriod(), schedule.getEndPeriod(), scheduleId);
+            validateLecturerConflict(lecturer, schedule.getDayOfWeek(), schedule.getStartPeriod(),
+                    schedule.getEndPeriod(), scheduleId);
         }
 
         schedule.setLecturer(lecturer);
@@ -241,7 +251,8 @@ public class ScheduleServiceImpl implements IScheduleService {
 
     @Override
     @Transactional
-    public java.util.List<ScheduleResponse> bulkAssignLecturer(com.example.datn.DTO.Request.BulkScheduleLecturerRequest request) {
+    public java.util.List<ScheduleResponse> bulkAssignLecturer(
+            com.example.datn.DTO.Request.BulkScheduleLecturerRequest request) {
         if (request.getScheduleIds() == null || request.getScheduleIds().isEmpty()) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Danh sách lịch học bị trống");
         }
@@ -262,7 +273,8 @@ public class ScheduleServiceImpl implements IScheduleService {
         Schedule schedule = findScheduleById(scheduleId);
         checkLock(schedule);
         if (schedule.getLecturer() == null) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Lịch học chưa được phân công giảng viên, không thể hủy bỏ");
+            throw new AppException(ErrorCode.INVALID_REQUEST,
+                    "Lịch học chưa được phân công giảng viên, không thể hủy bỏ");
         }
 
         schedule.setLecturer(null);
@@ -281,20 +293,24 @@ public class ScheduleServiceImpl implements IScheduleService {
     }
 
     @Override
-    public org.springframework.data.domain.Page<ScheduleResponse> getSchedulesBySemester(UUID semesterId, org.springframework.data.domain.Pageable pageable) {
+    public org.springframework.data.domain.Page<ScheduleResponse> getSchedulesBySemester(UUID semesterId,
+            org.springframework.data.domain.Pageable pageable) {
         return scheduleRepository.findBySemesterId(semesterId, pageable).map(this::toResponse);
     }
 
     @Override
-    public org.springframework.data.domain.Page<ScheduleResponse> getUnassignedSchedules(UUID semesterId, org.springframework.data.domain.Pageable pageable) {
+    public org.springframework.data.domain.Page<ScheduleResponse> getUnassignedSchedules(UUID semesterId,
+            org.springframework.data.domain.Pageable pageable) {
         return scheduleRepository.findUnassignedBySemesterId(semesterId, pageable).map(this::toResponse);
     }
 
     @Override
-    public org.springframework.data.domain.Page<ScheduleResponse> getSchedulesByLecturer(String lecturerCode, UUID semesterId, org.springframework.data.domain.Pageable pageable) {
+    public org.springframework.data.domain.Page<ScheduleResponse> getSchedulesByLecturer(String lecturerCode,
+            UUID semesterId, org.springframework.data.domain.Pageable pageable) {
         Semester currentSemester = semesterRepository.findByIsCurrentTrue()
                 .orElseThrow(() -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND));
-        return scheduleRepository.findByLecturerAndSemester(lecturerCode, currentSemester.getId(), pageable).map(this::toResponse);
+        return scheduleRepository.findByLecturerAndSemester(lecturerCode, currentSemester.getId(), pageable)
+                .map(this::toResponse);
     }
 
     @Override
@@ -324,8 +340,10 @@ public class ScheduleServiceImpl implements IScheduleService {
         }
 
         details.sort(java.util.Comparator
-                .comparing(LecturerScheduleSummaryResponse.ScheduleDetail::getDayOfWeek, java.util.Comparator.nullsLast(Integer::compareTo))
-                .thenComparing(LecturerScheduleSummaryResponse.ScheduleDetail::getStartPeriod, java.util.Comparator.nullsLast(Integer::compareTo)));
+                .comparing(LecturerScheduleSummaryResponse.ScheduleDetail::getDayOfWeek,
+                        java.util.Comparator.nullsLast(Integer::compareTo))
+                .thenComparing(LecturerScheduleSummaryResponse.ScheduleDetail::getStartPeriod,
+                        java.util.Comparator.nullsLast(Integer::compareTo)));
 
         return LecturerScheduleSummaryResponse.builder()
                 .lecturerCode(lecturer.getLecturerCode())
@@ -388,11 +406,13 @@ public class ScheduleServiceImpl implements IScheduleService {
     }
 
     @Override
-    public void exportSemesterScheduleToPdf(UUID semesterId, jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+    public void exportSemesterScheduleToPdf(UUID semesterId, jakarta.servlet.http.HttpServletResponse response)
+            throws java.io.IOException {
         Semester semester = semesterRepository.findById(semesterId)
                 .orElseThrow(() -> new AppException(ErrorCode.SEMESTER_NOT_FOUND));
 
-        List<Schedule> allSchedules = scheduleRepository.findBySemesterId(semesterId, org.springframework.data.domain.Pageable.unpaged()).getContent();
+        List<Schedule> allSchedules = scheduleRepository
+                .findBySemesterId(semesterId, org.springframework.data.domain.Pageable.unpaged()).getContent();
 
         List<Schedule> assignedSchedules = allSchedules.stream()
                 .filter(s -> s.getDayOfWeek() != null)
@@ -402,14 +422,16 @@ public class ScheduleServiceImpl implements IScheduleService {
                 .map(this::toResponse)
                 .sorted(java.util.Comparator
                         .comparing(ScheduleResponse::getSubjectName, java.util.Comparator.nullsLast(String::compareTo))
-                        .thenComparing(ScheduleResponse::getSectionCode, java.util.Comparator.nullsLast(String::compareTo))
-                        .thenComparing(ScheduleResponse::getDayOfWeek, java.util.Comparator.nullsLast(Integer::compareTo))
-                        .thenComparing(ScheduleResponse::getStartPeriod, java.util.Comparator.nullsLast(Integer::compareTo)))
+                        .thenComparing(ScheduleResponse::getSectionCode,
+                                java.util.Comparator.nullsLast(String::compareTo))
+                        .thenComparing(ScheduleResponse::getDayOfWeek,
+                                java.util.Comparator.nullsLast(Integer::compareTo))
+                        .thenComparing(ScheduleResponse::getStartPeriod,
+                                java.util.Comparator.nullsLast(Integer::compareTo)))
                 .collect(Collectors.groupingBy(
                         ScheduleResponse::getSubjectName,
                         java.util.LinkedHashMap::new,
-                        Collectors.toList()
-                ));
+                        Collectors.toList()));
 
         response.setContentType("application/pdf");
 
@@ -419,17 +441,24 @@ public class ScheduleServiceImpl implements IScheduleService {
                 .replaceAll("\\s+", "_");
         response.setHeader("Content-Disposition", "attachment; filename=lich_hoc_ky_" + safeSemesterName + ".pdf");
 
-        try (com.lowagie.text.Document document = new com.lowagie.text.Document(com.lowagie.text.PageSize.A4.rotate())) {
+        try (com.lowagie.text.Document document = new com.lowagie.text.Document(
+                com.lowagie.text.PageSize.A4.rotate())) {
             com.lowagie.text.pdf.PdfWriter.getInstance(document, response.getOutputStream());
             document.open();
 
-            com.lowagie.text.Font titleFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD, 18);
-            com.lowagie.text.Font headerFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD, 12);
-            com.lowagie.text.Font normalFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA, 12);
-            com.lowagie.text.Font subjectFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD, 14);
+            com.lowagie.text.Font titleFont = com.lowagie.text.FontFactory
+                    .getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD, 18);
+            com.lowagie.text.Font headerFont = com.lowagie.text.FontFactory
+                    .getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD, 12);
+            com.lowagie.text.Font normalFont = com.lowagie.text.FontFactory
+                    .getFont(com.lowagie.text.FontFactory.HELVETICA, 12);
+            com.lowagie.text.Font subjectFont = com.lowagie.text.FontFactory
+                    .getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD, 14);
 
             try {
-                com.lowagie.text.pdf.BaseFont bf = com.lowagie.text.pdf.BaseFont.createFont("C:\\Windows\\Fonts\\arial.ttf", com.lowagie.text.pdf.BaseFont.IDENTITY_H, com.lowagie.text.pdf.BaseFont.EMBEDDED);
+                com.lowagie.text.pdf.BaseFont bf = com.lowagie.text.pdf.BaseFont.createFont(
+                        "C:\\Windows\\Fonts\\arial.ttf", com.lowagie.text.pdf.BaseFont.IDENTITY_H,
+                        com.lowagie.text.pdf.BaseFont.EMBEDDED);
                 titleFont = new com.lowagie.text.Font(bf, 18, com.lowagie.text.Font.BOLD);
                 headerFont = new com.lowagie.text.Font(bf, 12, com.lowagie.text.Font.BOLD);
                 normalFont = new com.lowagie.text.Font(bf, 12, com.lowagie.text.Font.NORMAL);
@@ -438,7 +467,8 @@ public class ScheduleServiceImpl implements IScheduleService {
                 log.warn("[PDF] Could not load Arial font, falling back to Helvetica");
             }
 
-            com.lowagie.text.Paragraph title = new com.lowagie.text.Paragraph("LỊCH HỌC KỲ DỰ KIẾN - " + semester.getName(), titleFont);
+            com.lowagie.text.Paragraph title = new com.lowagie.text.Paragraph(
+                    "LỊCH HỌC KỲ DỰ KIẾN - " + semester.getName(), titleFont);
             title.setAlignment(com.lowagie.text.Element.ALIGN_CENTER);
             document.add(title);
             document.add(new com.lowagie.text.Paragraph("\n"));
@@ -454,11 +484,12 @@ public class ScheduleServiceImpl implements IScheduleService {
 
                 com.lowagie.text.pdf.PdfPTable table = new com.lowagie.text.pdf.PdfPTable(6);
                 table.setWidthPercentage(100);
-                table.setWidths(new float[]{1.5f, 1f, 1f, 1.5f, 2f, 3f});
+                table.setWidths(new float[] { 1.5f, 1f, 1f, 1.5f, 2f, 3f });
 
-                String[] headers = {"Mã Lớp", "Thứ", "Tiết", "Thời lượng", "Phòng", "Giảng viên"};
+                String[] headers = { "Mã Lớp", "Thứ", "Tiết", "Thời lượng", "Phòng", "Giảng viên" };
                 for (String header : headers) {
-                    com.lowagie.text.pdf.PdfPCell cell = new com.lowagie.text.pdf.PdfPCell(new com.lowagie.text.Phrase(header, headerFont));
+                    com.lowagie.text.pdf.PdfPCell cell = new com.lowagie.text.pdf.PdfPCell(
+                            new com.lowagie.text.Phrase(header, headerFont));
                     cell.setHorizontalAlignment(com.lowagie.text.Element.ALIGN_CENTER);
                     cell.setBackgroundColor(new java.awt.Color(230, 230, 230));
                     cell.setPadding(5);
@@ -466,16 +497,22 @@ public class ScheduleServiceImpl implements IScheduleService {
                 }
 
                 for (ScheduleResponse s : entry.getValue()) {
-                    table.addCell(new com.lowagie.text.Phrase(s.getSectionCode() != null ? s.getSectionCode() : "", normalFont));
-                    table.addCell(new com.lowagie.text.Phrase(s.getDayOfWeekName() != null ? s.getDayOfWeekName() : "", normalFont));
-                    table.addCell(new com.lowagie.text.Phrase(s.getStartPeriod() != null ? s.getStartPeriod().toString() : "", normalFont));
+                    table.addCell(new com.lowagie.text.Phrase(s.getSectionCode() != null ? s.getSectionCode() : "",
+                            normalFont));
+                    table.addCell(new com.lowagie.text.Phrase(s.getDayOfWeekName() != null ? s.getDayOfWeekName() : "",
+                            normalFont));
+                    table.addCell(new com.lowagie.text.Phrase(
+                            s.getStartPeriod() != null ? s.getStartPeriod().toString() : "", normalFont));
 
                     String periods = (s.getStartPeriod() != null && s.getEndPeriod() != null)
-                            ? (s.getEndPeriod() - s.getStartPeriod() + 1) + " tiết" : "";
+                            ? (s.getEndPeriod() - s.getStartPeriod() + 1) + " tiết"
+                            : "";
                     table.addCell(new com.lowagie.text.Phrase(periods, normalFont));
 
-                    table.addCell(new com.lowagie.text.Phrase(s.getRoomName() != null ? s.getRoomName() : "E-Learning", normalFont));
-                    table.addCell(new com.lowagie.text.Phrase(s.getLecturerName() != null ? s.getLecturerName() : "Chưa phân công", normalFont));
+                    table.addCell(new com.lowagie.text.Phrase(s.getRoomName() != null ? s.getRoomName() : "E-Learning",
+                            normalFont));
+                    table.addCell(new com.lowagie.text.Phrase(
+                            s.getLecturerName() != null ? s.getLecturerName() : "Chưa phân công", normalFont));
                 }
 
                 document.add(table);
@@ -500,33 +537,40 @@ public class ScheduleServiceImpl implements IScheduleService {
         }
     }
 
-    private void validateRoomConflict(Room room, Integer dayOfWeek, Integer startPeriod, Integer endPeriod, UUID excludeId) {
+    private void validateRoomConflict(Room room, Integer dayOfWeek, Integer startPeriod, Integer endPeriod,
+            UUID excludeId) {
         if (dayOfWeek == null || startPeriod == null || endPeriod == null) {
             throw new AppException(ErrorCode.INVALID_SCHEDULE_TIME);
         }
-        List<Schedule> conflicts = scheduleRepository.findConflictingByRoom(room.getId(), dayOfWeek, startPeriod, endPeriod, excludeId);
+        List<Schedule> conflicts = scheduleRepository.findConflictingByRoom(room.getId(), dayOfWeek, startPeriod,
+                endPeriod, excludeId);
         if (!conflicts.isEmpty()) {
             throw new AppException(ErrorCode.ROOM_CONFLICT);
         }
     }
 
-    private void validateLecturerConflict(Lecturer lecturer, Integer dayOfWeek, Integer startPeriod, Integer endPeriod, UUID excludeId) {
+    private void validateLecturerConflict(Lecturer lecturer, Integer dayOfWeek, Integer startPeriod, Integer endPeriod,
+            UUID excludeId) {
         if (dayOfWeek == null || startPeriod == null || endPeriod == null) {
             throw new AppException(ErrorCode.INVALID_SCHEDULE_TIME);
         }
-        List<Schedule> conflicts = scheduleRepository.findConflictingByLecturer(lecturer.getId(), dayOfWeek, startPeriod, endPeriod, excludeId);
+        List<Schedule> conflicts = scheduleRepository.findConflictingByLecturer(lecturer.getId(), dayOfWeek,
+                startPeriod, endPeriod, excludeId);
         if (!conflicts.isEmpty()) {
             throw new AppException(ErrorCode.LECTURER_CONFLICT);
         }
     }
 
-    private void validateParentChildConflict(ClassSection section, Integer dayOfWeek, Integer startPeriod, Integer endPeriod) {
+    private void validateParentChildConflict(ClassSection section, Integer dayOfWeek, Integer startPeriod,
+            Integer endPeriod) {
         if (section.getParentSection() != null) {
-            List<Schedule> parentSchedules = scheduleRepository.findByClassSection_Id(section.getParentSection().getId());
+            List<Schedule> parentSchedules = scheduleRepository
+                    .findByClassSection_Id(section.getParentSection().getId());
             for (Schedule p : parentSchedules) {
                 if (isTimeOverlap(p, dayOfWeek, startPeriod, endPeriod)) {
                     throw new AppException(ErrorCode.INVALID_SCHEDULE_TIME,
-                            "Lịch thực hành bị đè lên giờ học của lớp lý thuyết gốc (" + section.getParentSection().getSectionCode() + ")");
+                            "Lịch thực hành bị đè lên giờ học của lớp lý thuyết gốc ("
+                                    + section.getParentSection().getSectionCode() + ")");
                 }
             }
         } else {
@@ -538,7 +582,8 @@ public class ScheduleServiceImpl implements IScheduleService {
                 for (Schedule c : childSchedules) {
                     if (isTimeOverlap(c, dayOfWeek, startPeriod, endPeriod)) {
                         throw new AppException(ErrorCode.INVALID_SCHEDULE_TIME,
-                                "Lịch lý thuyết bị đè lên giờ học của lớp thực hành (" + c.getClassSection().getSectionCode() + ")");
+                                "Lịch lý thuyết bị đè lên giờ học của lớp thực hành ("
+                                        + c.getClassSection().getSectionCode() + ")");
                     }
                 }
             }
@@ -575,7 +620,8 @@ public class ScheduleServiceImpl implements IScheduleService {
     }
 
     private String toDayName(Integer dayOfWeek) {
-        if (dayOfWeek == null) return null;
+        if (dayOfWeek == null)
+            return null;
         return switch (dayOfWeek) {
             case 2 -> "Thứ 2";
             case 3 -> "Thứ 3";
