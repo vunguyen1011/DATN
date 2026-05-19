@@ -32,12 +32,14 @@ public interface RoomRepository extends JpaRepository<Room, UUID> {
         WHERE r.id NOT IN (
             SELECT s.room.id FROM Schedule s 
             WHERE s.room IS NOT NULL 
+              AND s.classSection.semester.id = :semesterId
               AND s.dayOfWeek = :dayOfWeek 
               AND s.startPeriod <= :endPeriod 
               AND s.endPeriod >= :startPeriod
         )
     """)
-    List<Room> findAvailableRooms(@Param("dayOfWeek") Integer dayOfWeek,
+    List<Room> findAvailableRooms(@Param("semesterId") UUID semesterId,
+                                  @Param("dayOfWeek") Integer dayOfWeek,
                                   @Param("startPeriod") Integer startPeriod,
                                   @Param("endPeriod") Integer endPeriod);
 }
