@@ -72,11 +72,13 @@ public class ScheduleController {
         @PreAuthorize("hasAnyRole('ADMIN','DEAN')") // ĐÃ SỬA: hasRole -> hasAnyRole
         public ApiResponse<List<SlotSuggestionResponse>> suggestSlots(
                 @PathVariable UUID id,
-                @RequestParam(defaultValue = "5") int topN) {
+                @RequestParam(defaultValue = "5") int topN,
+                @RequestParam(required = false) Integer dayOfWeek,
+                @RequestParam(required = false) Integer startPeriod) {
                 return ApiResponse.<List<SlotSuggestionResponse>>builder()
                         .code(1000)
                         .message("Lấy danh sách gợi ý slot/phòng khả dụng thành công")
-                        .result(scheduleService.suggestSlotsForSchedule(id, topN))
+                        .result(scheduleService.suggestSlotsForSchedule(id, topN, dayOfWeek, startPeriod))
                         .build();
         }
 

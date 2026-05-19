@@ -53,5 +53,5 @@ public interface IScheduleService {
 
     List<LecturerSuggestionResponse> suggestLecturersForSchedule(UUID scheduleId);
 
-    List<SlotSuggestionResponse> suggestSlotsForSchedule(UUID scheduleId, int topN);
+    List<SlotSuggestionResponse> suggestSlotsForSchedule(UUID scheduleId, int topN, Integer dayOfWeek, Integer startPeriod);
 }

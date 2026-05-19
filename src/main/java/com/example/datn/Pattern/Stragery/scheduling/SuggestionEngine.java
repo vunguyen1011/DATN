@@ -41,7 +41,7 @@ public class SuggestionEngine {
     private final SchedulingMatrixBuilder matrixBuilder;
 
 
-    public List<SlotSuggestionResponse> suggest(UUID scheduleId, int topN) {
+    public List<SlotSuggestionResponse> suggest(UUID scheduleId, int topN, Integer filterDayOfWeek, Integer filterStartPeriod) {
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new AppException(ErrorCode.SCHEDULE_NOT_FOUND));
 
@@ -66,7 +66,9 @@ public class SuggestionEngine {
         List<SlotSuggestionResponse> suggestions = new ArrayList<>();
 
         for (int day : WORKING_DAYS) {
+            if (filterDayOfWeek != null && day != filterDayOfWeek) continue;
             for (int start = 1; start + periods - 1 <= MAX_PERIOD; start += periods) {
+                if (filterStartPeriod != null && start != filterStartPeriod) continue;
                 int end = start + periods - 1;
 
                 // Look-ahead capacity check

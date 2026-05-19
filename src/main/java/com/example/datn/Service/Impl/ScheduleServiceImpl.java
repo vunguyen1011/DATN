@@ -121,8 +121,8 @@ public class ScheduleServiceImpl implements IScheduleService {
     }
 
     @Override
-    public List<SlotSuggestionResponse> suggestSlotsForSchedule(UUID scheduleId, int topN) {
-        return suggestionEngine.suggest(scheduleId, topN);
+    public List<SlotSuggestionResponse> suggestSlotsForSchedule(UUID scheduleId, int topN, Integer dayOfWeek, Integer startPeriod) {
+        return suggestionEngine.suggest(scheduleId, topN, dayOfWeek, startPeriod);
     }
 
     @Override
