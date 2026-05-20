@@ -3,6 +3,7 @@ package com.example.datn.Service.Impl;
 import com.example.datn.DTO.Request.ScheduleLecturerRequest;
 import com.example.datn.DTO.Request.ScheduleRoomRequest;
 import com.example.datn.DTO.Response.*;
+import com.example.datn.ENUM.SectionStatus;
 import com.example.datn.Exception.AppException;
 import com.example.datn.Exception.ErrorCode;
 import com.example.datn.Mapper.SubjectMapper;
@@ -81,6 +82,11 @@ public class ScheduleServiceImpl implements IScheduleService {
         Semester semester = semesterRepository.findById(semesterId)
                 .orElseThrow(() -> new AppException(ErrorCode.SEMESTER_NOT_FOUND));
 
+        List<ClassSection> openedSections = classSectionRepository.findBySemesterIdAndStatus(semesterId, SectionStatus.OPENED);
+        if (!openedSections.isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể tự động xếp lịch vì học kỳ này đã có lớp học phần được mở (OPENED)");
+        }
+
         return greedySchedulerEngine.run(semester.getId());
     }
 
@@ -90,6 +96,11 @@ public class ScheduleServiceImpl implements IScheduleService {
         log.info("[ScheduleService] Nhận request xóa kết quả xếp lịch cho học kỳ: {}", semesterId);
         Semester semester = semesterRepository.findById(semesterId)
                 .orElseThrow(() -> new AppException(ErrorCode.SEMESTER_NOT_FOUND));
+
+        List<ClassSection> openedSections = classSectionRepository.findBySemesterIdAndStatus(semesterId, SectionStatus.OPENED);
+        if (!openedSections.isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể xóa lịch học vì học kỳ này đã có lớp học phần được mở (OPENED)");
+        }
 
         List<Schedule> schedules = scheduleRepository
                 .findBySemesterId(semesterId, org.springframework.data.domain.Pageable.unpaged()).getContent();
@@ -170,9 +181,13 @@ public class ScheduleServiceImpl implements IScheduleService {
     public ScheduleResponse clearTime(UUID scheduleId) {
         Schedule schedule = findScheduleById(scheduleId);
         checkLock(schedule);
+        if (schedule.getClassSection() != null && schedule.getClassSection().getStatus() == SectionStatus.OPENED) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể hủy thời gian học của lớp học phần đã mở (OPENED)");
+        }
         if (schedule.getDayOfWeek() == null && schedule.getStartPeriod() == null && schedule.getEndPeriod() == null) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Lịch học chưa được xếp thời gian, không thể hủy bỏ");
         }
+        
 
         schedule.setDayOfWeek(null);
         schedule.setStartPeriod(null);
@@ -217,6 +232,9 @@ public class ScheduleServiceImpl implements IScheduleService {
     public ScheduleResponse clearRoom(UUID scheduleId) {
         Schedule schedule = findScheduleById(scheduleId);
         checkLock(schedule);
+        if (schedule.getClassSection() != null && schedule.getClassSection().getStatus() == SectionStatus.OPENED) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể hủy phòng học của lớp học phần đã mở (OPENED)");
+        }
         if (schedule.getRoom() == null) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Lịch học chưa được xếp phòng, không thể hủy bỏ");
         }

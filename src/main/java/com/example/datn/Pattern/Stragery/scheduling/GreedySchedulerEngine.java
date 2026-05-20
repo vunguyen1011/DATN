@@ -1,6 +1,7 @@
     package com.example.datn.Pattern.Stragery.scheduling;
 
     import com.example.datn.DTO.Response.AutoAssignResultResponse;
+    import com.example.datn.ENUM.SectionStatus;
     import com.example.datn.Exception.AppException;
     import com.example.datn.Exception.ErrorCode;
     import com.example.datn.Model.*;
@@ -73,9 +74,10 @@
             );
 
             List<Schedule> allSemesterSchedules = scheduleRepository.findBySemesterId(semesterId, org.springframework.data.domain.Pageable.unpaged()).getContent();
-            //Lấy   phòng học chưa được xếp lịch
+            //Lấy   phòng học chưa được xếp lịch (bỏ qua các lớp đã ở trạng thái OPENED)
             List<Schedule> originalUnassigned = allSemesterSchedules.stream()
-                    .filter(s -> s.getDayOfWeek() == null || s.getStartPeriod() == null)
+                    .filter(s -> (s.getDayOfWeek() == null || s.getStartPeriod() == null)
+                            && (s.getClassSection() == null || s.getClassSection().getStatus() != SectionStatus.OPENED))
                     .collect(Collectors.toList());
 
             //sắp xếp các môn E-learning trước vì không bị ràng buộc về phòng học, chỉ cần xếp vào slot cố định 14-16 và rải đều theo ngày trong tuần để tránh dồn hết vào 1-2 ngày

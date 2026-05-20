@@ -52,10 +52,6 @@ public class RegistrationServiceImpl implements IRegistrationService {
     @Value("${app.registration.max-credits:25}")
     private int maxCreditsPerSemester;
 
-    // ─────────────────────────────────────────────────────
-    // HELPER METHODS
-    // ─────────────────────────────────────────────────────
-
     private Student getCurrentStudent() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null
@@ -80,14 +76,12 @@ public class RegistrationServiceImpl implements IRegistrationService {
         return periodCohortService.getOngoingCohortPeriod(cohortId, LocalDateTime.now());
     }
 
-    // ─────────────────────────────────────────────────────
-    // CORE: ENROLL
-    // ─────────────────────────────────────────────────────
+
 
     @Override
     public List<EnrollmentSimpleResponse> enroll(EnrollRequest request) {
 
-        // ── GIAI ĐOẠN 1: VALIDATION (ngoài Transaction) ─────────────────
+
         Student student = getCurrentStudent();
         PeriodCohort activePeriod = getActivePeriodCohort(student.getCohort().getId());
         UUID semesterId = activePeriod.getRegistrationPeriod().getSemester().getId();
@@ -151,9 +145,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
         return responses;
     }
 
-    // ─────────────────────────────────────────────────────
-    // CANCEL
-    // ─────────────────────────────────────────────────────
+
 
     @Override
     // ĐÃ BỎ @Transactional Ở ĐÂY ĐỂ ĐẨY XUỐNG ASYNC
@@ -262,10 +254,6 @@ public class RegistrationServiceImpl implements IRegistrationService {
                 .map(enrollmentMapper::toResponse)
                 .collect(Collectors.toList());
     }
-
-    // ─────────────────────────────────────────────────────
-    // VALIDATION HELPERS
-    // ─────────────────────────────────────────────────────
 
     private void validateClassBasics(ClassSection theory, UUID currentSemesterId) {
         if (!theory.getSemester().getId().equals(currentSemesterId)) {

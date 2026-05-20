@@ -15,9 +15,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Phase 1 – Đọc DB và build toàn bộ in-memory matrices vào {@link SchedulingContext}.
+ * Phase 1 – Đọc DB và build toàn bộ in-memory matrices vào
+ * {@link SchedulingContext}.
  *
- * <p>Chỉ đọc DB 1 lần duy nhất. Phase 2 (Greedy) sẽ chỉ đọc RAM từ Context.
+ * <p>
+ * Chỉ đọc DB 1 lần duy nhất. Phase 2 (Greedy) sẽ chỉ đọc RAM từ Context.
  */
 @Slf4j
 @Component
@@ -28,7 +30,6 @@ public class SchedulingMatrixBuilder {
     private final LecturerRepository lecturerRepository;
     private final RoomRepository roomRepository;
     private final ClassSectionRepository classSectionRepository;
-
 
     public SchedulingContext build(UUID semesterId) {
         log.info("[MatrixBuilder] Bắt đầu build scheduling context cho semester {}", semesterId);
@@ -57,9 +58,11 @@ public class SchedulingMatrixBuilder {
                 ctx.addLecturerLoad(lecturerId, end - start + 1);
             }
         }
-        // 4. maxConcurrentBySubject: đếm số GV theo faculty (hoặc major) có thể dạy môn đó
-        //    Cách đơn giản nhất: đếm số GV có departmentName trùng với subject.departmentName
-        //    Nếu sau này có bảng "lecturer_subjects" thì thay thế bằng join đó
+        // 4. maxConcurrentBySubject: đếm số GV theo faculty (hoặc major) có thể dạy môn
+        // đó
+        // Cách đơn giản nhất: đếm số GV có departmentName trùng với
+        // subject.departmentName
+        // Nếu sau này có bảng "lecturer_subjects" thì thay thế bằng join đó
         List<Lecturer> allLecturers = lecturerRepository.findAll();
         List<Room> allRooms = roomRepository.findAll();
         // Đếm GV theo tên khoa để tính maxConcurrent mặc định
@@ -67,8 +70,7 @@ public class SchedulingMatrixBuilder {
         java.util.Map<String, Long> lecturerCountByDept = allLecturers.stream()
                 .collect(java.util.stream.Collectors.groupingBy(
                         l -> l.getMajor() != null ? l.getMajor().getName() : "UNKNOWN",
-                        java.util.stream.Collectors.counting()
-                ));
+                        java.util.stream.Collectors.counting()));
         // Đối với mỗi subject đã xuất hiện trong context, tính maxConcurrent
         // Load distinct subjects trong semester (kể cả chưa có lịch)
         classSectionRepository.findDistinctSubjectsBySemesterId(semesterId)

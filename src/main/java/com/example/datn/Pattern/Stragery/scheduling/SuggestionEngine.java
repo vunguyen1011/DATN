@@ -18,7 +18,8 @@ import java.util.stream.Collectors;
 /**
  * Phase 4 – Suggestion Engine.
  *
- * <p>Với một schedule thất bại (chưa có phòng/giờ), engine này duyệt tất cả
+ * <p>
+ * Với một schedule thất bại (chưa có phòng/giờ), engine này duyệt tất cả
  * slot còn khả dụng, chấm điểm, và trả về top-N gợi ý kèm lý do.
  *
  * <pre>
@@ -33,15 +34,15 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SuggestionEngine {
 
-    private static final int[] WORKING_DAYS = {2, 3, 4, 5, 6, 7};
-    private static final int   MAX_PERIOD   = 15;
+    private static final int[] WORKING_DAYS = { 2, 3, 4, 5, 6, 7 };
+    private static final int MAX_PERIOD = 15;
 
-    private final ScheduleRepository      scheduleRepository;
-    private final RoomRepository          roomRepository;
+    private final ScheduleRepository scheduleRepository;
+    private final RoomRepository roomRepository;
     private final SchedulingMatrixBuilder matrixBuilder;
 
-
-    public List<SlotSuggestionResponse> suggest(UUID scheduleId, int topN, Integer filterDayOfWeek, Integer filterStartPeriod) {
+    public List<SlotSuggestionResponse> suggest(UUID scheduleId, int topN, Integer filterDayOfWeek,
+            Integer filterStartPeriod) {
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new AppException(ErrorCode.SCHEDULE_NOT_FOUND));
 
@@ -50,10 +51,11 @@ public class SuggestionEngine {
         // Build context từ trạng thái hiện tại của DB
         SchedulingContext ctx = matrixBuilder.build(semesterId);
 
-        SubjectComponent comp     = schedule.getClassSection().getSubjectComponent();
-        int periods    = comp != null && comp.getPeriodsPerSession() != null
-                         ? comp.getPeriodsPerSession() : 3;
-        int capacity   = schedule.getClassSection().getCapacity();
+        SubjectComponent comp = schedule.getClassSection().getSubjectComponent();
+        int periods = comp != null && comp.getPeriodsPerSession() != null
+                ? comp.getPeriodsPerSession()
+                : 3;
+        int capacity = schedule.getClassSection().getCapacity();
         UUID subjectId = schedule.getClassSection().getSubject().getId();
 
         // Lọc phòng phù hợp loại
@@ -66,19 +68,23 @@ public class SuggestionEngine {
         List<SlotSuggestionResponse> suggestions = new ArrayList<>();
 
         for (int day : WORKING_DAYS) {
-            if (filterDayOfWeek != null && day != filterDayOfWeek) continue;
+            if (filterDayOfWeek != null && day != filterDayOfWeek)
+                continue;
             for (int start = 1; start + periods - 1 <= MAX_PERIOD; start += periods) {
-                if (filterStartPeriod != null && start != filterStartPeriod) continue;
+                if (filterStartPeriod != null && start != filterStartPeriod)
+                    continue;
                 int end = start + periods - 1;
 
                 // Look-ahead capacity check
                 boolean capacityOk = checkCapacity(ctx, subjectId, day, start, end);
-                if (!capacityOk) continue;
+                if (!capacityOk)
+                    continue;
 
                 for (Room room : candidateRooms) {
                     // Kiểm tra phòng trống
                     boolean roomFree = isRoomFree(ctx, room.getId(), day, start, end);
-                    if (!roomFree) continue;
+                    if (!roomFree)
+                        continue;
 
                     // Tính điểm slot
                     List<String> reasons = new ArrayList<>();
@@ -149,24 +155,27 @@ public class SuggestionEngine {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private boolean isRoomFree(SchedulingContext ctx, UUID roomId,
-                               int day, int start, int end) {
+            int day, int start, int end) {
         for (int p = start; p <= end; p++) {
-            if (ctx.isRoomBusy(roomId, day, p)) return false;
+            if (ctx.isRoomBusy(roomId, day, p))
+                return false;
         }
         return true;
     }
 
     private boolean checkCapacity(SchedulingContext ctx, UUID subjectId,
-                                  int day, int start, int end) {
+            int day, int start, int end) {
         int max = ctx.getMaxConcurrentBySubject().getOrDefault(subjectId, Integer.MAX_VALUE);
         for (int p = start; p <= end; p++) {
-            if (ctx.getSubjectConcurrent(subjectId, day, p) >= max) return false;
+            if (ctx.getSubjectConcurrent(subjectId, day, p) >= max)
+                return false;
         }
         return true;
     }
 
     /**
-     * Kiểm tra xem slot mới có tạo ra "gap" (khoảng trống) giữa các buổi trong ngày không.
+     * Kiểm tra xem slot mới có tạo ra "gap" (khoảng trống) giữa các buổi trong ngày
+     * không.
      * Ví dụ: phòng có lịch tiết 1-3 và 10-12, thêm tiết 7-9 → không tạo gap.
      * Nhưng nếu phòng có 1-3, thêm 10-12 → có gap → penalty.
      */
@@ -175,7 +184,8 @@ public class SuggestionEngine {
         boolean hasEarlier = false;
         boolean hasGapBefore = false;
         for (int p = 1; p < start; p++) {
-            if (ctx.isRoomBusy(roomId, day, p)) hasEarlier = true;
+            if (ctx.isRoomBusy(roomId, day, p))
+                hasEarlier = true;
         }
         if (hasEarlier) {
             // Kiểm tra tiết ngay trước start có trống không
@@ -185,8 +195,10 @@ public class SuggestionEngine {
     }
 
     private String toConfidence(int score) {
-        if (score >= 30) return "HIGH";
-        if (score >= 15) return "MEDIUM";
+        if (score >= 30)
+            return "HIGH";
+        if (score >= 15)
+            return "MEDIUM";
         return "LOW";
     }
 

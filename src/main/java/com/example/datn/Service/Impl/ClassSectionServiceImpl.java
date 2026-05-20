@@ -133,6 +133,7 @@ public class ClassSectionServiceImpl implements IClassSectionService {
         try (InputStream inputStream = file.getInputStream();
              Workbook workbook = new XSSFWorkbook(inputStream)) {
 
+
             Sheet sheet = workbook.getSheetAt(0);
             if (sheet == null || sheet.getLastRowNum() < 1) {
                 throw new AppException(ErrorCode.EXCEL_FILE_EMPTY, "File Excel không có dữ liệu");
@@ -291,10 +292,17 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                 totalSaved += childrenToSave.size();
             }
 
-            if (totalSaved == 0 && !errorMessages.isEmpty()) {
-                String limitedErrors = errorMessages.stream().limit(5).collect(Collectors.joining(" | "));
-                String suffix = errorMessages.size() > 5 ? " ... (và " + (errorMessages.size() - 5) + " lỗi khác)" : "";
-                throw new AppException(ErrorCode.EXCEL_DATA_INVALID, "Import thất bại toàn bộ. Lỗi chi tiết: " + limitedErrors + suffix);
+            // [THÊM MỚI] Kiểm tra nếu không có dòng nào được đọc thành công và cũng không có dữ liệu nào được lưu
+            if (successRows == 0 && totalSaved == 0) {
+                if (errorMessages.isEmpty()) {
+                    // Trường hợp quét qua toàn dòng trống (hoặc template rỗng)
+                    throw new AppException(ErrorCode.EXCEL_FILE_EMPTY, "File Excel không có dữ liệu hợp lệ để import");
+                } else {
+                    // Trường hợp có dòng dữ liệu nhưng bị lỗi toàn bộ
+                    String limitedErrors = errorMessages.stream().limit(5).collect(Collectors.joining(" | "));
+                    String suffix = errorMessages.size() > 5 ? " ... (và " + (errorMessages.size() - 5) + " lỗi khác)" : "";
+                    throw new AppException(ErrorCode.EXCEL_DATA_INVALID, "Import thất bại toàn bộ. Lỗi chi tiết: " + limitedErrors + suffix);
+                }
             }
 
             StringBuilder resultMessage = new StringBuilder();
