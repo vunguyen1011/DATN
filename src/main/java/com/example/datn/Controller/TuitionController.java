@@ -15,6 +15,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -22,6 +24,7 @@ import java.util.List;
 import java.util.UUID;
 import java.io.IOException;
 
+@Tag(name = "Tuition / Invoices / Payments", description = "Quản lý học phí, xuất hóa đơn và thanh toán qua VNPay")
 @RestController
 @RequestMapping("/api/tuitions")
 @RequiredArgsConstructor
@@ -29,6 +32,7 @@ public class TuitionController {
 
     private final ITuitionService tuitionService;
 
+    @Operation(summary = "Tạo hóa đơn học phí cho sinh viên trong đợt đăng ký")
     @PostMapping("/invoices/generate/{registrationPeriodId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     public ResponseEntity<ApiResponse<Integer>> generateInvoicesForPeriod(@PathVariable UUID registrationPeriodId) {
@@ -40,6 +44,7 @@ public class TuitionController {
                 .build());
     }
 
+    @Operation(summary = "Lấy danh sách hóa đơn học phí của sinh viên đang đăng nhập")
     @GetMapping("/my-invoices")
     @PreAuthorize("hasRole('USER')")
     public ResponseEntity<ApiResponse<List<InvoiceResponse>>> getMyInvoices() {
@@ -52,6 +57,7 @@ public class TuitionController {
                 .build());
     }
 
+    @Operation(summary = "Lấy chi tiết hóa đơn học phí")
     @GetMapping("/invoices/{invoiceId}/details")
     @PreAuthorize("hasRole('USER')")
     public ResponseEntity<ApiResponse<List<InvoiceDetailResponse>>> getInvoiceDetails(@PathVariable UUID invoiceId) {
@@ -63,6 +69,7 @@ public class TuitionController {
                 .build());
     }
 
+    @Operation(summary = "Tạo link thanh toán VNPay cho hóa đơn")
     @PostMapping("/payments/vnpay")
     @PreAuthorize("hasRole('USER')")
     public ResponseEntity<ApiResponse<VNPayResponse>> createPaymentUrl(@RequestBody PaymentRequest request, HttpServletRequest httpRequest) {
@@ -82,6 +89,7 @@ public class TuitionController {
                 .build());
     }
 
+    @Operation(summary = "Nhận kết quả trả về từ cổng thanh toán VNPay")
     @GetMapping("/vnpay-return")
     public void vnpayReturn(@RequestParam java.util.Map<String, String> params, HttpServletResponse response) throws IOException {
         try {
@@ -91,6 +99,7 @@ public class TuitionController {
             response.sendRedirect("http://localhost:5173/payment-failed");
         }
     }
+    @Operation(summary = "Lấy danh sách hóa đơn học phí có phân trang")
     @GetMapping("/my-invoices/paged")
     @PreAuthorize("hasRole('USER')")
     public ResponseEntity<ApiResponse<Page<InvoiceResponse>>> getMyInvoicesPaged(
@@ -107,6 +116,7 @@ public class TuitionController {
                 .result(result)
                 .build());
     }
+    @Operation(summary = "Admin lấy danh sách tất cả hóa đơn học phí trong hệ thống (phân trang)")
     @GetMapping("/admin/invoices")
     @PreAuthorize("hasAnyRole('ADMIN', 'USER')") // Chỉ dành cho Admin/Nhân viên
     public ResponseEntity<ApiResponse<Page<InvoiceResponse>>> getAllInvoicesForAdmin(

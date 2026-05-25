@@ -10,11 +10,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
+@Tag(name = "Registration Period", description = "Quản lý các đợt đăng ký tín chỉ")
 @RestController
 @RequestMapping("/api/registration-periods")
 @RequiredArgsConstructor
@@ -22,6 +25,7 @@ public class RegistrationPeriodController {
 
     private final IRegistrationPeriodService registrationPeriodService;
 
+    @Operation(summary = "Tạo đợt đăng ký mới")
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<RegistrationPeriodResponse> createRegistrationPeriod(
@@ -33,6 +37,7 @@ public class RegistrationPeriodController {
                 .build();
     }
 
+    @Operation(summary = "Cập nhật thông tin đợt đăng ký")
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<RegistrationPeriodResponse> updateRegistrationPeriod(
@@ -45,6 +50,7 @@ public class RegistrationPeriodController {
                 .build();
     }
 
+    @Operation(summary = "Xóa đợt đăng ký")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Void> deleteRegistrationPeriod(@PathVariable UUID id) {
@@ -55,6 +61,7 @@ public class RegistrationPeriodController {
                 .build();
     }
 
+    @Operation(summary = "Lấy chi tiết đợt đăng ký theo ID")
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'STUDENT', 'USER')")
     public ApiResponse<RegistrationPeriodResponse> getRegistrationPeriodById(@PathVariable UUID id) {
@@ -65,6 +72,7 @@ public class RegistrationPeriodController {
                 .build();
     }
 
+    @Operation(summary = "Lấy toàn bộ danh sách đợt đăng ký (phân trang)")
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Page<RegistrationPeriodResponse>> getAllRegistrationPeriods(
@@ -78,6 +86,7 @@ public class RegistrationPeriodController {
                 .build();
     }
 
+    @Operation(summary = "Lấy danh sách đợt đăng ký theo học kỳ (phân trang)")
     @GetMapping("/semester/{semesterId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'STUDENT', 'USER')")
     public ApiResponse<Page<RegistrationPeriodResponse>> getRegistrationPeriodsBySemester(

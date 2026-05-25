@@ -7,12 +7,15 @@ import com.example.datn.DTO.Response.TemplateTreeResponse;
 import com.example.datn.Service.Interface.ISectionDefaultSubjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Section Default Subject", description = "Quản lý môn học mặc định theo lớp hành chính mặc định")
 @RestController
 @RequestMapping("/api/section-default-subjects")
 @RequiredArgsConstructor
@@ -20,6 +23,7 @@ public class SectionDefaultSubjectController {
 
     private final ISectionDefaultSubjectService service;
 
+    @Operation(summary = "Thêm môn học mặc định vào lớp hành chính mặc định")
     @PostMapping
     public ApiResponse<SectionDefaultSubjectResponse> create(@Valid @RequestBody SectionDefaultSubjectRequest request) {
         return ApiResponse.<SectionDefaultSubjectResponse>builder()
@@ -29,6 +33,7 @@ public class SectionDefaultSubjectController {
                 .build();
     }
 
+    @Operation(summary = "Cập nhật môn học mặc định của lớp hành chính mặc định")
     @PutMapping("/{id}")
     public ApiResponse<SectionDefaultSubjectResponse> update(
             @PathVariable UUID id,
@@ -40,6 +45,7 @@ public class SectionDefaultSubjectController {
                 .build();
     }
 
+    @Operation(summary = "Xóa môn học mặc định khỏi lớp hành chính mặc định")
     @DeleteMapping
     public ApiResponse<Void> delete(
             @RequestParam UUID sectionDefaultId,
@@ -51,6 +57,7 @@ public class SectionDefaultSubjectController {
                 .build();
     }
 
+    @Operation(summary = "Lấy danh sách môn học mặc định theo ID lớp hành chính mặc định")
     @GetMapping("/section-default/{sectionDefaultId}")
     public ApiResponse<List<SectionDefaultSubjectResponse>> getBySectionDefaultId(@PathVariable UUID sectionDefaultId) {
         return ApiResponse.<List<SectionDefaultSubjectResponse>>builder()
@@ -58,6 +65,7 @@ public class SectionDefaultSubjectController {
                 .result(service.getBySectionDefaultId(sectionDefaultId))
                 .build();
     }
+    @Operation(summary = "Lấy cây cấu trúc chương trình đào tạo mẫu")
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/template-tree")
     public ApiResponse<TemplateTreeResponse> getTemplateTree() {

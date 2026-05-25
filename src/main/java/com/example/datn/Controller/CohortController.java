@@ -8,11 +8,14 @@ import com.example.datn.Service.Interface.ICohortService;
 import com.example.datn.Service.Interface.IEducationProgramService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Cohort", description = "Quản lý khóa học (Khóa sinh viên)")
 @RestController
 @RequestMapping("/api/cohorts")
 @RequiredArgsConstructor
@@ -21,6 +24,7 @@ public class CohortController {
     private final ICohortService cohortService;
     private final IEducationProgramService programService;
 
+    @Operation(summary = "Tạo khóa học mới")
     @PostMapping
     public ApiResponse<Cohort> createCohort(@Valid @RequestBody CohortRequest request) {
         return ApiResponse.<Cohort>builder()
@@ -30,6 +34,7 @@ public class CohortController {
                 .build();
     }
 
+    @Operation(summary = "Lấy danh sách khóa học", description = "Cho phép tìm kiếm theo từ khóa")
     @GetMapping
     public ApiResponse<List<Cohort>> getAllCohorts(
             @RequestParam(value = "keyword", required = false) String keyword) {
@@ -45,6 +50,7 @@ public class CohortController {
                 .build();
     }
 
+    @Operation(summary = "Lấy thông tin khóa học theo ID")
     @GetMapping("/{id}")
     public ApiResponse<Cohort> getCohortById(@PathVariable UUID id) {
         return ApiResponse.<Cohort>builder()
@@ -54,6 +60,7 @@ public class CohortController {
                 .build();
     }
 
+    @Operation(summary = "Cập nhật thông tin khóa học")
     @PutMapping("/{id}")
     public ApiResponse<Cohort> updateCohort(
             @PathVariable UUID id,
@@ -66,6 +73,7 @@ public class CohortController {
                 .build();
     }
 
+    @Operation(summary = "Xóa khóa học")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteCohort(@PathVariable UUID id) {
         cohortService.deleteCohort(id);
@@ -78,6 +86,7 @@ public class CohortController {
     /**
      * Lấy danh sách chương trình đào tạo đã gắn vào một khóa học cụ thể
      */
+    @Operation(summary = "Lấy danh sách chương trình đào tạo theo khóa học")
     @GetMapping("/{id}/programs")
     public ApiResponse<List<ProgramCohortResponse>> getProgramsByCohort(@PathVariable UUID id) {
         return ApiResponse.<List<ProgramCohortResponse>>builder()

@@ -220,7 +220,7 @@
                 throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION, "Lỗi DB: " + e.getMessage());
             }
 
-            log.info("[Greedy] FINAL RESULT: {:.1f}% Success", bestResult.getSuccessRate());
+            log.info("[Greedy] FINAL RESULT: {}% Success", bestResult.getSuccessRate());
             return bestResult;
         }
         //Thử xếp lịch cho 1 schedule

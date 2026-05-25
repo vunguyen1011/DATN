@@ -7,6 +7,8 @@ import com.example.datn.DTO.Response.SubjectResponse;
 import com.example.datn.Service.Interface.ISubjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,12 +19,14 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
+@Tag(name = "Subject", description = "Quản lý môn học và môn học tiên quyết")
 @RestController
 @RequestMapping("/api/subjects")
 @RequiredArgsConstructor
 public class SubjectController {
 
     private final ISubjectService subjectService;
+    @Operation(summary = "Tạo môn học mới")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ApiResponse<SubjectResponse> createSubject(@RequestBody @Valid SubjectRequest request) {
@@ -31,6 +35,7 @@ public class SubjectController {
                 .message("Tạo môn học thành công")
                 .build();
     }
+    @Operation(summary = "Cập nhật thông tin môn học")
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ApiResponse<SubjectResponse> updateSubject(
@@ -42,6 +47,7 @@ public class SubjectController {
                 .build();
     }
 
+    @Operation(summary = "Lấy danh sách môn học (phân trang, lọc & tìm kiếm)")
     @GetMapping
     public ApiResponse<Page<SubjectResponse>> getAllSubjects(
             @RequestParam(value = "keyword", required = false) String keyword,
@@ -59,6 +65,7 @@ public class SubjectController {
                 .build();
     }
 
+    @Operation(summary = "Lấy chi tiết môn học theo ID")
     @GetMapping("/{id}")
     public ApiResponse<SubjectResponse> getSubjectById(@PathVariable UUID id) {
         return ApiResponse.<SubjectResponse>builder()
@@ -67,6 +74,7 @@ public class SubjectController {
                 .build();
     }
 
+    @Operation(summary = "Xóa môn học (Chuyển sang Inactive)")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteSubject(@PathVariable UUID id) {
         subjectService.deleteSubject(id);
@@ -75,6 +83,7 @@ public class SubjectController {
                 .build();
     }
 
+    @Operation(summary = "Lấy danh sách môn học tiên quyết theo ID môn học")
     @GetMapping("/{id}/prerequisites")
     public ApiResponse<List<SubjectResponse>> getPrerequisites(@PathVariable UUID id) {
         return ApiResponse.<List<SubjectResponse>>builder()
@@ -82,6 +91,7 @@ public class SubjectController {
                 .message("Lấy danh sách điều kiện tiên quyết thành công")
                 .build();
     }
+    @Operation(summary = "Cập nhật danh sách môn học tiên quyết")
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}/prerequisites")
     public ApiResponse<Void> updatePrerequisites(

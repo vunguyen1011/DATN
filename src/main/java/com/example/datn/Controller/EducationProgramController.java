@@ -9,12 +9,15 @@ import com.example.datn.DTO.Response.ProgramTreeResponse;
 import com.example.datn.Service.Interface.IEducationProgramService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Education Program", description = "Quản lý chương trình đào tạo")
 @RestController
 @RequestMapping("/api/education-programs")
 @RequiredArgsConstructor
@@ -23,6 +26,7 @@ public class EducationProgramController {
     private final IEducationProgramService programService;
 
 
+    @Operation(summary = "Tạo chương trình đào tạo mới")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ApiResponse<EducationProgramResponse> createProgram(@Valid @RequestBody EducationProgramRequest request) {
@@ -33,6 +37,7 @@ public class EducationProgramController {
                 .build();
     }
 
+    @Operation(summary = "Lấy danh sách chương trình đào tạo", description = "Cho phép tìm kiếm theo từ khóa")
     @GetMapping
     public ApiResponse<List<EducationProgramResponse>> getAllPrograms(
             @RequestParam(value = "keyword", required = false) String keyword) {
@@ -43,6 +48,7 @@ public class EducationProgramController {
                 .build();
     }
 
+    @Operation(summary = "Lấy chi tiết chương trình đào tạo theo ID")
     @GetMapping("/{id}")
     public ApiResponse<EducationProgramResponse> getProgramById(@PathVariable UUID id) {
         return ApiResponse.<EducationProgramResponse>builder()
@@ -52,6 +58,7 @@ public class EducationProgramController {
                 .build();
     }
 
+    @Operation(summary = "Cập nhật chương trình đào tạo")
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ApiResponse<EducationProgramResponse> updateProgram(
@@ -64,6 +71,7 @@ public class EducationProgramController {
                 .build();
     }
 
+    @Operation(summary = "Xóa (soft delete) chương trình đào tạo")
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> softDeleteProgram(@PathVariable UUID id) {
@@ -74,6 +82,7 @@ public class EducationProgramController {
                 .build();
     }
 
+    @Operation(summary = "Khóa/Xuất bản chương trình đào tạo")
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{id}/publish")
     public ApiResponse<EducationProgramResponse> publishProgram(@PathVariable UUID id) {
@@ -86,6 +95,7 @@ public class EducationProgramController {
 
 
 
+    @Operation(summary = "Lấy cấu trúc cây chương trình đào tạo")
     @GetMapping("/{id}/tree")
     public ApiResponse<ProgramTreeResponse> getProgramTree(@PathVariable UUID id) {
         return ApiResponse.<ProgramTreeResponse>builder()
@@ -97,6 +107,7 @@ public class EducationProgramController {
 
 
 
+    @Operation(summary = "Gắn chương trình đào tạo vào khóa học")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/assign-cohort")
     public ApiResponse<ProgramCohortResponse> assignProgramToCohort(
@@ -108,6 +119,7 @@ public class EducationProgramController {
                 .build();
     }
 
+    @Operation(summary = "Gỡ chương trình đào tạo khỏi khóa học")
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{programId}/cohorts/{cohortId}")
     public ApiResponse<Void> removeProgramFromCohort(
@@ -120,6 +132,7 @@ public class EducationProgramController {
                 .build();
     }
 
+    @Operation(summary = "Lấy danh sách khóa học theo chương trình đào tạo")
     @GetMapping("/{programId}/cohorts")
     public ApiResponse<List<ProgramCohortResponse>> getCohortsByProgram(@PathVariable UUID programId) {
         return ApiResponse.<List<ProgramCohortResponse>>builder()

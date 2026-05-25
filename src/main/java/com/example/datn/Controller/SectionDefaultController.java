@@ -6,11 +6,14 @@ import com.example.datn.DTO.Response.SectionDefaultResponse;
 import com.example.datn.Service.Interface.ISectionDefaultService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Section Default", description = "Quản lý lớp hành chính mặc định (Khối cam mẫu)")
 @RestController
 @RequestMapping("/api/section-defaults")
 @RequiredArgsConstructor
@@ -18,6 +21,7 @@ public class SectionDefaultController {
 
     private final ISectionDefaultService sectionDefaultService;
 
+    @Operation(summary = "Tạo lớp hành chính mặc định mới")
     @PostMapping
     public ApiResponse<SectionDefaultResponse> create(@Valid @RequestBody SectionDefaultRequest request) {
         return ApiResponse.<SectionDefaultResponse>builder()
@@ -27,6 +31,7 @@ public class SectionDefaultController {
                 .build();
     }
 
+    @Operation(summary = "Cập nhật thông tin lớp hành chính mặc định")
     @PutMapping("/{id}")
     public ApiResponse<SectionDefaultResponse> update(
             @PathVariable UUID id,
@@ -38,6 +43,7 @@ public class SectionDefaultController {
                 .build();
     }
 
+    @Operation(summary = "Xóa lớp hành chính mặc định")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable UUID id) {
         sectionDefaultService.deleteSectionDefault(id);
@@ -47,6 +53,7 @@ public class SectionDefaultController {
                 .build();
     }
 
+    @Operation(summary = "Lấy danh sách lớp hành chính mặc định theo nhóm môn học")
     @GetMapping("/subject-group/{subjectGroupId}")
     public ApiResponse<List<SectionDefaultResponse>> getBySubjectGroup(@PathVariable UUID subjectGroupId) {
         return ApiResponse.<List<SectionDefaultResponse>>builder()
@@ -55,6 +62,7 @@ public class SectionDefaultController {
                 .build();
     }
 
+    @Operation(summary = "Lấy chi tiết lớp hành chính mặc định theo ID")
     @GetMapping("/{id}")
     public ApiResponse<SectionDefaultResponse> getById(@PathVariable UUID id) {
         return ApiResponse.<SectionDefaultResponse>builder()

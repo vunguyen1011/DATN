@@ -6,16 +6,20 @@ import com.example.datn.DTO.Response.UserProfileResponse;
 import com.example.datn.Service.Interface.ILecturerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
+@Tag(name = "Lecturer", description = "Quản lý thông tin giảng viên")
 @RestController
 @RequestMapping("/api/lecturers")
 @RequiredArgsConstructor
 public class LecturerController {
 
     private final ILecturerService lecturerService;
+    @Operation(summary = "Cập nhật hồ sơ giảng viên")
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}/profile")
     public ApiResponse<UserProfileResponse.LecturerProfile> updateLecturerProfile(

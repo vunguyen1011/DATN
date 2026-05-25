@@ -6,11 +6,14 @@ import com.example.datn.DTO.Response.SemesterResponse;
 import com.example.datn.Service.Interface.ISemesterService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Semester", description = "Quản lý học kỳ")
 @RestController
 @RequestMapping("/api/semesters")
 @RequiredArgsConstructor
@@ -18,6 +21,7 @@ public class SemesterController {
 
     private final ISemesterService semesterService;
 
+    @Operation(summary = "Tạo học kỳ mới")
     @PostMapping
     public ApiResponse<SemesterResponse> createSemester(@Valid @RequestBody SemesterRequest request) {
         return ApiResponse.<SemesterResponse>builder()
@@ -27,6 +31,7 @@ public class SemesterController {
                 .build();
     }
 
+    @Operation(summary = "Lấy danh sách học kỳ", description = "Cho phép tìm kiếm theo từ khóa")
     @GetMapping
     public ApiResponse<List<SemesterResponse>> getAllSemesters(
             @RequestParam(value = "keyword", required = false) String keyword) {
@@ -42,6 +47,7 @@ public class SemesterController {
                 .build();
     }
 
+    @Operation(summary = "Lấy thông tin học kỳ theo ID")
     @GetMapping("/{id}")
     public ApiResponse<SemesterResponse> getSemesterById(@PathVariable UUID id) {
         return ApiResponse.<SemesterResponse>builder()
@@ -51,6 +57,7 @@ public class SemesterController {
                 .build();
     }
 
+    @Operation(summary = "Cập nhật thông tin học kỳ")
     @PutMapping("/{id}")
     public ApiResponse<SemesterResponse> updateSemester(
             @PathVariable UUID id,
@@ -63,6 +70,7 @@ public class SemesterController {
                 .build();
     }
 
+    @Operation(summary = "Xóa học kỳ")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteSemester(@PathVariable UUID id) {
         semesterService.deleteSemester(id);
@@ -71,6 +79,7 @@ public class SemesterController {
                 .message("Xóa học kỳ thành công")
                 .build();
     }
+    @Operation(summary = "Lấy thông tin học kỳ hiện tại")
     @GetMapping("/current")
     public ApiResponse<SemesterResponse> getCurrentSemester() {
         return ApiResponse.<SemesterResponse>builder()

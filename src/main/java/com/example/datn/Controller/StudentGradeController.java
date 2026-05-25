@@ -7,12 +7,15 @@ import com.example.datn.DTO.Response.StudentGradeResponse;
 import com.example.datn.Service.Interface.IStudentGradeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Student Grade", description = "Quản lý điểm số của sinh viên")
 @RestController
 @RequestMapping("/api/grades")
 @RequiredArgsConstructor
@@ -20,6 +23,7 @@ public class StudentGradeController {
 
     private final IStudentGradeService studentGradeService;
 
+    @Operation(summary = "Cập nhật điểm giữa kỳ của sinh viên theo lượt đăng ký")
     @PreAuthorize("hasAnyRole('ADMIN', 'LECTURER')")
     @PatchMapping("/midterm/{enrollmentId}")
     public ApiResponse<StudentGradeResponse> updateMidtermScore(
@@ -32,6 +36,7 @@ public class StudentGradeController {
                 .build();
     }
 
+    @Operation(summary = "Cập nhật điểm cuối kỳ của sinh viên theo lượt đăng ký")
     @PreAuthorize("hasAnyRole('ADMIN', 'LECTURER')")
     @PatchMapping("/final/{enrollmentId}")
     public ApiResponse<StudentGradeResponse> updateFinalScore(
@@ -44,6 +49,7 @@ public class StudentGradeController {
                 .build();
     }
 
+    @Operation(summary = "Cập nhật điểm giữa kỳ cho cả lớp học phần")
     @PreAuthorize("hasAnyRole('ADMIN', 'LECTURER')")
     @PutMapping("/class-section/{classSectionId}/midterm")
     public ApiResponse<Void> updateClassSectionMidtermGrades(
@@ -56,6 +62,7 @@ public class StudentGradeController {
                 .build();
     }
 
+    @Operation(summary = "Cập nhật điểm cuối kỳ cho cả lớp học phần")
     @PreAuthorize("hasAnyRole('ADMIN', 'LECTURER')")
     @PutMapping("/class-section/{classSectionId}/final")
     public ApiResponse<Void> updateClassSectionFinalGrades(
@@ -68,6 +75,7 @@ public class StudentGradeController {
                 .build();
     }
 
+    @Operation(summary = "Lấy bảng điểm cá nhân của sinh viên")
     @PreAuthorize("hasRole('USER')")
     @GetMapping("/my-transcript")
     public ApiResponse<List<StudentGradeResponse>> getMyTranscript() {
@@ -78,6 +86,7 @@ public class StudentGradeController {
                 .build();
     }
 
+    @Operation(summary = "Lấy bảng điểm cá nhân dạng cấu trúc cây")
     @PreAuthorize("hasRole('USER')")
     @GetMapping("/my-transcript-tree")
     public ApiResponse<com.example.datn.DTO.Response.TranscriptTreeResponse> getMyTranscriptTree() {
@@ -88,6 +97,7 @@ public class StudentGradeController {
                 .build();
     }
 
+    @Operation(summary = "Lấy danh sách điểm của cả lớp học phần")
     @PreAuthorize("hasAnyRole('ADMIN', 'LECTURER')")
     @GetMapping("/class-section/{classSectionId}")
     public ApiResponse<List<com.example.datn.DTO.Response.ClassSectionStudentGradeResponse>> getStudentsGradesByClassSection(

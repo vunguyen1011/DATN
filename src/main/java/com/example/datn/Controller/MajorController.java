@@ -7,17 +7,21 @@ import com.example.datn.Model.Major;
 import com.example.datn.Service.Interface.IMajorService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Major", description = "Quản lý ngành học/chuyên ngành")
 @RestController
 @RequestMapping("/api/majors")
 @RequiredArgsConstructor
 public class MajorController {
     private final IMajorService majorService;
 
+    @Operation(summary = "Tạo ngành học mới")
     @PostMapping
     public ApiResponse<Major> createMajor(@Valid @RequestBody MajorRequest request) {
         return ApiResponse.<Major>builder()
@@ -27,6 +31,7 @@ public class MajorController {
                 .build();
     }
 
+    @Operation(summary = "Lấy danh sách ngành học", description = "Cho phép tìm kiếm theo từ khóa")
     @GetMapping
     public ApiResponse<List<Major>> getMajor(@RequestParam(value = "keyword", required = false) String keyword) {
         return ApiResponse.<List<Major>>builder()
@@ -38,6 +43,7 @@ public class MajorController {
     }
 
 
+    @Operation(summary = "Lấy thông tin ngành học theo ID")
     @GetMapping("/{id}")
     public ApiResponse<Major> getMajorById(@PathVariable UUID id) {
         return ApiResponse.<Major>builder()
@@ -47,6 +53,7 @@ public class MajorController {
                 .build();
     }
 
+    @Operation(summary = "Cập nhật thông tin ngành học")
     @PutMapping("/{id}")
     public ApiResponse<Major> updateMajor(
             @PathVariable UUID id,
@@ -58,6 +65,7 @@ public class MajorController {
                 .build();
     }
 
+    @Operation(summary = "Xóa ngành học")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteMajor(@PathVariable UUID id) {
         majorService.deleteMajor(id);

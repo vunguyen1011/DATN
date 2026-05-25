@@ -62,8 +62,16 @@ public class SuggestionEngine {
         var reqType = comp != null ? comp.getRequiredRoomType() : null;
         List<Room> candidateRooms = roomRepository.findAll().stream()
                 .filter(r -> r.getCapacity() != null && r.getCapacity() >= capacity)
-                .filter(r -> reqType == null || reqType.getId().equals(r.getRoomType().getId()))
+                .filter(r -> reqType == null || (r.getRoomType() != null && reqType.getId().equals(r.getRoomType().getId())))
                 .collect(Collectors.toList());
+
+        boolean isFallbackMode = false;
+        if (candidateRooms.isEmpty()) {
+            isFallbackMode = true;
+            candidateRooms = roomRepository.findAll().stream()
+                    .filter(r -> r.getCapacity() != null && r.getCapacity() >= capacity)
+                    .collect(Collectors.toList());
+        }
 
         List<SlotSuggestionResponse> suggestions = new ArrayList<>();
 
@@ -124,6 +132,14 @@ public class SuggestionEngine {
                     if (concurrent < max / 2) {
                         score += 5;
                         reasons.add("Môn học còn nhiều khung giờ trống");
+                    }
+
+                    // 5. Fallback room type penalty
+                    if (isFallbackMode && reqType != null 
+                            && (room.getRoomType() == null || !room.getRoomType().getId().equals(reqType.getId()))) {
+                        score -= 20;
+                        String currentTypeName = room.getRoomType() != null ? room.getRoomType().getName() : "Không xác định";
+                        reasons.add("⚠ Khác loại phòng yêu cầu (" + currentTypeName + " thay vì " + reqType.getName() + ")");
                     }
 
                     suggestions.add(SlotSuggestionResponse.builder()

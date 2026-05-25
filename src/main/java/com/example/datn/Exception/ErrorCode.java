@@ -99,6 +99,7 @@ public enum ErrorCode {
     INVALID_SCHEDULE_TIME(1810, "Ngày và tiết học không được để trống"),
     INVALID_PERIOD_RANGE(1811, "Tiết bắt đầu phải nhỏ hơn hoặc bằng tiết kết thúc"),
     SCHEDULE_IS_LOCKED(1812, "Lịch học đã bị khóa, không thể thay đổi thông tin hoặc xóa"),
+    MAX_PERIODS_PER_DAY_EXCEEDED(1813, "Số tiết học tối đa trong một ngày đã bị vượt quá"),
 
     // 19xx: System Errors
     UNCATEGORIZED_EXCEPTION(1901, "Lỗi không xác định"),

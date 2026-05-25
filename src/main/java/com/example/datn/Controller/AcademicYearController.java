@@ -6,11 +6,14 @@ import com.example.datn.Model.AcademicYear;
 import com.example.datn.Service.Interface.IAcademicYearService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Academic Year", description = "Quản lý năm học")
 @RestController
 @RequestMapping("/api/academic-years")
 @RequiredArgsConstructor
@@ -18,6 +21,7 @@ public class AcademicYearController {
 
     private final IAcademicYearService academicYearService;
 
+    @Operation(summary = "Tạo năm học mới")
     @PostMapping
     public ApiResponse<AcademicYear> createAcademicYear(@Valid @RequestBody AcademicYearRequest request) {
         return ApiResponse.<AcademicYear>builder()
@@ -27,6 +31,7 @@ public class AcademicYearController {
                 .build();
     }
 
+    @Operation(summary = "Lấy danh sách năm học", description = "Cho phép tìm kiếm theo từ khóa")
     @GetMapping
     public ApiResponse<List<AcademicYear>> getAllAcademicYears(
             @RequestParam(value = "keyword", required = false) String keyword) {
@@ -42,6 +47,7 @@ public class AcademicYearController {
                 .build();
     }
 
+    @Operation(summary = "Lấy thông tin năm học theo ID")
     @GetMapping("/{id}")
     public ApiResponse<AcademicYear> getAcademicYearById(@PathVariable UUID id) {
         return ApiResponse.<AcademicYear>builder()
@@ -51,6 +57,7 @@ public class AcademicYearController {
                 .build();
     }
 
+    @Operation(summary = "Cập nhật thông tin năm học")
     @PutMapping("/{id}")
     public ApiResponse<AcademicYear> updateAcademicYear(
             @PathVariable UUID id,
@@ -63,6 +70,7 @@ public class AcademicYearController {
                 .build();
     }
 
+    @Operation(summary = "Xóa năm học")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteAcademicYear(@PathVariable UUID id) {
         academicYearService.deleteAcademicYear(id);

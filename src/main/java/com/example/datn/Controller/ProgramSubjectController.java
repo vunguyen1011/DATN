@@ -6,18 +6,22 @@ import com.example.datn.DTO.Response.ProgramSubjectResponse;
 import com.example.datn.Service.Interface.IProgramSubjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Program Subject", description = "Quản lý phân bố môn học trong chương trình đào tạo")
 @RestController
 @RequestMapping("/api/program-subjects")
 @RequiredArgsConstructor
 public class ProgramSubjectController {
 
     private final IProgramSubjectService service;
+    @Operation(summary = "Thêm môn học vào chương trình đào tạo")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ApiResponse<ProgramSubjectResponse> create(@Valid @RequestBody ProgramSubjectRequest request) {
@@ -27,6 +31,7 @@ public class ProgramSubjectController {
                 .result(service.create(request))
                 .build();
     }
+    @Operation(summary = "Cập nhật phân bổ môn học")
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ApiResponse<ProgramSubjectResponse> update(
@@ -39,6 +44,7 @@ public class ProgramSubjectController {
                 .build();
     }
 
+    @Operation(summary = "Lấy chi tiết phân bổ môn học theo ID")
     @GetMapping("/{id}")
     public ApiResponse<ProgramSubjectResponse> getById(@PathVariable UUID id) {
         return ApiResponse.<ProgramSubjectResponse>builder()
@@ -47,6 +53,7 @@ public class ProgramSubjectController {
                 .build();
     }
 
+    @Operation(summary = "Lấy danh sách phân bổ môn học theo ID cấu trúc phần/mục CTĐT")
     @GetMapping("/section/{sectionId}")
     public ApiResponse<List<ProgramSubjectResponse>> getBySectionId(@PathVariable UUID sectionId) {
         return ApiResponse.<List<ProgramSubjectResponse>>builder()
@@ -55,6 +62,7 @@ public class ProgramSubjectController {
                 .build();
     }
 
+    @Operation(summary = "Lấy danh sách môn học phẳng trong chương trình đào tạo")
     @GetMapping("/program/{programId}")
     public ApiResponse<List<ProgramSubjectResponse>> getFlattenedByProgramId(@PathVariable UUID programId) {
         return ApiResponse.<List<ProgramSubjectResponse>>builder()
@@ -64,6 +72,7 @@ public class ProgramSubjectController {
                 .build();
     }
 
+    @Operation(summary = "Lấy danh sách môn học theo khóa học và ngành học (phân trang và tìm kiếm)")
     @GetMapping("/cohort/{cohortId}/major/{majorId}")
     public ApiResponse<org.springframework.data.domain.Page<ProgramSubjectResponse>> getSubjectsByCohortAndMajor(
             @PathVariable UUID cohortId,
@@ -82,6 +91,7 @@ public class ProgramSubjectController {
     }
 
 
+    @Operation(summary = "Xóa môn học khỏi chương trình đào tạo")
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping
     public ApiResponse<Void> delete(

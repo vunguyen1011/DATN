@@ -152,8 +152,8 @@ public class ScheduleServiceImpl implements IScheduleService {
         Integer startPeriod = request.getStartPeriod();
         Integer endPeriod = startPeriod + periods - 1;
 
-        if (startPeriod > endPeriod || endPeriod > 13) {
-            throw new AppException(ErrorCode.INVALID_PERIOD_RANGE);
+        if (endPeriod>15) {
+            throw new AppException(ErrorCode.MAX_PERIODS_PER_DAY_EXCEEDED);
         }
 
         schedule.setDayOfWeek(request.getDayOfWeek());
@@ -211,7 +211,7 @@ public class ScheduleServiceImpl implements IScheduleService {
             if (room.getCapacity() != null) {
                 int maxStudents = schedule.getClassSection().getCapacity();
                 if (maxStudents > room.getCapacity()) {
-                    throw new AppException(ErrorCode.ROOM_CAPACITY_EXCEEDED, "Phòng không đủ sức chứa cho lớp");
+                    throw new AppException(ErrorCode.ROOM_CAPACITY_EXCEEDED, "Sức chứa của phòng (" + room.getCapacity() + " sinh viên) không đủ cho lớp học phần này (" + maxStudents + " sinh viên)");
                 }
             }
 

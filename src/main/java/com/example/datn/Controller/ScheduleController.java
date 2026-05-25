@@ -8,6 +8,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Schedule", description = "Quản lý thời khóa biểu lịch học và phân lịch tự động/thủ công")
 @RestController
 @RequestMapping("/api/schedules")
 @RequiredArgsConstructor
@@ -24,6 +27,7 @@ public class ScheduleController {
 
         // ── GIAI ĐOẠN 0: KHỞI TẠO LỊCH ───────────────────────────────────────────
 
+        @Operation(summary = "Khởi tạo lịch học")
         @PostMapping
         @PreAuthorize("hasRole('ADMIN')")
         public ApiResponse<ScheduleInitResponse> createSchedule() {
@@ -36,6 +40,7 @@ public class ScheduleController {
 
         // ── GIAI ĐOẠN 2 & 3: AUTO SCHEDULING (MÁY CHẠY) ──────────────────────────
 
+        @Operation(summary = "Tự động xếp phòng và thời gian học theo thuật toán")
         @PostMapping("/semester/{semesterId}/auto-assign")
         @PreAuthorize("hasAnyRole('ADMIN','DEAN')")
         public ApiResponse<AutoAssignResultResponse> autoAssignRoomAndTime(
@@ -47,6 +52,7 @@ public class ScheduleController {
                         .build();
         }
 
+        @Operation(summary = "Xóa toàn bộ lịch xếp tự động của học kỳ")
         @DeleteMapping("/semester/{semesterId}/auto-assign")
         @PreAuthorize("hasAnyRole('ADMIN','DEAN')")
         public ApiResponse<Void> clearSemesterSchedule(@PathVariable UUID semesterId) {
@@ -57,6 +63,7 @@ public class ScheduleController {
                         .build();
         }
 
+        @Operation(summary = "Gợi ý danh sách giảng viên phù hợp cho lịch học")
         @GetMapping("/{id}/suggest-lecturers")
         @PreAuthorize("hasAnyRole('ADMIN','HOD')")
         public ApiResponse<List<LecturerSuggestionResponse>> suggestLecturers(
@@ -68,6 +75,7 @@ public class ScheduleController {
                         .build();
         }
 
+        @Operation(summary = "Gợi ý các slot thời gian và phòng học khả dụng")
         @GetMapping("/{id}/suggest-slots")
         @PreAuthorize("hasAnyRole('ADMIN','DEAN')") // ĐÃ SỬA: hasRole -> hasAnyRole
         public ApiResponse<List<SlotSuggestionResponse>> suggestSlots(
@@ -84,6 +92,7 @@ public class ScheduleController {
 
         // ── GIAI ĐOẠN 1: MANUAL ASSIGNMENT (XẾP TAY / TINH CHỈNH) ────────────────
 
+        @Operation(summary = "Xếp thời gian học thủ công")
         @PatchMapping("/{id}/time")
         @PreAuthorize("hasAnyRole('ADMIN','DEAN')") // ĐÃ SỬA: hasRole -> hasAnyRole
         public ApiResponse<ScheduleResponse> assignTime(
@@ -96,6 +105,7 @@ public class ScheduleController {
                         .build();
         }
 
+        @Operation(summary = "Hủy xếp thời gian học")
         @DeleteMapping("/{id}/time")
         @PreAuthorize("hasAnyRole('ADMIN','DEAN')")
         public ApiResponse<ScheduleResponse> clearTime(@PathVariable UUID id) {
@@ -106,6 +116,7 @@ public class ScheduleController {
                         .build();
         }
 
+        @Operation(summary = "Xếp phòng học thủ công")
         @PatchMapping("/{id}/room")
         @PreAuthorize("hasAnyRole('ADMIN','DEAN')")
         public ApiResponse<ScheduleResponse> assignRoom(
@@ -118,6 +129,7 @@ public class ScheduleController {
                         .build();
         }
 
+        @Operation(summary = "Hủy xếp phòng học")
         @DeleteMapping("/{id}/room")
         @PreAuthorize("hasAnyRole('ADMIN','DEAN')")
         public ApiResponse<ScheduleResponse> clearRoom(@PathVariable UUID id) {
@@ -128,6 +140,7 @@ public class ScheduleController {
                         .build();
         }
 
+        @Operation(summary = "Phân công giảng viên giảng dạy")
         @PatchMapping("/{id}/lecturer")
         @PreAuthorize("hasAnyRole('ADMIN','HOD')")
         public ApiResponse<ScheduleResponse> assignLecturer(
@@ -140,6 +153,7 @@ public class ScheduleController {
                         .build();
         }
 
+        @Operation(summary = "Phân công giảng viên giảng dạy hàng loạt")
         @PatchMapping("/bulk-lecturer")
         @PreAuthorize("hasAnyRole('ADMIN','HOD')")
         public ApiResponse<List<ScheduleResponse>> bulkAssignLecturer(
@@ -151,6 +165,7 @@ public class ScheduleController {
                         .build();
         }
 
+        @Operation(summary = "Hủy phân công giảng viên giảng dạy")
         @DeleteMapping("/{id}/lecturer")
         @PreAuthorize("hasAnyRole('ADMIN','HOD')")
         public ApiResponse<ScheduleResponse> clearLecturer(@PathVariable UUID id) {
@@ -161,6 +176,7 @@ public class ScheduleController {
                         .build();
         }
 
+        @Operation(summary = "Xóa lịch học")
         @DeleteMapping("/{id}")
         @PreAuthorize("hasRole('ADMIN')") // ĐÃ SỬA: hasARole -> hasRole
         public ApiResponse<Void> deleteSchedule(@PathVariable UUID id) {
@@ -173,6 +189,7 @@ public class ScheduleController {
 
         // ── CÁC HÀM GET DỮ LIỆU (VIEWER) ─────────────────────────────────────────
 
+        @Operation(summary = "Lấy danh sách lịch học theo học kỳ (phân trang)")
         @GetMapping("/semester/{semesterId}")
         @PreAuthorize("hasAnyRole('ADMIN','DEAN','USER','HOD','LECTURER')")
         public ApiResponse<org.springframework.data.domain.Page<ScheduleResponse>> getSchedulesBySemester(
@@ -187,6 +204,7 @@ public class ScheduleController {
                         .build();
         }
 
+        @Operation(summary = "Lấy danh sách các lịch học chưa được xếp lịch thời gian/phòng (phân trang)")
         @GetMapping("/semester/{semesterId}/unassigned")
         @PreAuthorize("hasAnyRole('ADMIN','DEAN')")
         public ApiResponse<org.springframework.data.domain.Page<ScheduleResponse>> getUnassignedSchedules(
@@ -201,6 +219,7 @@ public class ScheduleController {
                         .build();
         }
 
+        @Operation(summary = "Xuất thời khóa biểu học kỳ ra PDF")
         @GetMapping("/semester/{semesterId}/export-pdf")
         @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER', 'USER', 'DEAN')") // ĐÃ SỬA: USERgỉ -> USER
         public void exportSemesterScheduleToPdf(
@@ -209,6 +228,7 @@ public class ScheduleController {
                 scheduleService.exportSemesterScheduleToPdf(semesterId, response);
         }
 
+        @Operation(summary = "Lấy danh sách môn học cần phân giảng viên của Trưởng bộ môn (HOD)")
         @GetMapping("/hod/pending-lecturers")
         @PreAuthorize("hasAnyRole('HOD','ADMIN','DEAN')")
         public ApiResponse<List<SubjectResponse>> getPendingSchedulesForHOD(
@@ -225,6 +245,7 @@ public class ScheduleController {
                         .build();
         }
 
+        @Operation(summary = "Lấy lịch dạy/học của giảng viên theo mã giảng viên")
         @GetMapping("/lecturer/{lecturerCode}")
         @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER','DEAN')")
         public ApiResponse<org.springframework.data.domain.Page<ScheduleResponse>> getSchedulesByLecturer(
@@ -240,6 +261,7 @@ public class ScheduleController {
                         .build();
         }
 
+        @Operation(summary = "Lấy tổng quan tóm tắt lịch dạy của giảng viên trong học kỳ")
         @GetMapping("/lecturer/{lecturerCode}/semester/{semesterId}/summary")
         @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER','DEAN')")
         public ApiResponse<LecturerScheduleSummaryResponse> getLecturerScheduleSummary(
@@ -252,6 +274,7 @@ public class ScheduleController {
                         .build();
         }
 
+        @Operation(summary = "Lấy lịch học của lớp học phần")
         @GetMapping("/class-section/{classSectionId}")
         @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER', 'USER','DEAN')")
         public ApiResponse<java.util.Map<String, List<ScheduleResponse>>> getSchedulesByClassSection(
@@ -263,6 +286,7 @@ public class ScheduleController {
                         .build();
         }
 
+        @Operation(summary = "Lấy chi tiết lịch học theo ID")
         @GetMapping("/{id}")
         @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'LECTURER', 'USER','DEAN')")
         public ApiResponse<ScheduleResponse> getScheduleById(@PathVariable UUID id) {

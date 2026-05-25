@@ -10,6 +10,8 @@ import com.example.datn.DTO.Response.SubjectResponse;
 import com.example.datn.Model.Enrollment;
 import com.example.datn.Service.Interface.IRegistrationService;
 import lombok.RequiredArgsConstructor;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -21,6 +23,7 @@ import com.alibaba.csp.sentinel.slots.block.BlockException;
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Registration (Student)", description = "Các API đăng ký tín chỉ dành cho sinh viên")
 @RestController
 @RequestMapping("/api/registration")
 @RequiredArgsConstructor
@@ -29,6 +32,7 @@ public class RegistrationController {
     private final IRegistrationService registrationService;
 
 
+    @Operation(summary = "Lấy trạng thái đợt đăng ký tín chỉ hiện tại")
     @PreAuthorize("hasRole('USER')")
     @GetMapping("/status")
     public ApiResponse<RegistrationStatusResponse> getRegistrationStatus() {
@@ -41,6 +45,7 @@ public class RegistrationController {
 
 
 
+    @Operation(summary = "Đăng ký lớp học phần")
     @PreAuthorize("hasRole('USER')")
     @PostMapping("/enroll")
     @SentinelResource(value = "enrollment_api", blockHandler = "handleEnrollmentBlock")
@@ -61,6 +66,7 @@ public class RegistrationController {
                 .build();
     }
 
+    @Operation(summary = "Sinh viên hủy đăng ký lớp học phần")
     @PreAuthorize("hasRole('USER')")
     @DeleteMapping("/enroll/{classSectionId}")
     public ApiResponse<Void> cancelEnrollment(@PathVariable UUID classSectionId) {
@@ -71,6 +77,7 @@ public class RegistrationController {
                 .build();
     }
 
+    @Operation(summary = "Lấy danh sách các môn/lớp học phần đã đăng ký (thời khóa biểu)")
     @PreAuthorize("hasRole('USER')")
     @GetMapping("/my-timetable")
     public ApiResponse<List<EnrollmentResponse>> getMyTimetable() {
@@ -80,6 +87,7 @@ public class RegistrationController {
                 .result(registrationService.getMyTimetable())
                 .build();
     }
+    @Operation(summary = "Lấy danh sách sinh viên đã đăng ký vào lớp học phần (phân trang)")
     @GetMapping("/in-class-section/{classSectionId}")
     public Page<EnrollmentResponse> findEnrollmentsByClassSectionId(
             @PathVariable UUID classSectionId,
@@ -90,6 +98,7 @@ public class RegistrationController {
         return registrationService.getAllEnrollmentInClassSection(classSectionId,pageable);
     }
 
+    @Operation(summary = "Xóa dữ liệu tạm đợt đăng ký tín chỉ trên Redis", description = "Được gọi bởi Admin sau khi đợt đăng ký kết thúc")
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/clear-redis")
     public ApiResponse<Void> clearRedisDataAfterRegistration() {
