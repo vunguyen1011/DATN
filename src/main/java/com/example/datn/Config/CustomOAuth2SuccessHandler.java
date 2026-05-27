@@ -37,10 +37,13 @@ public class CustomOAuth2SuccessHandler implements AuthenticationSuccessHandler 
 
             String redirectUrl = frontendUrl + "?accessToken=" + tokenResponse.getAccessToken();
             response.sendRedirect(redirectUrl);
-
         } catch (AppException e) {
             // Bắt lỗi và tự tay format JSON trả về thay vì để Spring ném 500
-            response.setStatus(e.getErrorCode().getCode());
+            int httpStatus = e.getErrorCode().getCode();
+            if (httpStatus < 100 || httpStatus >= 600) {
+                httpStatus = HttpServletResponse.SC_BAD_REQUEST;
+            }
+            response.setStatus(httpStatus);
             response.setContentType("application/json;charset=UTF-8");
 
             ApiResponse<Object> apiResponse = ApiResponse.builder()

@@ -94,9 +94,9 @@ public class TuitionController {
     public void vnpayReturn(@RequestParam java.util.Map<String, String> params, HttpServletResponse response) throws IOException {
         try {
             tuitionService.processVNPayReturn(params);
-            response.sendRedirect("http://localhost:5173/payment-success");
+            response.sendRedirect("https://register-for-study-fczn.vercel.app/payment-success");
         } catch (Exception e) {
-            response.sendRedirect("http://localhost:5173/payment-failed");
+            response.sendRedirect("https://register-for-study-fczn.vercel.app/payment-failed");
         }
     }
     @Operation(summary = "Lấy danh sách hóa đơn học phí có phân trang")
