@@ -19,13 +19,6 @@ import java.util.concurrent.TimeUnit;
 @Configuration
 @EnableCaching
 public class CacheConfig {
-
-    /**
-     * Caffeine Cache (in-memory) - KHÔNG cần serialize sang JSON.
-     * Dùng cho cache các JPA Entity từ Repository (vd: PeriodCohort, Prerequisite).
-     * Tránh hoàn toàn lỗi HibernateProxy + Jackson serialization.
-     * Được đặt là @Primary để các @Cacheable mặc định dùng cache này.
-     */
     @Bean
     @Primary
     public CacheManager caffeineCacheManager() {

@@ -42,7 +42,10 @@ public class SecurityConfig {
             "/swagger-ui/**",
             "/swagger-ui.html",
             "/api/test/**",
-            "/api/tuitions/vnpay-return"
+            "/api/tuitions/vnpay-return",
+            "/api/oauth2/**",
+            "/login/oauth2/**",
+            "/api/login/oauth2/**",
     };
 
     @Bean

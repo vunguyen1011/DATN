@@ -6,10 +6,7 @@ import lombok.RequiredArgsConstructor;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "Testing / Stress Tests", description = "Các API hỗ trợ kiểm thử tải và tạo dữ liệu ảo")
 @RestController
@@ -23,9 +20,9 @@ public class TestController {
         return "Server is running!";
     }
     @Operation(summary = "Tạo danh sách Token CSV của các sinh viên dùng cho kiểm thử JMeter")
-    @PostMapping("/create-token-csv")
-    public ResponseEntity<Void> createTokenCsv() {
-        supportService.createTokenCsvFile();
+    @PostMapping("/create-token-csv/{count}")
+    public ResponseEntity<Void> createTokenCsv(@PathVariable int count) {
+        supportService.createTokenCsvFile(count);
         return ResponseEntity.ok().build();
     }
 

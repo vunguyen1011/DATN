@@ -36,11 +36,12 @@ public class SupportService {
     private final SubjectRepository subjectRepository;
     private final SubjectComponentRepository subjectComponentRepository;
 
-    public void createTokenCsvFile() {
+    public void createTokenCsvFile(int limit) {
         List<User> students = studentRepository.findAll()
                 .stream()
                 .filter(student -> student.getUser() != null)
-                .map(student -> student.getUser())
+                .map(Student::getUser)
+                .limit(limit)
                 .toList();
 
         String csvFilePath = "D:/user.csv";
@@ -55,7 +56,6 @@ public class SupportService {
             log.error("Error writing CSV file", e);
         }
     }
-
     @Transactional
     public void generateStressTestData() {
         log.info("[StressTest] Bắt đầu xóa dữ liệu cũ để chuẩn bị test...");
