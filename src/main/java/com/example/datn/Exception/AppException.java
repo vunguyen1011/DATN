@@ -17,4 +17,9 @@
             this.errorCode = errorCode;
         }
 
+        @Override
+        public synchronized Throwable fillInStackTrace() {
+            return this; // Tắt stack trace để tối ưu hóa CPU trong High Concurrency
+        }
+
     }

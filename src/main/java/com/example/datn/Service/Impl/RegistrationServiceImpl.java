@@ -211,6 +211,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "registrationStatus", key = "T(com.example.datn.Util.SecurityUtils).getCurrentStudentId()", condition = "T(com.example.datn.Util.SecurityUtils).getCurrentStudentId() != null")
     public RegistrationStatusResponse getRegistrationStatus() {
         UUID cohortId = getCurrentStudentCohortId();
         Optional<PeriodCohort> activePeriodOpt = periodCohortRepository
@@ -230,7 +231,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "enrolledSections", key = "T(com.example.datn.Util.SecurityUtils).getCurrentStudentId()", condition = "T(com.example.datn.Util.SecurityUtils).getCurrentStudentId() != null", cacheManager = "redisCacheManager")
+    @Cacheable(value = "enrolledSections", key = "T(com.example.datn.Util.SecurityUtils).getCurrentStudentId()", condition = "T(com.example.datn.Util.SecurityUtils).getCurrentStudentId() != null")
     public List<EnrollmentResponse> getMyTimetable() {
         Student student = getCurrentStudent();
 
@@ -351,21 +352,15 @@ public class RegistrationServiceImpl implements IRegistrationService {
         return false;
     }
 
-    // ĐÃ SỬA: TỰ CẤP PHÁT UUID ĐỂ TRÁNH LỖI RESPONSE NULL ID
+    // ĐÃ SỬA: TỰ CẤP PHÁT UUID VÀ BỎ HOÀN TOÀN TRUY VẤN DB TRONG prepareEnrollment
     private Enrollment prepareEnrollment(Student student, ClassSection section) {
-        Enrollment enrollment = enrollmentRepository
-                .findByStudentIdAndClassSectionId(student.getId(), section.getId())
-                .orElseGet(() -> {
-                    Enrollment newEn = Enrollment.builder()
-                            .student(studentRepository.getReferenceById(student.getId()))
-                            .classSection(section)
-                            .build();
-                    newEn.setId(UUID.randomUUID()); // Cấp phát UUID ngay tại đây
-                    return newEn;
-                });
-        enrollment.setStatus(EnrollmentStatus.REGISTERED);
-        enrollment.setEnrollmentDate(LocalDateTime.now());
-        return enrollment;
+        return Enrollment.builder()
+                .id(UUID.randomUUID()) // Cấp phát UUID ngay tại đây để DTO không bị lỗi
+                .student(student)
+                .classSection(section)
+                .status(EnrollmentStatus.REGISTERED)
+                .enrollmentDate(LocalDateTime.now())
+                .build();
     }
 
     private EnrollmentSimpleResponse buildSimpleResponse(Enrollment enrollment, String subjectName) {
