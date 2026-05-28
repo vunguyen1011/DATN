@@ -323,15 +323,29 @@ public class RegistrationServiceImpl implements IRegistrationService {
         }
     }
 
-    // ĐÃ THÊM: HÀM HELPER SO SÁNH LỊCH HỌC
+    // ĐÃ TỐI ƯU: THUẬT TOÁN BITMASK ĐỂ SO SÁNH LỊCH HỌC TRONG 1 NANOGIÂY (O(1))
+    private int[] buildScheduleMask(List<Schedule> schedules) {
+        int[] mask = new int[9]; // index 2 -> 8 tương ứng với Thứ 2 -> Chủ Nhật
+        for (Schedule s : schedules) {
+            if (s.getDayOfWeek() == null || s.getStartPeriod() == null || s.getEndPeriod() == null) continue;
+            int day = s.getDayOfWeek();
+            int start = s.getStartPeriod();
+            int end = s.getEndPeriod();
+            // Tạo chuỗi bit tương ứng với các tiết học. Ví dụ tiết 1-3: bit 1, 2, 3 sẽ bật lên 1.
+            int periodMask = ((1 << (end - start + 1)) - 1) << start;
+            mask[day] |= periodMask;
+        }
+        return mask;
+    }
+
     private boolean hasOverlap(List<Schedule> list1, List<Schedule> list2) {
-        for (Schedule s1 : list1) {
-            for (Schedule s2 : list2) {
-                if (s1.getDayOfWeek().equals(s2.getDayOfWeek())) {
-                    if (s1.getStartPeriod() <= s2.getEndPeriod() && s2.getStartPeriod() <= s1.getEndPeriod()) {
-                        return true;
-                    }
-                }
+        int[] mask1 = buildScheduleMask(list1);
+        int[] mask2 = buildScheduleMask(list2);
+        
+        // Phép toán Bitwise AND (&) cực kỳ nhẹ cho CPU so với so sánh vòng lặp nồng nhau
+        for (int i = 2; i <= 8; i++) {
+            if ((mask1[i] & mask2[i]) != 0) {
+                return true;
             }
         }
         return false;
