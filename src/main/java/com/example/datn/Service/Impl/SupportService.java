@@ -58,10 +58,9 @@ public class SupportService {
     }
 
     public void createAccountCsvFile(int limit) {
-        List<User> students = studentRepository.findAll()
+        List<Student> students = studentRepository.findAll()
                 .stream()
-                .filter(student -> student.getUser() != null)
-                .map(Student::getUser)
+                .filter(student -> student.getUser() != null && student.getStudentCode() != null)
                 .limit(limit)
                 .toList();
 
@@ -69,9 +68,10 @@ public class SupportService {
 
         try (PrintWriter writer = new PrintWriter(new FileWriter(csvFilePath))) {
             writer.println("username,password"); // Header
-            for (User user : students) {
-                // Giả định mật khẩu mặc định của sinh viên trong hệ thống test là 123456 (hoặc thay đổi tùy bạn)
-                writer.println(user.getUsername() + ",123456"); 
+            for (Student student : students) {
+                // Đã sửa theo yêu cầu: dùng studentCode cho cả username và password
+                String code = student.getStudentCode();
+                writer.println(code + "," + code); 
             }
             log.info("Đã xuất {} tài khoản ra file {}", students.size(), csvFilePath);
         } catch (IOException e) {
