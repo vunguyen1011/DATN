@@ -79,28 +79,23 @@ public class RegistrationServiceImpl implements IRegistrationService {
         return periodCohortService.getOngoingCohortPeriod(cohortId, LocalDateTime.now());
     }
 
-
-
     @Override
     public List<EnrollmentSimpleResponse> enroll(EnrollRequest request) {
-
 
         Student student = getCurrentStudent();
         PeriodCohort activePeriod = getActivePeriodCohort(student.getCohort().getId());
         UUID semesterId = activePeriod.getRegistrationPeriod().getSemester().getId();
 
-        ClassSection theorySection = classSectionRepository.findById(request.getTheoryClassId())
+        ClassSection theorySection = classSectionRepository.findByIdWithDetails(request.getTheoryClassId())
                 .orElseThrow(() -> new AppException(ErrorCode.NO_CLASS_SECTIONS_FOUND, "Không tìm thấy lớp lý thuyết"));
 
         validateClassBasics(theorySection, semesterId);
         ClassSection labSection = validateAndGetLabSection(request, theorySection);
 
-        List<Enrollment> currentEnrollments = enrollmentRepository.findActiveEnrollmentsBySemester(
-                student.getId(), semesterId, EnrollmentStatus.REGISTERED);
+        List<EnrollmentResponse> currentEnrollments = getMyTimetable();
 
         validateDuplicateSubject(currentEnrollments, theorySection);
         checkPrerequisitesOptimized(student.getId(), theorySection.getSubject().getId());
-
 
         validateSchedulesWithBatchQuery(theorySection, labSection, currentEnrollments);
 
@@ -140,15 +135,14 @@ public class RegistrationServiceImpl implements IRegistrationService {
         }
 
         // ── GIAI ĐOẠN 4: ASYNC SAVE ─────────────
-        // Convert sang DTO TRONG HTTP thread (session còn sống) để tránh StaleObjectStateException
+        // Convert sang DTO TRONG HTTP thread (session còn sống) để tránh
+        // StaleObjectStateException
         List<EnrollmentSaveRequest> saveRequests = toSave.stream()
                 .map(EnrollmentSaveRequest::from)
                 .collect(Collectors.toList());
         asyncEnrollmentPersister.saveToDatabaseAsync(saveRequests, true);
         return responses;
     }
-
-
 
     @Override
     // ĐÃ BỎ @Transactional Ở ĐÂY ĐỂ ĐẨY XUỐNG ASYNC
@@ -192,7 +186,8 @@ public class RegistrationServiceImpl implements IRegistrationService {
         }
 
         // Đẩy việc lưu DB trạng thái CANCEL xuống worker chạy ngầm
-        // Convert sang DTO TRONG HTTP thread (session còn sống) để tránh StaleObjectStateException
+        // Convert sang DTO TRONG HTTP thread (session còn sống) để tránh
+        // StaleObjectStateException
         List<EnrollmentSaveRequest> cancelRequests = enrollmentsToCancel.stream()
                 .map(EnrollmentSaveRequest::from)
                 .collect(Collectors.toList());
@@ -241,13 +236,14 @@ public class RegistrationServiceImpl implements IRegistrationService {
 
         // 1. Lấy Học kỳ hiện tại thay vì phụ thuộc vào Đợt đăng ký
         Semester currentSemester = semesterRepository.findByIsCurrentTrue()
-                .orElseThrow(() -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND, "Không tìm thấy học kỳ hiện tại"));
+                .orElseThrow(
+                        () -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND, "Không tìm thấy học kỳ hiện tại"));
 
         // 2. Trả về danh sách môn học sinh viên đã đăng ký trong học kỳ đó
         return enrollmentRepository.findActiveEnrollmentsBySemester(
-                        student.getId(),
-                        currentSemester.getId(),
-                        EnrollmentStatus.REGISTERED)
+                student.getId(),
+                currentSemester.getId(),
+                EnrollmentStatus.REGISTERED)
                 .stream()
                 .map(enrollmentMapper::toResponse)
                 .collect(Collectors.toList());
@@ -265,7 +261,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
     private ClassSection validateAndGetLabSection(EnrollRequest request, ClassSection theory) {
         boolean subjectHasLabs = classSectionRepository.existsByParentSectionId(theory.getId());
         if (request.getLabClassId() != null) {
-            ClassSection lab = classSectionRepository.findById(request.getLabClassId())
+            ClassSection lab = classSectionRepository.findByIdWithDetails(request.getLabClassId())
                     .orElseThrow(
                             () -> new AppException(ErrorCode.NO_CLASS_SECTIONS_FOUND, "Không tìm thấy lớp thực hành"));
             if (lab.getParentSection() == null || !lab.getParentSection().getId().equals(theory.getId())) {
@@ -278,9 +274,9 @@ public class RegistrationServiceImpl implements IRegistrationService {
         return null;
     }
 
-    private void validateDuplicateSubject(List<Enrollment> current, ClassSection target) {
-        for (Enrollment en : current) {
-            if (en.getClassSection().getSubject().getId().equals(target.getSubject().getId())) {
+    private void validateDuplicateSubject(List<EnrollmentResponse> current, ClassSection target) {
+        for (EnrollmentResponse en : current) {
+            if (en.getClassSection().getSubjectCode().equals(target.getSubject().getCode())) {
                 throw new AppException(ErrorCode.INVALID_REQUEST, "Bạn đã đăng ký môn học này rồi");
             }
         }
@@ -291,7 +287,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
     // - scheduleRepository.countOverlappingSchedules() gọi nhiều lần = nhiều query
     // - theory.getSchedules() = LazyInitializationException (ClassSection không có
     // @OneToMany schedules)
-    private void validateSchedulesWithBatchQuery(ClassSection theory, ClassSection lab, List<Enrollment> current) {
+    private void validateSchedulesWithBatchQuery(ClassSection theory, ClassSection lab, List<EnrollmentResponse> current) {
         // Tạp hợp tất cả ID cần lấy lịch trong 1 query batch
         List<UUID> sectionIdsToFetch = new ArrayList<>();
         sectionIdsToFetch.add(theory.getId());
@@ -299,8 +295,11 @@ public class RegistrationServiceImpl implements IRegistrationService {
             sectionIdsToFetch.add(lab.getId());
         current.forEach(en -> sectionIdsToFetch.add(en.getClassSection().getId()));
 
-        // 1 query duy nhất lấy toàn bộ lịch cần kiểm tra
-        List<Schedule> allSchedules = scheduleRepository.findByClassSection_IdIn(sectionIdsToFetch);
+        // Tái sử dụng @Cacheable("classSectionSchedules") bằng vòng lặp (Zero DB Hit) thay vì Batch Query
+        List<Schedule> allSchedules = new ArrayList<>();
+        for (UUID sid : sectionIdsToFetch) {
+            allSchedules.addAll(scheduleRepository.findByClassSection_Id(sid));
+        }
 
         // Phân nhóm theo classSectionId trong RAM (không gọi DB nữa)
         Map<UUID, List<Schedule>> scheduleMap = allSchedules.stream()

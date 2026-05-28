@@ -1,4 +1,5 @@
 package com.example.datn.Config; // Đã đổi thành viết thường theo chuẩn naming convention
+
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
@@ -19,37 +20,42 @@ import java.util.concurrent.TimeUnit;
 @Configuration
 @EnableCaching
 public class CacheConfig {
-    @Bean
-    @Primary
-    public CacheManager caffeineCacheManager() {
-        CaffeineCacheManager cacheManager = new CaffeineCacheManager(
-                "ongoingCohortPeriod",
-                "prerequisites",
-                "classSection",          // Cache lớp học phần theo ID (dữ liệu tĩnh, không đổi trong kỳ)
-                "passedSubjects",        // Cache các môn SV đã qua — rất tĩnh, không cần invalidate thường xuyên
-                "scheduleOverlap"        // Cache kết quả kiểm tra trùng lịch (theo cặp sectionId)
-        );
-        cacheManager.setCaffeine(Caffeine.newBuilder()
-                .expireAfterWrite(1, TimeUnit.MINUTES) // Giảm xuống 1 phút để dữ liệu luôn mới
-                .maximumSize(1000));
-        return cacheManager;
-    }
+        @Bean
+        @Primary
+        public CacheManager caffeineCacheManager() {
+                CaffeineCacheManager cacheManager = new CaffeineCacheManager(
+                                "ongoingCohortPeriod",
+                                "prerequisites",
+                                "registrationStatus",
+                                "classSection", 
+                                "classSectionSchedules",
+                                "enrolledSections", 
+                                "passedSubjects", 
+                                "scheduleOverlap"
+                );
+                cacheManager.setCaffeine(Caffeine.newBuilder()
+                                .expireAfterWrite(1, TimeUnit.MINUTES) // Giảm xuống 1 phút để dữ liệu luôn mới
+                                .maximumSize(1000));
+                return cacheManager;
+        }
 
-    /**
-     * Redis Cache - dùng cho các DTO/dữ liệu cần chia sẻ giữa nhiều instance.
-     * Chỉ cache những object đã được serialize an toàn (không phải JPA proxy).
-     */
-    @Bean
-    @SuppressWarnings("deprecation")
-    public RedisCacheManager redisCacheManager(RedisConnectionFactory connectionFactory) {
-        RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(Duration.ofHours(1))
-                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer()))
-                .disableCachingNullValues();
+        /**
+         * Redis Cache - dùng cho các DTO/dữ liệu cần chia sẻ giữa nhiều instance.
+         * Chỉ cache những object đã được serialize an toàn (không phải JPA proxy).
+         */
+        @Bean
+        @SuppressWarnings("deprecation")
+        public RedisCacheManager redisCacheManager(RedisConnectionFactory connectionFactory) {
+                RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
+                                .entryTtl(Duration.ofHours(1))
+                                .serializeKeysWith(RedisSerializationContext.SerializationPair
+                                                .fromSerializer(new StringRedisSerializer()))
+                                .serializeValuesWith(RedisSerializationContext.SerializationPair
+                                                .fromSerializer(new GenericJackson2JsonRedisSerializer()))
+                                .disableCachingNullValues();
 
-        return RedisCacheManager.builder(connectionFactory)
-                .cacheDefaults(config)
-                .build();
-    }
+                return RedisCacheManager.builder(connectionFactory)
+                                .cacheDefaults(config)
+                                .build();
+        }
 }
