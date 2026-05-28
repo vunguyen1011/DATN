@@ -56,6 +56,28 @@ public class SupportService {
             log.error("Error writing CSV file", e);
         }
     }
+
+    public void createAccountCsvFile(int limit) {
+        List<User> students = studentRepository.findAll()
+                .stream()
+                .filter(student -> student.getUser() != null)
+                .map(Student::getUser)
+                .limit(limit)
+                .toList();
+
+        String csvFilePath = "D:/accounts_jmeter.csv";
+
+        try (PrintWriter writer = new PrintWriter(new FileWriter(csvFilePath))) {
+            writer.println("username,password"); // Header
+            for (User user : students) {
+                // Giả định mật khẩu mặc định của sinh viên trong hệ thống test là 123456 (hoặc thay đổi tùy bạn)
+                writer.println(user.getUsername() + ",123456"); 
+            }
+            log.info("Đã xuất {} tài khoản ra file {}", students.size(), csvFilePath);
+        } catch (IOException e) {
+            log.error("Lỗi khi ghi file CSV", e);
+        }
+    }
     @Transactional
     public void generateStressTestData() {
         log.info("[StressTest] Bắt đầu xóa dữ liệu cũ để chuẩn bị test...");

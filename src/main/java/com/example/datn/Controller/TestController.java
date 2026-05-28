@@ -26,6 +26,13 @@ public class TestController {
         return ResponseEntity.ok().build();
     }
 
+    @Operation(summary = "Tạo file CSV chứa tài khoản (username, password) để test JMeter API Đăng nhập")
+    @PostMapping("/create-account-csv/{count}")
+    public ResponseEntity<String> createAccountCsv(@PathVariable int count) {
+        supportService.createAccountCsvFile(count);
+        return ResponseEntity.ok("Đã xuất danh sách tài khoản ra ổ D:/accounts_jmeter.csv");
+    }
+
     @Operation(summary = "Tạo hàng loạt dữ liệu giả lập phục vụ stress test")
     @PostMapping("/generate-stress-data")
     public ResponseEntity<String> generateStressData() {
