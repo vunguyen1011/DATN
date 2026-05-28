@@ -7,6 +7,7 @@ import com.example.datn.Exception.ErrorCode;
 import com.example.datn.Model.*;
 import com.example.datn.Repository.*;
 import com.example.datn.Service.Interface.IAiRecommendationService;
+import com.example.datn.Service.Interface.IGeminiService;
 import com.example.datn.Service.Interface.IRedisService;
 import com.example.datn.Util.HashUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -14,18 +15,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.HttpServerErrorException;
-import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
 import java.util.*;
@@ -46,17 +37,8 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
     private final AiRecommendationHistoryRepository aiRecommendationHistoryRepository;
     private final IRedisService redisService;
     private final SemesterRepository semesterRepository;
-
-    @Qualifier("geminiRestTemplate")
-    private final RestTemplate restTemplate;
-
+    private final IGeminiService geminiService;
     private final ObjectMapper objectMapper;
-
-    @Value("${gemini.api.key:}")
-    private String geminiApiKey;
-
-    @Value("${gemini.api.url:https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent}")
-    private String geminiApiUrl;
 
     private static final int MAX_RECOMMENDATIONS = 5;
     
@@ -92,8 +74,6 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
                 log.error("Lỗi khi xử lý Recommendation", e);
                 // Return fallback if everything fails
                 return getFallbackRecommendations(Collections.emptyList(), "Lỗi hệ thống. Vui lòng thử lại sau.");
-            } finally {
-                locks.remove(studentId); // Clean up lock
             }
         }
     }
@@ -170,14 +150,14 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
         String rawAiResponse = null;
         RecommendationResponse response;
         try {
-            rawAiResponse = callGeminiApi(prompt);
+            rawAiResponse = geminiService.callGeminiApi(prompt);
             response = parseAndMapResponse(rawAiResponse, candidateSubjects);
             if (response.getRecommendedSubjects().isEmpty()) {
                 response = getFallbackRecommendations(candidateSubjects, "Hệ thống AI tạm thời không thể phân tích được gợi ý tối ưu. Đây là lộ trình mặc định cho bạn.");
             }
         } catch (Exception e) {
-            log.error("AI Recommendation failed. Triggering fallback.", e);
-            response = getFallbackRecommendations(candidateSubjects, "Kết nối AI thất bại. Hệ thống chuyển sang gợi ý môn học theo lộ trình mặc định.");
+            log.error("AI Recommendation failed or blocked. Triggering fallback.", e);
+            response = getFallbackRecommendations(candidateSubjects, "Kết nối AI bận hoặc không khả dụng. Hệ thống chuyển sang gợi ý môn học theo lộ trình mặc định.");
             rawAiResponse = "ERROR: " + e.getMessage();
         }
 
@@ -378,51 +358,6 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
         if (text == null) return "";
         return text.replaceAll("[\\n\\r{}]", "").trim();
     }
-    @Retryable(
-            retryFor = { HttpServerErrorException.ServiceUnavailable.class, HttpServerErrorException.class },
-            maxAttempts = 3,
-            backoff = @Backoff(delay = 2000, multiplier = 2.0))
-    private String callGeminiApi(String prompt) {
-        if (geminiApiKey == null || geminiApiKey.isEmpty()) {
-            throw new RuntimeException("API Key missing");
-        }
-        
-        String url = geminiApiUrl + "?key=" + geminiApiKey;
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        Map<String, Object> requestBody = new HashMap<>();
-        Map<String, Object> partsMap = new HashMap<>();
-
-        partsMap.put("parts", Collections.singletonList(Collections.singletonMap("text", prompt)));
-        requestBody.put("contents", Collections.singletonList(partsMap));
-
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
-        ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
-
-        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-            try {
-                JsonNode rootNode = objectMapper.readTree(response.getBody());
-                if (rootNode.has("error")) {
-                    throw new RuntimeException("Gemini API error");
-                }
-                
-                JsonNode candidates = rootNode.path("candidates");
-                if (candidates.isArray() && candidates.size() > 0) {
-                    JsonNode parts = candidates.get(0).path("content").path("parts");
-                    if (parts.isArray() && parts.size() > 0) {
-                        return parts.get(0).path("text").asText();
-                    }
-                }
-            } catch (Exception e) {
-                throw new RuntimeException("Gemini response parse error", e);
-            }
-        }
-        throw new RuntimeException("AI không trả về kết quả hợp lệ.");
-    }
-
     private RecommendationResponse parseAndMapResponse(String aiJsonText, List<ProgramSubject> candidateSubjects) {
         try {
             String cleanJson = extractJsonFromAiResponse(aiJsonText);

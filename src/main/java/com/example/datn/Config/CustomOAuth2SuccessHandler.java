@@ -27,7 +27,8 @@ public class CustomOAuth2SuccessHandler implements AuthenticationSuccessHandler 
     private String frontendUrl;
 
     @Override
-    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
+    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
+            Authentication authentication) throws IOException, ServletException {
         try {
             OAuth2AuthenticationToken oauthToken = (OAuth2AuthenticationToken) authentication;
             String provider = oauthToken.getAuthorizedClientRegistrationId().toUpperCase();
@@ -37,13 +38,10 @@ public class CustomOAuth2SuccessHandler implements AuthenticationSuccessHandler 
 
             String redirectUrl = frontendUrl + "?accessToken=" + tokenResponse.getAccessToken();
             response.sendRedirect(redirectUrl);
+
         } catch (AppException e) {
             // Bắt lỗi và tự tay format JSON trả về thay vì để Spring ném 500
-            int httpStatus = e.getErrorCode().getCode();
-            if (httpStatus < 100 || httpStatus >= 600) {
-                httpStatus = HttpServletResponse.SC_BAD_REQUEST;
-            }
-            response.setStatus(httpStatus);
+            response.setStatus(e.getErrorCode().getCode());
             response.setContentType("application/json;charset=UTF-8");
 
             ApiResponse<Object> apiResponse = ApiResponse.builder()
@@ -51,7 +49,8 @@ public class CustomOAuth2SuccessHandler implements AuthenticationSuccessHandler 
                     .message(e.getErrorCode().getMessage())
                     .build();
 
-            // Tự new ObjectMapper tại đây để tránh lỗi khởi tạo Bean sớm của Spring Security
+            // Tự new ObjectMapper tại đây để tránh lỗi khởi tạo Bean sớm của Spring
+            // Security
             ObjectMapper mapper = new ObjectMapper();
             response.getWriter().write(mapper.writeValueAsString(apiResponse));
         }

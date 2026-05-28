@@ -15,11 +15,14 @@ import com.example.datn.Repository.*;
 import com.example.datn.Service.Interface.IPeriodCohortService;
 import com.example.datn.Service.Interface.IRedisService;
 import com.example.datn.Service.Interface.IRegistrationService;
+import com.example.datn.Service.Interface.IStudentGradeService;
+import com.example.datn.Service.Interface.ISubjectService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -40,14 +43,18 @@ public class RegistrationServiceImpl implements IRegistrationService {
     private final ClassSectionRepository classSectionRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final ScheduleRepository scheduleRepository;
-    private final StudentGradeRepository studentGradeRepository;
-    private final PrerequisiteRepository prerequisiteRepository;
+    private final IStudentGradeService studentGradeService;
+    private final ISubjectService subjectService;
     private final SemesterRepository semesterRepository;
     private final EnrollmentMapper enrollmentMapper;
     private final IRedisService redisService;
     private final AsyncEnrollmentPersister asyncEnrollmentPersister;
     private final EnrollmentCacheManager enrollmentCacheManager;
     private final IPeriodCohortService periodCohortService;
+
+    @Autowired
+    @Lazy
+    private IRegistrationService self;
 
     @Value("${app.registration.max-credits:25}")
     private int maxCreditsPerSemester;
@@ -214,7 +221,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
     @Override
     public RegistrationStatusResponse getRegistrationStatus() {
         UUID cohortId = getCurrentStudentCohortId();
-        return getRegistrationStatusByCohortId(cohortId);
+        return self.getRegistrationStatusByCohortId(cohortId);
     }
 
     @Cacheable(value = "registrationStatus", key = "#cohortId")
@@ -367,16 +374,16 @@ public class RegistrationServiceImpl implements IRegistrationService {
     }
 
     private void checkPrerequisitesOptimized(UUID studentId, UUID subjectId) {
-        List<Prerequisite> prerequisites = prerequisiteRepository.findBySubjectId(subjectId);
+        List<com.example.datn.DTO.Response.SubjectResponse> prerequisites = subjectService.getPrerequisites(subjectId);
         if (prerequisites == null || prerequisites.isEmpty())
             return;
 
-        Set<UUID> passedSubjectIds = studentGradeRepository.findPassedSubjectIdsByStudentId(studentId);
+        Set<UUID> passedSubjectIds = studentGradeService.getPassedSubjectIds(studentId);
 
-        for (Prerequisite prereq : prerequisites) {
-            if (!passedSubjectIds.contains(prereq.getPrerequisiteSubject().getId())) {
+        for (com.example.datn.DTO.Response.SubjectResponse prereq : prerequisites) {
+            if (!passedSubjectIds.contains(prereq.getId())) {
                 throw new AppException(ErrorCode.INVALID_REQUEST,
-                        "Chưa đạt môn tiên quyết: " + prereq.getPrerequisiteSubject().getName());
+                        "Chưa đạt môn tiên quyết: " + prereq.getName());
             }
         }
     }
