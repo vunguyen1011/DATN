@@ -52,10 +52,6 @@ public class RegistrationServiceImpl implements IRegistrationService {
     private final EnrollmentCacheManager enrollmentCacheManager;
     private final IPeriodCohortService periodCohortService;
 
-    @Autowired
-    @Lazy
-    private IRegistrationService self;
-
     @Value("${app.registration.max-credits:25}")
     private int maxCreditsPerSemester;
 
@@ -219,14 +215,9 @@ public class RegistrationServiceImpl implements IRegistrationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public RegistrationStatusResponse getRegistrationStatus() {
         UUID cohortId = getCurrentStudentCohortId();
-        return self.getRegistrationStatusByCohortId(cohortId);
-    }
-
-    @Cacheable(value = "registrationStatus", key = "#cohortId")
-    @Transactional(readOnly = true)
-    public RegistrationStatusResponse getRegistrationStatusByCohortId(UUID cohortId) {
         Optional<PeriodCohort> activePeriodOpt = periodCohortRepository
                 .findOngoingCohortPeriod(cohortId, LocalDateTime.now());
 
@@ -244,7 +235,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "enrolledSections", key = "T(com.example.datn.Util.SecurityUtils).getCurrentStudentId()", condition = "T(com.example.datn.Util.SecurityUtils).getCurrentStudentId() != null")
+    @Cacheable(value = "enrolledSections", key = "T(com.example.datn.Util.SecurityUtils).getCurrentStudentId()", condition = "T(com.example.datn.Util.SecurityUtils).getCurrentStudentId() != null", cacheManager = "redisCacheManager")
     public List<EnrollmentResponse> getMyTimetable() {
         Student student = getCurrentStudent();
 

@@ -19,7 +19,7 @@
             executor.setMaxPoolSize(50);
             executor.setQueueCapacity(5000);
             executor.setThreadNamePrefix("EnrollmentAsync-");
-            executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+            executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
             executor.initialize();
             return executor;
         }

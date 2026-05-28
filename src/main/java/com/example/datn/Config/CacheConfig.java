@@ -25,9 +25,7 @@ public class CacheConfig {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager(
                 "ongoingCohortPeriod",
                 "prerequisites",
-                "registrationStatus",
                 "classSection",          // Cache lớp học phần theo ID (dữ liệu tĩnh, không đổi trong kỳ)
-                "enrolledSections",      // Cache danh sách lớp đã đăng ký của SV trong học kỳ
                 "passedSubjects",        // Cache các môn SV đã qua — rất tĩnh, không cần invalidate thường xuyên
                 "scheduleOverlap"        // Cache kết quả kiểm tra trùng lịch (theo cặp sectionId)
         );

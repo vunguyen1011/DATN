@@ -20,7 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -42,8 +44,10 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
 
     private static final int MAX_RECOMMENDATIONS = 5;
     
-    // Local lock map to prevent Cache Stampede per student
-    private final ConcurrentHashMap<UUID, Object> locks = new ConcurrentHashMap<>();
+    // Local lock map to prevent Cache Stampede per student, using Caffeine to prevent Memory Leak
+    private final Cache<UUID, Object> locks = Caffeine.newBuilder()
+            .expireAfterWrite(5, TimeUnit.MINUTES)
+            .build();
 
     @Override
     @Transactional
@@ -60,7 +64,7 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
         }
 
         // Use lock per student to prevent multiple requests hitting DB/AI simultaneously
-        Object lock = locks.computeIfAbsent(studentId, k -> new Object());
+        Object lock = locks.get(studentId, k -> new Object());
         synchronized (lock) {
             try {
                 // Double check cache after acquiring lock
