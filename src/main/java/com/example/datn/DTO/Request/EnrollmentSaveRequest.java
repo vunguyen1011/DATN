@@ -16,6 +16,7 @@ public record EnrollmentSaveRequest(
         UUID studentId,
         UUID classSectionId,
         UUID semesterId,
+        UUID subjectId,
         EnrollmentStatus status,
         LocalDateTime enrollmentDate
 ) {
@@ -26,6 +27,7 @@ public record EnrollmentSaveRequest(
                 e.getStudent().getId(),
                 e.getClassSection().getId(),
                 e.getClassSection().getSemester().getId(),
+                e.getClassSection().getSubject().getId(),
                 e.getStatus(),
                 e.getEnrollmentDate()
         );

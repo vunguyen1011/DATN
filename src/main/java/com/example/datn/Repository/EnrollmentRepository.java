@@ -63,6 +63,7 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, UUID> {
         List<UUID> findEnrolledSectionIdsByStudentAndSemester(@Param("studentId") UUID studentId,
                         @Param("semesterId") UUID semesterId, @Param("status") EnrollmentStatus status);
 
+        @EntityGraph(attributePaths = {"classSection", "classSection.subject", "classSection.parentSection"})
         @Query("SELECT e FROM Enrollment e WHERE e.student.id = :studentId " +
                         "AND e.classSection.semester.id = :semesterId " +
                         "AND e.status = :status")

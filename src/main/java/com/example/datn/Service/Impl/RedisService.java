@@ -179,6 +179,7 @@ public class RedisService implements IRedisService {
         for (com.example.datn.Model.ClassSection section : sections) {
             String slotKey = "class_slot:" + section.getId();
             String setKey = "class_students:" + section.getId();
+            String subjectKey = "student_subject:" + section.getSubject().getId();
 
             // Số slot còn lại = capacity - enrolledCount (đảm bảo không âm)
             int available = Math.max(0, section.getCapacity() - section.getEnrolledCount());
@@ -186,41 +187,63 @@ public class RedisService implements IRedisService {
             redisTemplate.opsForValue().set(slotKey, String.valueOf(available));
             // Xoá Set sinh viên cũ (reset sạch để tránh dữ liệu thừa từ đợt trước)
             redisTemplate.delete(setKey);
+            redisTemplate.delete(subjectKey);
             count++;
         }
         log.info("[SYNC] Đã đồng bộ {} lớp học phần của học kỳ {} lên Redis.", count, semesterId);
     }
 
     @Override
-    public int tryAcquireSlot(java.util.UUID classSectionId, java.util.UUID studentId) {
+    public int tryAcquireSlot(java.util.UUID classSectionId, java.util.UUID studentId, java.util.UUID subjectId) {
         String slotKey = "class_slot:" + classSectionId;
         String setKey = "class_students:" + classSectionId;
+        
+        // subjectKey dùng để chặn sinh viên đăng ký nhiều lớp của cùng 1 môn
+        String subjectKey = subjectId != null ? "student_subject:" + subjectId : "dummy_subject_key";
 
-        String luaScript = "local slotKey = KEYS[1]\n" +
+        String luaScript = 
+                "local slotKey = KEYS[1]\n" +
                 "local setKey = KEYS[2]\n" +
+                "local subjectKey = KEYS[3]\n" +
                 "local studentId = ARGV[1]\n" +
+                "local isTheory = ARGV[2]\n" + // "true" hoặc "false"
+                
+                // 1. Nếu đã đăng ký lớp này rồi thì bỏ qua
                 "if redis.call('SISMEMBER', setKey, studentId) == 1 then\n" +
                 "    return 0\n" +
                 "end\n" +
+                
+                // 2. Nếu là lớp lý thuyết, check xem đã đăng ký môn này ở lớp khác chưa
+                "if isTheory == 'true' then\n" +
+                "    if redis.call('SISMEMBER', subjectKey, studentId) == 1 then\n" +
+                "        return -2\n" + // -2: Đã đăng ký môn học này (trùng môn)
+                "    end\n" +
+                "end\n" +
+                
+                // 3. Check số lượng slot còn lại
                 "local current = redis.call('GET', slotKey)\n" +
                 "if current and tonumber(current) > 0 then\n" +
                 "    redis.call('DECR', slotKey)\n" +
                 "    redis.call('SADD', setKey, studentId)\n" +
+                "    if isTheory == 'true' then\n" +
+                "        redis.call('SADD', subjectKey, studentId)\n" +
+                "    end\n" +
                 "    return 1\n" +
                 "else\n" +
-                "    return -1\n" +
+                "    return -1\n" + // -1: Hết chỗ
                 "end";
 
-       DefaultRedisScript<Long> script = new org.springframework.data.redis.core.script.DefaultRedisScript<>();
+        DefaultRedisScript<Long> script = new org.springframework.data.redis.core.script.DefaultRedisScript<>();
         script.setScriptText(luaScript);
         script.setResultType(Long.class);
 
-        Long result = redisTemplate.execute(script, java.util.Arrays.asList(slotKey, setKey), studentId.toString());
+        String isTheoryStr = subjectId != null ? "true" : "false";
+        Long result = redisTemplate.execute(script, java.util.Arrays.asList(slotKey, setKey, subjectKey), studentId.toString(), isTheoryStr);
         return result != null ? result.intValue() : -1;
     }
 
     @Override
-    public void releaseSlot(java.util.UUID classSectionId, java.util.UUID studentId) {
+    public void releaseSlot(java.util.UUID classSectionId, java.util.UUID studentId, java.util.UUID subjectId) {
         String slotKey = "class_slot:" + classSectionId;
         String setKey = "class_students:" + classSectionId;
 
@@ -228,15 +251,22 @@ public class RedisService implements IRedisService {
         if (removed != null && removed > 0) {
             redisTemplate.opsForValue().increment(slotKey);
         }
+        
+        if (subjectId != null) {
+            String subjectKey = "student_subject:" + subjectId;
+            redisTemplate.opsForSet().remove(subjectKey, studentId.toString());
+        }
     }
 
     @Override
     public void clearRegistrationData() {
         String slotKeyPattern = "class_slot:*";
         String setKeyPattern = "class_students:*";
+        String subjectKeyPattern = "student_subject:*";
 
         java.util.Set<String> slotKeys = redisTemplate.keys(slotKeyPattern);
         java.util.Set<String> setKeys = redisTemplate.keys(setKeyPattern);
+        java.util.Set<String> subjectKeys = redisTemplate.keys(subjectKeyPattern);
 
         if (slotKeys != null && !slotKeys.isEmpty()) {
             redisTemplate.delete(slotKeys);
@@ -246,6 +276,11 @@ public class RedisService implements IRedisService {
         if (setKeys != null && !setKeys.isEmpty()) {
             redisTemplate.delete(setKeys);
             log.info("Đã xóa {} key class_students", setKeys.size());
+        }
+
+        if (subjectKeys != null && !subjectKeys.isEmpty()) {
+            redisTemplate.delete(subjectKeys);
+            log.info("Đã xóa {} key student_subject", subjectKeys.size());
         }
     }
 

@@ -28,48 +28,60 @@ public class AsyncEnrollmentPersister {
 
     @Async("dbSaveExecutor")
     public void saveToDatabaseAsync(List<EnrollmentSaveRequest> requests, boolean isEnroll) {
-        for (EnrollmentSaveRequest req : requests) {
-            persistWithRetry(req, isEnroll, 0);
-        }
+        if (requests == null || requests.isEmpty()) return;
+        persistBatchWithRetry(requests, isEnroll, 0);
     }
 
-    private void persistWithRetry(EnrollmentSaveRequest req, boolean isEnroll, int attempt) {
+    private void persistBatchWithRetry(List<EnrollmentSaveRequest> requests, boolean isEnroll, int attempt) {
         try {
-            enrollmentSaveHelper.saveOne(req, isEnroll);
-            // Xóa cache sau khi lưu thành công
-            enrollmentCacheManager.evictEnrolledSections(req.studentId());
+            // Lưu toàn bộ Theory và Lab trong 1 transaction (Atomic)
+            enrollmentSaveHelper.saveBatch(requests);
+            
+            // Xóa cache sau khi lưu thành công cho sinh viên đầu tiên (vì tất cả chung 1 SV)
+            if (!requests.isEmpty()) {
+                enrollmentCacheManager.evictEnrolledSections(requests.get(0).studentId());
+            }
         } catch (org.springframework.orm.ObjectOptimisticLockingFailureException
                  | org.springframework.dao.DataIntegrityViolationException
                  | org.hibernate.StaleObjectStateException e) {
 
             int nextAttempt = attempt + 1;
             final int maxRetries = 3;
+            
+            java.util.UUID studentId = requests.isEmpty() ? null : requests.get(0).studentId();
 
-            log.warn("[Retry {}/{}] Xung đột dữ liệu cho Enrollment {}. Đang thử lại...",
-                    nextAttempt, maxRetries, req.enrollmentId());
+            log.warn("[Retry {}/{}] Xung đột dữ liệu khi lưu batch cho SV {}. Đang thử lại...",
+                    nextAttempt, maxRetries, studentId);
 
             if (nextAttempt >= maxRetries) {
-                log.error("[Async] Enroll THẤT BẠI — sv: {}, lớp: {}. Cần reconcile thủ công.",
-                        req.studentId(), req.classSectionId());
+                log.error("[Async] Enroll THẤT BẠI cho SV: {}. Cần reconcile thủ công.", studentId);
                 if (isEnroll) {
-                    redisService.releaseSlot(req.classSectionId(), req.studentId());
+                    // Rollback toàn bộ slot trên Redis
+                    for (EnrollmentSaveRequest req : requests) {
+                        redisService.releaseSlot(req.classSectionId(), req.studentId(), req.subjectId());
+                    }
                 }
-                // Xóa cache để đảm bảo giao diện đồng bộ
-                enrollmentCacheManager.evictEnrolledSections(req.studentId());
+                if (studentId != null) {
+                    enrollmentCacheManager.evictEnrolledSections(studentId);
+                }
             } else {
-                // Sử dụng CompletableFuture.delayedExecutor (Java 9+) để tạo delay không block Thread
                 long delayMs = 50L * nextAttempt;
                 CompletableFuture.runAsync(
-                        () -> persistWithRetry(req, isEnroll, nextAttempt),
+                        () -> persistBatchWithRetry(requests, isEnroll, nextAttempt),
                         CompletableFuture.delayedExecutor(delayMs, TimeUnit.MILLISECONDS, dbSaveExecutor)
                 );
             }
         } catch (Exception e) {
-            log.error("[Lỗi hệ thống] Không thể lưu Enrollment {}: {}", req.enrollmentId(), e.getMessage());
+            java.util.UUID studentId = requests.isEmpty() ? null : requests.get(0).studentId();
+            log.error("[Lỗi hệ thống] Không thể lưu batch Enrollment cho SV {}: {}", studentId, e.getMessage());
             if (isEnroll) {
-                redisService.releaseSlot(req.classSectionId(), req.studentId());
+                for (EnrollmentSaveRequest req : requests) {
+                    redisService.releaseSlot(req.classSectionId(), req.studentId(), req.subjectId());
+                }
             }
-            enrollmentCacheManager.evictEnrolledSections(req.studentId());
+            if (studentId != null) {
+                enrollmentCacheManager.evictEnrolledSections(studentId);
+            }
         }
     }
 }

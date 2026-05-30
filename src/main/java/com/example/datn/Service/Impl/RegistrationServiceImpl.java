@@ -49,11 +49,10 @@ public class RegistrationServiceImpl implements IRegistrationService {
     private final EnrollmentMapper enrollmentMapper;
     private final IRedisService redisService;
     private final AsyncEnrollmentPersister asyncEnrollmentPersister;
-    private final EnrollmentCacheManager enrollmentCacheManager;
     private final IPeriodCohortService periodCohortService;
+    private final RabbitMQProducer rabbitMQProducer;
 
-    @Value("${app.registration.max-credits:25}")
-    private int maxCreditsPerSemester;
+
 
     private Student getCurrentStudent() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -103,24 +102,26 @@ public class RegistrationServiceImpl implements IRegistrationService {
         String labSubjectName = (labSection != null) ? labSection.getSubject().getName() : null;
 
         // ── GIAI ĐOẠN 2: REDIS LUA SCRIPT ────────
-        int theoryResult = redisService.tryAcquireSlot(theorySection.getId(), student.getId());
+        java.util.UUID subjectId = theorySection.getSubject().getId();
+        int theoryResult = redisService.tryAcquireSlot(theorySection.getId(), student.getId(), subjectId);
         if (theoryResult == 0) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Bạn đã đăng ký lớp học phần này rồi");
+        }
+        if (theoryResult == -2) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Bạn đã đăng ký một lớp khác của môn học này rồi");
         }
         if (theoryResult == -1) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp lý thuyết đã hết chỗ");
         }
 
         if (labSection != null) {
-            int labResult = redisService.tryAcquireSlot(labSection.getId(), student.getId());
+            int labResult = redisService.tryAcquireSlot(labSection.getId(), student.getId(), null);
             if (labResult != 1) {
-                redisService.releaseSlot(theorySection.getId(), student.getId());
+                redisService.releaseSlot(theorySection.getId(), student.getId(), subjectId);
                 String msg = (labResult == 0) ? "Bạn đã đăng ký lớp thực hành này rồi" : "Lớp thực hành đã hết chỗ";
                 throw new AppException(ErrorCode.INVALID_REQUEST, msg);
             }
         }
-
-        // ── GIAI ĐOẠN 3: CHUẨN BỊ OBJECT & TRẢ KẾT QUẢ NGAY ───────────
         Enrollment theoryEnrollment = prepareEnrollment(student, theorySection);
         List<Enrollment> toSave = new ArrayList<>();
         toSave.add(theoryEnrollment);
@@ -134,18 +135,14 @@ public class RegistrationServiceImpl implements IRegistrationService {
             responses.add(buildSimpleResponse(labEnrollment, labSubjectName));
         }
 
-        // ── GIAI ĐOẠN 4: ASYNC SAVE ─────────────
-        // Convert sang DTO TRONG HTTP thread (session còn sống) để tránh
-        // StaleObjectStateException
         List<EnrollmentSaveRequest> saveRequests = toSave.stream()
                 .map(EnrollmentSaveRequest::from)
                 .collect(Collectors.toList());
-        asyncEnrollmentPersister.saveToDatabaseAsync(saveRequests, true);
-        return responses;
+        rabbitMQProducer.sendMessage(saveRequests);
+            return responses;
     }
 
     @Override
-    // ĐÃ BỎ @Transactional Ở ĐÂY ĐỂ ĐẨY XUỐNG ASYNC
     public void cancelEnrollment(UUID theoryClassSectionId) {
         Student student = getCurrentStudent();
         getActivePeriodCohort(student.getCohort().getId());
@@ -169,7 +166,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
         // Hủy Lý thuyết và trả slot Redis
         theoryEnrollment.setStatus(EnrollmentStatus.CANCELLED);
         enrollmentsToCancel.add(theoryEnrollment);
-        redisService.releaseSlot(theoryClassSectionId, student.getId());
+        redisService.releaseSlot(theoryClassSectionId, student.getId(), theorySection.getSubject().getId());
 
         // Hủy Thực hành đi kèm (nếu có) và trả slot Redis
         List<Enrollment> currentEnrollments = enrollmentRepository.findActiveEnrollmentsBySemester(
@@ -180,23 +177,16 @@ public class RegistrationServiceImpl implements IRegistrationService {
             if (sec.getParentSection() != null && sec.getParentSection().getId().equals(theoryClassSectionId)) {
                 en.setStatus(EnrollmentStatus.CANCELLED);
                 enrollmentsToCancel.add(en);
-                redisService.releaseSlot(sec.getId(), student.getId());
+                redisService.releaseSlot(sec.getId(), student.getId(), null);
                 break;
             }
         }
-
-        // Đẩy việc lưu DB trạng thái CANCEL xuống worker chạy ngầm
-        // Convert sang DTO TRONG HTTP thread (session còn sống) để tránh
-        // StaleObjectStateException
         List<EnrollmentSaveRequest> cancelRequests = enrollmentsToCancel.stream()
                 .map(EnrollmentSaveRequest::from)
                 .collect(Collectors.toList());
-        asyncEnrollmentPersister.saveToDatabaseAsync(cancelRequests, false);
+        rabbitMQProducer.sendMessage(cancelRequests);
     }
 
-    // ─────────────────────────────────────────────────────
-    // QUERIES
-    // ─────────────────────────────────────────────────────
 
     @Override
     public Page<EnrollmentResponse> getAllEnrollmentInClassSection(UUID classSectionId, Pageable pageable) {
@@ -211,7 +201,6 @@ public class RegistrationServiceImpl implements IRegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "registrationStatus", key = "T(com.example.datn.Util.SecurityUtils).getCurrentStudentId()", condition = "T(com.example.datn.Util.SecurityUtils).getCurrentStudentId() != null")
     public RegistrationStatusResponse getRegistrationStatus() {
         UUID cohortId = getCurrentStudentCohortId();
         Optional<PeriodCohort> activePeriodOpt = periodCohortRepository
@@ -231,7 +220,6 @@ public class RegistrationServiceImpl implements IRegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "enrolledSections", key = "T(com.example.datn.Util.SecurityUtils).getCurrentStudentId()", condition = "T(com.example.datn.Util.SecurityUtils).getCurrentStudentId() != null")
     public List<EnrollmentResponse> getMyTimetable() {
         Student student = getCurrentStudent();
 
@@ -296,11 +284,8 @@ public class RegistrationServiceImpl implements IRegistrationService {
             sectionIdsToFetch.add(lab.getId());
         current.forEach(en -> sectionIdsToFetch.add(en.getClassSection().getId()));
 
-        // Tái sử dụng @Cacheable("classSectionSchedules") bằng vòng lặp (Zero DB Hit) thay vì Batch Query
-        List<Schedule> allSchedules = new ArrayList<>();
-        for (UUID sid : sectionIdsToFetch) {
-            allSchedules.addAll(scheduleRepository.findByClassSection_Id(sid));
-        }
+        // Sử dụng 1 câu truy vấn gộp (Batch Query) duy nhất thay vì lặp qua từng ID
+        List<Schedule> allSchedules = scheduleRepository.findByClassSection_IdIn(sectionIdsToFetch);
 
         // Phân nhóm theo classSectionId trong RAM (không gọi DB nữa)
         Map<UUID, List<Schedule>> scheduleMap = allSchedules.stream()

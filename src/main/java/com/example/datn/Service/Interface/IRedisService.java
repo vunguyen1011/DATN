@@ -36,9 +36,9 @@ public interface IRedisService {
      */
     void syncClassCapacityToRedis(java.util.UUID semesterId);
 
-    int tryAcquireSlot(java.util.UUID classSectionId, java.util.UUID studentId);
+    int tryAcquireSlot(java.util.UUID classSectionId, java.util.UUID studentId, java.util.UUID subjectId);
 
-    void releaseSlot(java.util.UUID classSectionId, java.util.UUID studentId);
+    void releaseSlot(java.util.UUID classSectionId, java.util.UUID studentId, java.util.UUID subjectId);
 
     void clearRegistrationData();
 

@@ -33,12 +33,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ClassSectionServiceImpl implements IClassSectionService {
 
-
     private final ClassSectionRepository classSectionRepository;
     private final SemesterRepository semesterRepository;
     private final SubjectRepository subjectRepository;
     private final SubjectComponentRepository subjectComponentRepository;
-    private final com.example.datn.Mapper.SubjectMapper subjectMapper; // Đã thêm Mapper (có thể cần autowire hoặc inject trong constructor/Lombok)
+    private final com.example.datn.Mapper.SubjectMapper subjectMapper; // Đã thêm Mapper (có thể cần autowire hoặc
+                                                                       // inject trong constructor/Lombok)
     private final com.example.datn.Mapper.ClassSectionMapper classSectionMapper;
     private final com.example.datn.Repository.ScheduleRepository scheduleRepository;
 
@@ -48,7 +48,8 @@ public class ClassSectionServiceImpl implements IClassSectionService {
 
     @Override
     public void downloadTemplate(HttpServletResponse response) throws IOException {
-        String[] columns = {"Tên môn học", "Mã môn học", "Số lượng lớp mở", "Sĩ số mỗi lớp", "Số lớp phụ / 1 lớp chính (Tự chọn)"};
+        String[] columns = { "Tên môn học", "Mã môn học", "Số lượng lớp mở", "Sĩ số mỗi lớp",
+                "Số lớp phụ / 1 lớp chính (Tự chọn)" };
         Workbook workbook = new XSSFWorkbook();
         Sheet sheet = workbook.createSheet("Class Sections Template");
 
@@ -99,7 +100,8 @@ public class ClassSectionServiceImpl implements IClassSectionService {
             row.createCell(0).setCellStyle(unlockedStyle);
 
             Cell codeCell = row.createCell(1);
-            codeCell.setCellFormula(String.format("IF(ISBLANK(A%d), \"\", VLOOKUP(A%d, SubjectData!$A:$B, 2, FALSE))", i + 1, i + 1));
+            codeCell.setCellFormula(
+                    String.format("IF(ISBLANK(A%d), \"\", VLOOKUP(A%d, SubjectData!$A:$B, 2, FALSE))", i + 1, i + 1));
             codeCell.setCellStyle(lockedStyle);
 
             row.createCell(2).setCellStyle(unlockedStyle);
@@ -123,7 +125,8 @@ public class ClassSectionServiceImpl implements IClassSectionService {
     @Override
     @Transactional
     public String importClassSections(MultipartFile file) {
-        Semester semester = semesterRepository.findByIsCurrentTrue().orElseThrow(()-> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND));
+        Semester semester = semesterRepository.findByIsCurrentTrue()
+                .orElseThrow(() -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND));
 
         List<ClassSection> parentsToSave = new ArrayList<>();
         List<ClassSection> childrenToSave = new ArrayList<>();
@@ -131,8 +134,7 @@ public class ClassSectionServiceImpl implements IClassSectionService {
         int successRows = 0;
 
         try (InputStream inputStream = file.getInputStream();
-             Workbook workbook = new XSSFWorkbook(inputStream)) {
-
+                Workbook workbook = new XSSFWorkbook(inputStream)) {
 
             Sheet sheet = workbook.getSheetAt(0);
             if (sheet == null || sheet.getLastRowNum() < 1) {
@@ -142,7 +144,8 @@ public class ClassSectionServiceImpl implements IClassSectionService {
             DataFormatter dataFormatter = new DataFormatter();
             FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
 
-            Map<String, Subject> subjectMap = subjectRepository.findByIsActiveTrue(org.springframework.data.domain.Pageable.unpaged()).getContent().stream()
+            Map<String, Subject> subjectMap = subjectRepository
+                    .findByIsActiveTrue(org.springframework.data.domain.Pageable.unpaged()).getContent().stream()
                     .collect(Collectors.toMap(Subject::getCode, s -> s));
 
             List<UUID> activeSubjectIds = subjectMap.values().stream().map(Subject::getId).collect(Collectors.toList());
@@ -158,13 +161,15 @@ public class ClassSectionServiceImpl implements IClassSectionService {
 
             for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
                 Row currentRow = sheet.getRow(rowIndex);
-                if (currentRow == null) continue;
+                if (currentRow == null)
+                    continue;
 
                 int displayRow = rowIndex + 1;
 
                 try {
                     Cell codeCell = currentRow.getCell(1);
-                    if (codeCell == null || codeCell.getCellType() == CellType.BLANK || codeCell.getCellType() == CellType.ERROR) {
+                    if (codeCell == null || codeCell.getCellType() == CellType.BLANK
+                            || codeCell.getCellType() == CellType.ERROR) {
                         continue;
                     }
 
@@ -173,33 +178,44 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                         continue;
                     }
 
-                    int numberOfSections = parseIntegerCell(currentRow.getCell(2), dataFormatter, evaluator, "Số lượng lớp mở", displayRow);
-                    if (numberOfSections <= 0) throw new AppException(ErrorCode.EXCEL_DATA_INVALID, "Số lượng lớp mở phải lớn hơn 0");
+                    int numberOfSections = parseIntegerCell(currentRow.getCell(2), dataFormatter, evaluator,
+                            "Số lượng lớp mở", displayRow);
+                    if (numberOfSections <= 0)
+                        throw new AppException(ErrorCode.EXCEL_DATA_INVALID, "Số lượng lớp mở phải lớn hơn 0");
 
-                    int capacity = parseIntegerCell(currentRow.getCell(3), dataFormatter, evaluator, "Sĩ số mỗi lớp", displayRow);
-                    if (capacity <= 0) throw new AppException(ErrorCode.EXCEL_DATA_INVALID, "Sĩ số mỗi lớp phải lớn hơn 0");
+                    int capacity = parseIntegerCell(currentRow.getCell(3), dataFormatter, evaluator, "Sĩ số mỗi lớp",
+                            displayRow);
+                    if (capacity <= 0)
+                        throw new AppException(ErrorCode.EXCEL_DATA_INVALID, "Sĩ số mỗi lớp phải lớn hơn 0");
 
                     int splitRatio = 1;
                     Cell ratioCell = currentRow.getCell(4);
                     if (ratioCell != null && ratioCell.getCellType() != CellType.BLANK) {
                         String ratioVal = dataFormatter.formatCellValue(ratioCell, evaluator).trim();
                         if (!ratioVal.isEmpty()) {
-                            splitRatio = parseIntegerCell(ratioCell, dataFormatter, evaluator, "Số lớp phụ / 1 lớp chính (Tự chọn)", displayRow);
+                            splitRatio = parseIntegerCell(ratioCell, dataFormatter, evaluator,
+                                    "Số lớp phụ / 1 lớp chính (Tự chọn)", displayRow);
                         }
                     }
-                    if (splitRatio <= 0) splitRatio = 1;
+                    if (splitRatio <= 0)
+                        splitRatio = 1;
 
                     Subject subject = subjectMap.get(subjectCode);
-                    if (subject == null) throw new AppException(ErrorCode.SUBJECT_NOT_FOUND, "Không tìm thấy mã môn: " + subjectCode);
+                    if (subject == null)
+                        throw new AppException(ErrorCode.SUBJECT_NOT_FOUND, "Không tìm thấy mã môn: " + subjectCode);
 
                     List<SubjectComponent> components = componentMap.getOrDefault(subject.getId(), new ArrayList<>());
-                    if (components.isEmpty()) throw new AppException(ErrorCode.SUBJECT_COMPONENT_NOT_FOUND, "Môn học " + subjectCode + " chưa cấu hình thành phần môn");
+                    if (components.isEmpty())
+                        throw new AppException(ErrorCode.SUBJECT_COMPONENT_NOT_FOUND,
+                                "Môn học " + subjectCode + " chưa cấu hình thành phần môn");
 
                     List<ClassSection> rowParents = new ArrayList<>();
                     List<ClassSection> rowChildren = new ArrayList<>();
 
-                    List<SubjectComponent> theories = components.stream().filter(c -> c.getType() == ComponentType.THEORY).collect(Collectors.toList());
-                    List<SubjectComponent> practices = components.stream().filter(c -> c.getType() == ComponentType.PRACTICE).collect(Collectors.toList());
+                    List<SubjectComponent> theories = components.stream()
+                            .filter(c -> c.getType() == ComponentType.THEORY).collect(Collectors.toList());
+                    List<SubjectComponent> practices = components.stream()
+                            .filter(c -> c.getType() == ComponentType.PRACTICE).collect(Collectors.toList());
 
                     if (!currentMaxParentSuffixMap.containsKey(subjectCode)) {
                         int max = getMaxSuffixForSubject(existingSectionsInSemester, subjectCode);
@@ -292,7 +308,8 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                 totalSaved += childrenToSave.size();
             }
 
-            // [THÊM MỚI] Kiểm tra nếu không có dòng nào được đọc thành công và cũng không có dữ liệu nào được lưu
+            // [THÊM MỚI] Kiểm tra nếu không có dòng nào được đọc thành công và cũng không
+            // có dữ liệu nào được lưu
             if (successRows == 0 && totalSaved == 0) {
                 if (errorMessages.isEmpty()) {
                     // Trường hợp quét qua toàn dòng trống (hoặc template rỗng)
@@ -300,8 +317,10 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                 } else {
                     // Trường hợp có dòng dữ liệu nhưng bị lỗi toàn bộ
                     String limitedErrors = errorMessages.stream().limit(5).collect(Collectors.joining(" | "));
-                    String suffix = errorMessages.size() > 5 ? " ... (và " + (errorMessages.size() - 5) + " lỗi khác)" : "";
-                    throw new AppException(ErrorCode.EXCEL_DATA_INVALID, "Import thất bại toàn bộ. Lỗi chi tiết: " + limitedErrors + suffix);
+                    String suffix = errorMessages.size() > 5 ? " ... (và " + (errorMessages.size() - 5) + " lỗi khác)"
+                            : "";
+                    throw new AppException(ErrorCode.EXCEL_DATA_INVALID,
+                            "Import thất bại toàn bộ. Lỗi chi tiết: " + limitedErrors + suffix);
                 }
             }
 
@@ -312,7 +331,8 @@ public class ClassSectionServiceImpl implements IClassSectionService {
             if (!errorMessages.isEmpty()) {
                 String limitedErrors = errorMessages.stream().limit(5).collect(Collectors.joining(" | "));
                 String suffix = errorMessages.size() > 5 ? " ... (và " + (errorMessages.size() - 5) + " lỗi khác)" : "";
-                resultMessage.append(" | Có ").append(errorMessages.size()).append(" dòng bị lỗi hoặc bỏ qua: ").append(limitedErrors).append(suffix);
+                resultMessage.append(" | Có ").append(errorMessages.size()).append(" dòng bị lỗi hoặc bỏ qua: ")
+                        .append(limitedErrors).append(suffix);
             }
 
             return resultMessage.toString();
@@ -322,14 +342,17 @@ public class ClassSectionServiceImpl implements IClassSectionService {
         }
     }
 
-    private int parseIntegerCell(Cell cell, DataFormatter formatter, FormulaEvaluator evaluator, String columnName, int row) {
+    private int parseIntegerCell(Cell cell, DataFormatter formatter, FormulaEvaluator evaluator, String columnName,
+            int row) {
         String cellValue = formatter.formatCellValue(cell, evaluator).trim();
-        if (cellValue.isEmpty()) throw new AppException(ErrorCode.EXCEL_DATA_INVALID, "Cột [" + columnName + "] không được để trống");
+        if (cellValue.isEmpty())
+            throw new AppException(ErrorCode.EXCEL_DATA_INVALID, "Cột [" + columnName + "] không được để trống");
         try {
             Number number = NumberFormat.getInstance(Locale.US).parse(cellValue);
             return number.intValue();
         } catch (ParseException e) {
-            throw new AppException(ErrorCode.EXCEL_DATA_INVALID, "Cột [" + columnName + "] sai định dạng số (Giá trị nhập: " + cellValue + ")");
+            throw new AppException(ErrorCode.EXCEL_DATA_INVALID,
+                    "Cột [" + columnName + "] sai định dạng số (Giá trị nhập: " + cellValue + ")");
         }
     }
 
@@ -363,13 +386,16 @@ public class ClassSectionServiceImpl implements IClassSectionService {
 
     @Override
     @Transactional
-    public com.example.datn.DTO.Response.ClassSectionResponse updateClassSection(UUID id, com.example.datn.DTO.Request.ClassSectionUpdateRequest request) {
+    public com.example.datn.DTO.Response.ClassSectionResponse updateClassSection(UUID id,
+            com.example.datn.DTO.Request.ClassSectionUpdateRequest request) {
         ClassSection section = classSectionRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.SECTION_NOT_FOUND, "Không tìm thấy lớp học phần"));
 
         if (request.getCapacity() != null) {
             if (request.getCapacity() < section.getEnrolledCount()) {
-                throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể sửa Sĩ số tối đa nhỏ hơn Số sinh viên đã đăng ký (" + section.getEnrolledCount() + ")");
+                throw new AppException(ErrorCode.INVALID_REQUEST,
+                        "Không thể sửa Sĩ số tối đa nhỏ hơn Số sinh viên đã đăng ký (" + section.getEnrolledCount()
+                                + ")");
             }
             section.setCapacity(request.getCapacity());
         }
@@ -388,11 +414,13 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                 .orElseThrow(() -> new AppException(ErrorCode.SECTION_NOT_FOUND, "Không tìm thấy lớp học phần"));
 
         if (section.getEnrolledCount() > 0) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể xóa lớp đã có sinh viên đăng ký. Vui lòng hủy đăng ký hoặc đóng lớp.");
+            throw new AppException(ErrorCode.INVALID_REQUEST,
+                    "Không thể xóa lớp đã có sinh viên đăng ký. Vui lòng hủy đăng ký hoặc đóng lớp.");
         }
 
         if (classSectionRepository.existsByParentSectionId(id)) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Bạn đang cố xóa lớp Lý thuyết có chứa lớp Thực hành con. Vui lòng xóa lớp Thực hành trước.");
+            throw new AppException(ErrorCode.INVALID_REQUEST,
+                    "Bạn đang cố xóa lớp Lý thuyết có chứa lớp Thực hành con. Vui lòng xóa lớp Thực hành trước.");
         }
 
         classSectionRepository.delete(section);
@@ -408,8 +436,10 @@ public class ClassSectionServiceImpl implements IClassSectionService {
     @Override
     public List<ClassSectionResponse> getClassSectionsBySubjectIdAndSemesterId(UUID subjectId) {
         Semester currentSemester = semesterRepository.findByIsCurrentTrue()
-                .orElseThrow(() -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND, "Không tìm thấy học kỳ hiện tại"));
-        List<com.example.datn.DTO.Response.ClassSectionResponse> allResponses = classSectionRepository.findBySubjectIdAndSemesterId(subjectId, currentSemester.getId()).stream()
+                .orElseThrow(
+                        () -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND, "Không tìm thấy học kỳ hiện tại"));
+        List<com.example.datn.DTO.Response.ClassSectionResponse> allResponses = classSectionRepository
+                .findBySubjectIdAndSemesterId(subjectId, currentSemester.getId()).stream()
                 .map(classSectionMapper::toResponse)
                 .collect(Collectors.toList());
 
@@ -425,7 +455,8 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                     .collect(Collectors.groupingBy(com.example.datn.DTO.Response.ScheduleResponse::getClassSectionId));
         }
 
-        java.util.Map<UUID, List<com.example.datn.DTO.Response.ClassSectionResponse>> childrenMap = allResponses.stream()
+        java.util.Map<UUID, List<com.example.datn.DTO.Response.ClassSectionResponse>> childrenMap = allResponses
+                .stream()
                 .filter(r -> r.getParentSectionId() != null)
                 .collect(Collectors.groupingBy(com.example.datn.DTO.Response.ClassSectionResponse::getParentSectionId));
 
@@ -461,27 +492,35 @@ public class ClassSectionServiceImpl implements IClassSectionService {
     }
 
     private String toDayName(Integer dayOfWeek) {
-        if (dayOfWeek == null) return null;
+        if (dayOfWeek == null)
+            return null;
         switch (dayOfWeek) {
-            case 2: return "Thứ 2";
-            case 3: return "Thứ 3";
-            case 4: return "Thứ 4";
-            case 5: return "Thứ 5";
-            case 6: return "Thứ 6";
-            case 7: return "Thứ 7";
-            case 8: return "Chủ nhật";
-            default: return "Không xác định";
+            case 2:
+                return "Thứ 2";
+            case 3:
+                return "Thứ 3";
+            case 4:
+                return "Thứ 4";
+            case 5:
+                return "Thứ 5";
+            case 6:
+                return "Thứ 6";
+            case 7:
+                return "Thứ 7";
+            case 8:
+                return "Chủ nhật";
+            default:
+                return "Không xác định";
         }
     }
 
     @Override
-    public Page<SubjectResponse> getOpenedSubjectsPage(UUID semesterId, String keyword, org.springframework.data.domain.Pageable pageable) {
+    public Page<SubjectResponse> getOpenedSubjectsPage(UUID semesterId, String keyword,
+            org.springframework.data.domain.Pageable pageable) {
         String safeKeyword = (keyword == null) ? "" : keyword;
         return classSectionRepository.searchOpenedSubjects(semesterId, safeKeyword, pageable)
                 .map(subjectMapper::toResponse);
     }
-
-
 
     @Override
     @Transactional
@@ -511,11 +550,13 @@ public class ClassSectionServiceImpl implements IClassSectionService {
         }
 
         if (section.getEnrolledCount() > 0) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể Hủy lớp học phần đang có sinh viên đăng ký. Vui lòng làm rỗng lớp trước khi hủy (Hệ thống chưa hỗ trợ Hủy tự động hoàn tiền).");
+            throw new AppException(ErrorCode.INVALID_REQUEST,
+                    "Không thể Hủy lớp học phần đang có sinh viên đăng ký. Vui lòng làm rỗng lớp trước khi hủy (Hệ thống chưa hỗ trợ Hủy tự động hoàn tiền).");
         }
 
         if (classSectionRepository.existsByParentSectionId(id)) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể Hủy lớp Lý thuyết đang có chứa các lớp Thực hành con. Vui lòng hủy lớp thực hành trước.");
+            throw new AppException(ErrorCode.INVALID_REQUEST,
+                    "Không thể Hủy lớp Lý thuyết đang có chứa các lớp Thực hành con. Vui lòng hủy lớp thực hành trước.");
         }
 
         section.setStatus(com.example.datn.ENUM.SectionStatus.CANCELLED);
@@ -529,7 +570,8 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                 .orElseThrow(() -> new AppException(ErrorCode.SECTION_NOT_FOUND, "Không tìm thấy lớp học phần"));
 
         if (section.getStatus() != com.example.datn.ENUM.SectionStatus.OPENED) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Chỉ có thể Tạm Đóng các lớp học đang ở trạng thái OPENED (Đã Mở).");
+            throw new AppException(ErrorCode.INVALID_REQUEST,
+                    "Chỉ có thể Tạm Đóng các lớp học đang ở trạng thái OPENED (Đã Mở).");
         }
 
         section.setStatus(com.example.datn.ENUM.SectionStatus.CLOSED);
@@ -538,12 +580,12 @@ public class ClassSectionServiceImpl implements IClassSectionService {
 
     @Override
     public List<ClassSection> getAllClassSectionsBySemesterId(UUID semesterId) {
-        return  classSectionRepository.findBySemesterId(semesterId);
+        return classSectionRepository.findBySemesterId(semesterId);
     }
 
     @Override
     public List<SubjectResponse> getSubjectInFaculty(UUID semesterId) {
-        List<String> excludedNames = List.of( "Giáo dục thể chất");
+        List<String> excludedNames = List.of("Giáo dục thể chất");
 
         return classSectionRepository.findBySemesterId(semesterId)
                 .stream()
@@ -588,17 +630,16 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                             " lớp học phần đang PENDING nhưng CHƯA ĐƯỢC XẾP LỊCH HOÀN CHỈNH. Vui lòng xếp lịch cho chúng hoặc duyệt thủ công từng lớp.");
         }
 
-        // 4. Nếu vượt qua cửa ải trên (tức là 100% lớp PENDING đều đã có lịch), tự tin chạy câu lệnh Update mù
+        // 4. Nếu vượt qua cửa ải trên (tức là 100% lớp PENDING đều đã có lịch), tự tin
+        // chạy câu lệnh Update mù
         return classSectionRepository.approveAllPendingBySemester(
                 semesterId,
                 SectionStatus.OPENED,
-                SectionStatus.PENDING
-        );
+                SectionStatus.PENDING);
     }
 
     @Override
     public List<SubjectResponse> searchSubjectInFaculty(UUID semesterId, String keyword) {
-
 
         String safeKeyword = keyword == null ? "" : keyword.trim().toLowerCase();
 
@@ -607,10 +648,8 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                 .map(ClassSection::getSubject)
                 .filter(Objects::nonNull)
                 .filter(Subject::getIsActive)
-                .filter(subject ->
-                        subject.getName().toLowerCase().contains(safeKeyword)
-                                || subject.getCode().toLowerCase().contains(safeKeyword)
-                )
+                .filter(subject -> subject.getName().toLowerCase().contains(safeKeyword)
+                        || subject.getCode().toLowerCase().contains(safeKeyword))
                 .distinct()
                 .map(subjectMapper::toResponse)
                 .collect(Collectors.toList());

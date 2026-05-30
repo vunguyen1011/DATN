@@ -1,5 +1,6 @@
 package com.example.datn.Controller;
 
+import com.example.datn.Service.Interface.IRedisService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.CacheManager;
 import org.springframework.http.ResponseEntity;
@@ -17,17 +18,37 @@ import org.springframework.web.bind.annotation.RestController;
 public class SystemController {
 
     private final CacheManager cacheManager;
+    private final IRedisService redisService;
+    private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
 
-    @Operation(summary = "Xóa cache của hệ thống", description = "Thực hiện xóa toàn bộ Cache Redis/Caffeine")
+    @Operation(summary = "Xóa cache của hệ thống", description = "Thực hiện xóa toàn bộ Cache Redis (chỉ xóa cache Spring, giữ lại Token/Session)")
     @DeleteMapping("/cache")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> clearCache() {
-        cacheManager.getCacheNames().forEach(cacheName -> {
-            var cache = cacheManager.getCache(cacheName);
-            if (cache != null) {
-                cache.clear();
+        // CacheManager.getCacheNames() thường bị rỗng sau khi khởi động lại app.
+        // Nên ta dùng lệnh quét key của Redis để xóa sạch các key của Spring Cache (chứa '::')
+        try {
+            java.util.Set<String> keys = redisTemplate.keys("*::*");
+            if (keys != null && !keys.isEmpty()) {
+                redisTemplate.delete(keys);
             }
-        });
+        } catch (Exception e) {
+            // Fallback
+            cacheManager.getCacheNames().forEach(cacheName -> {
+                var cache = cacheManager.getCache(cacheName);
+                if (cache != null) {
+                    cache.clear();
+                }
+            });
+        }
         return ResponseEntity.ok("Đã xóa toàn bộ bộ nhớ Cache");
+    }
+
+    @Operation(summary = "Xóa lock đăng ký trên Redis", description = "Dùng khi DB và Redis bị lệch data (DB lưu thất bại nhưng Redis vẫn hold slot). Xóa các key class_slot, class_students, student_subject.")
+    @DeleteMapping("/registration-locks")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<String> clearRegistrationLocks() {
+        redisService.clearRegistrationData();
+        return ResponseEntity.ok("Đã xóa toàn bộ lock đăng ký trên Redis");
     }
 }
