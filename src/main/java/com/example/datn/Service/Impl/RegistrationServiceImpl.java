@@ -52,6 +52,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
     private final IPeriodCohortService periodCohortService;
     private final RabbitMQProducer rabbitMQProducer;
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
 
 
@@ -83,20 +84,42 @@ public class RegistrationServiceImpl implements IRegistrationService {
     public List<EnrollmentSimpleResponse> enroll(EnrollRequest request) {
 
         Student student = getCurrentStudent();
-        PeriodCohort activePeriod = getActivePeriodCohort(student.getCohort().getId());
-        UUID semesterId = activePeriod.getRegistrationPeriod().getSemester().getId();
+        
+        // 1. LẤY THÔNG TIN HỌC KỲ TỪ REDIS (0 DB Query)
+        String activeSemesterIdStr = redisTemplate.opsForValue().get("active_semester:" + student.getCohort().getId());
+        if (activeSemesterIdStr == null) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Hiện tại không có đợt đăng ký nào đang mở cho khóa của bạn.");
+        }
+        UUID semesterId = UUID.fromString(activeSemesterIdStr);
 
-        ClassSection theorySection = classSectionRepository.findByIdWithDetails(request.getTheoryClassId())
-                .orElseThrow(() -> new AppException(ErrorCode.NO_CLASS_SECTIONS_FOUND, "Không tìm thấy lớp lý thuyết"));
+        // 2. LẤY METADATA LỚP TỪ REDIS (0 DB Query)
+        com.example.datn.DTO.Response.ClassSectionCacheDTO theorySection = getFromRedisCache("class_metadata:" + request.getTheoryClassId());
+        if (theorySection == null) {
+            throw new AppException(ErrorCode.NO_CLASS_SECTIONS_FOUND, "Không tìm thấy lớp lý thuyết");
+        }
 
-        validateClassBasics(theorySection, semesterId);
-        ClassSection labSection = validateAndGetLabSection(request, theorySection);
+        if (!theorySection.getSemesterId().equals(semesterId)) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp học phần không thuộc học kỳ hiện hành");
+        }
+
+        com.example.datn.DTO.Response.ClassSectionCacheDTO labSection = null;
+        if (request.getLabClassId() != null) {
+            labSection = getFromRedisCache("class_metadata:" + request.getLabClassId());
+            if (labSection == null) {
+                throw new AppException(ErrorCode.NO_CLASS_SECTIONS_FOUND, "Không tìm thấy lớp thực hành");
+            }
+            if (!theorySection.getId().equals(labSection.getParentSectionId())) {
+                throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp thực hành không thuộc về lớp lý thuyết");
+            }
+        } else if (theorySection.isHasLab()) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Môn học này yêu cầu chọn 1 ca thực hành");
+        }
 
         // O(1) in-memory check prerequisites via Redis
-        checkPrerequisitesOptimized(student.getId(), theorySection.getSubject().getId());
+        checkPrerequisitesOptimized(student.getId(), theorySection.getSubjectId());
 
-        String theorySubjectName = theorySection.getSubject().getName();
-        String labSubjectName = (labSection != null) ? labSection.getSubject().getName() : null;
+        String theorySubjectName = theorySection.getSubjectName();
+        String labSubjectName = (labSection != null) ? labSection.getSubjectName() : null;
 
         // Fetch pre-computed Class Masks from Redis
         String theoryMaskStr = redisTemplate.opsForValue().get("class_mask:" + theorySection.getId());
@@ -104,7 +127,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
         UUID labId = labSection != null ? labSection.getId() : null;
 
         // ── GIAI ĐOẠN 2: REDIS LUA SCRIPT (ATOMIC VALIDATION & ACQUIRE) ────────
-        java.util.UUID subjectId = theorySection.getSubject().getId();
+        java.util.UUID subjectId = theorySection.getSubjectId();
         int result = redisService.tryAcquireSlot(theorySection.getId(), labId, student.getId(), subjectId, theoryMaskStr, labMaskStr);
         
         if (result == 0) {
@@ -241,26 +264,36 @@ public class RegistrationServiceImpl implements IRegistrationService {
         return getMyTimetableInternal(getCurrentStudent());
     }
 
-    private void validateClassBasics(ClassSection theory, UUID currentSemesterId) {
-        if (!theory.getSemester().getId().equals(currentSemesterId)) {
+    private com.example.datn.DTO.Response.ClassSectionCacheDTO getFromRedisCache(String key) {
+        String json = redisTemplate.opsForValue().get(key);
+        if (json == null || json.isEmpty()) return null;
+        try {
+            return objectMapper.readValue(json, com.example.datn.DTO.Response.ClassSectionCacheDTO.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void validateClassBasics(com.example.datn.DTO.Response.ClassSectionCacheDTO theory, UUID currentSemesterId) {
+        if (!theory.getSemesterId().equals(currentSemesterId)) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp học phần không thuộc học kỳ hiện tại");
         }
-        if (theory.getParentSection() != null) {
+        if (theory.getParentSectionId() != null) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Mã ID phải là của lớp lý thuyết gốc");
         }
     }
 
-    private ClassSection validateAndGetLabSection(EnrollRequest request, ClassSection theory) {
-        boolean subjectHasLabs = classSectionRepository.existsByParentSectionId(theory.getId());
+    private com.example.datn.DTO.Response.ClassSectionCacheDTO validateAndGetLabSection(EnrollRequest request, com.example.datn.DTO.Response.ClassSectionCacheDTO theory) {
         if (request.getLabClassId() != null) {
-            ClassSection lab = classSectionRepository.findByIdWithDetails(request.getLabClassId())
-                    .orElseThrow(
-                            () -> new AppException(ErrorCode.NO_CLASS_SECTIONS_FOUND, "Không tìm thấy lớp thực hành"));
-            if (lab.getParentSection() == null || !lab.getParentSection().getId().equals(theory.getId())) {
+            com.example.datn.DTO.Response.ClassSectionCacheDTO lab = getFromRedisCache("class_metadata:" + request.getLabClassId());
+            if (lab == null) {
+                throw new AppException(ErrorCode.NO_CLASS_SECTIONS_FOUND, "Không tìm thấy lớp thực hành");
+            }
+            if (lab.getParentSectionId() == null || !lab.getParentSectionId().equals(theory.getId())) {
                 throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp thực hành không thuộc về lớp lý thuyết");
             }
             return lab;
-        } else if (subjectHasLabs) {
+        } else if (theory.isHasLab()) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Môn học này yêu cầu chọn 1 ca thực hành");
         }
         return null;
@@ -271,11 +304,24 @@ public class RegistrationServiceImpl implements IRegistrationService {
 
 
     // ĐÃ SỬA: TỰ CẤP PHÁT UUID VÀ BỎ HOÀN TOÀN TRUY VẤN DB TRONG prepareEnrollment
-    private Enrollment prepareEnrollment(Student student, ClassSection section) {
+    private Enrollment prepareEnrollment(Student student, com.example.datn.DTO.Response.ClassSectionCacheDTO dto) {
+        ClassSection proxy = new ClassSection();
+        proxy.setId(dto.getId());
+        
+        Subject subjectProxy = new Subject();
+        subjectProxy.setId(dto.getSubjectId());
+        subjectProxy.setCode(dto.getSubjectCode());
+        subjectProxy.setName(dto.getSubjectName());
+        proxy.setSubject(subjectProxy);
+
+        com.example.datn.Model.Semester semesterProxy = new com.example.datn.Model.Semester();
+        semesterProxy.setId(dto.getSemesterId());
+        proxy.setSemester(semesterProxy);
+
         return Enrollment.builder()
                 .id(UUID.randomUUID()) // Cấp phát UUID ngay tại đây để DTO không bị lỗi
                 .student(student)
-                .classSection(section)
+                .classSection(proxy)
                 .status(EnrollmentStatus.REGISTERED)
                 .enrollmentDate(LocalDateTime.now())
                 .build();

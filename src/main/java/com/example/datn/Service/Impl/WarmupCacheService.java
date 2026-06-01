@@ -41,6 +41,7 @@ public class WarmupCacheService implements IWarmupCacheService {
     private final EnrollmentRepository enrollmentRepository;
     private final SubjectRepository subjectRepository;
     private final com.example.datn.Repository.SemesterRepository semesterRepository;
+    private final com.example.datn.Repository.PeriodCohortRepository periodCohortRepository;
     
     private final IStudentGradeService studentGradeService;
     private final ISubjectService subjectService;
@@ -48,12 +49,14 @@ public class WarmupCacheService implements IWarmupCacheService {
     @Override
     @Transactional(readOnly = true)
     public void warmupAll() {
-        log.info("Bắt đầu quá trình Warmup Cache (Endgame Architecture)...");
+        log.info("Bắt đầu quá trình Warmup Cache (Endgame Architecture - Zero DB I/O)...");
         
         warmupPassedSubjects();
         warmupPrerequisites();
         warmupClassMasks();
         warmupStudentMasks();
+        warmupClassMetadata();
+        warmupActiveSemesters();
         
         log.info("Hoàn tất Warmup Cache!");
     }
@@ -134,6 +137,44 @@ public class WarmupCacheService implements IWarmupCacheService {
             }
         }
         log.info("Đã cache bitmask thời khóa biểu cho {} sinh viên.", students.size());
+    }
+
+    private void warmupClassMetadata() {
+        log.info("Đang tính toán Class Metadata...");
+        List<ClassSection> sections = classSectionRepository.findAll();
+        for (ClassSection section : sections) {
+            boolean hasLab = classSectionRepository.existsByParentSectionId(section.getId());
+            com.example.datn.DTO.Response.ClassSectionCacheDTO dto = com.example.datn.DTO.Response.ClassSectionCacheDTO.builder()
+                .id(section.getId())
+                .subjectId(section.getSubject() != null ? section.getSubject().getId() : null)
+                .subjectName(section.getSubject() != null ? section.getSubject().getName() : null)
+                .subjectCode(section.getSubject() != null ? section.getSubject().getCode() : null)
+                .semesterId(section.getSemester() != null ? section.getSemester().getId() : null)
+                .parentSectionId(section.getParentSection() != null ? section.getParentSection().getId() : null)
+                .hasLab(hasLab)
+                .build();
+            String key = "class_metadata:" + section.getId();
+            try {
+                redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(dto));
+            } catch (Exception e) {
+                log.error("Lỗi parse metadata cho lớp {}", section.getId(), e);
+            }
+        }
+        log.info("Đã cache metadata cho {} lớp học phần.", sections.size());
+    }
+
+    private void warmupActiveSemesters() {
+        log.info("Đang tính toán Active Semesters...");
+        List<com.example.datn.Model.PeriodCohort> periodCohorts = periodCohortRepository.findAll();
+        for (com.example.datn.Model.PeriodCohort pc : periodCohorts) {
+            if (pc.getRegistrationPeriod() != null && Boolean.TRUE.equals(pc.getRegistrationPeriod().getIsActive())) {
+                if (pc.getCohort() != null && pc.getRegistrationPeriod().getSemester() != null) {
+                    String key = "active_semester:" + pc.getCohort().getId();
+                    redisTemplate.opsForValue().set(key, pc.getRegistrationPeriod().getSemester().getId().toString());
+                }
+            }
+        }
+        log.info("Đã cache active semester cho các cohort.");
     }
 
     // Thuật toán mượn từ RegistrationServiceImpl
