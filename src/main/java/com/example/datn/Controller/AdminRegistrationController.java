@@ -17,6 +17,7 @@ import java.util.UUID;
 public class AdminRegistrationController {
 
     private final IRedisService redisService;
+    private final com.example.datn.Service.Interface.IWarmupCacheService warmupCacheService;
 
     /**
      * Đồng bộ toàn bộ sĩ số các lớp học phần trong một học kỳ lên Redis.
@@ -38,11 +39,16 @@ public class AdminRegistrationController {
     @PostMapping("/sync-redis/{semesterId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<String> syncCapacityToRedis(@PathVariable UUID semesterId) {
+        // 1. Đồng bộ sĩ số (Slot)
         redisService.syncClassCapacityToRedis(semesterId);
+        
+        // 2. Tự động Warmup thêm toàn bộ Metadata, Bitmask, Môn Tiên Quyết (Zero DB I/O Architecture)
+        warmupCacheService.warmupAll();
+
         return ApiResponse.<String>builder()
                 .code(1000)
-                .message("Đồng bộ sĩ số lên Redis thành công")
-                .result("Học kỳ [" + semesterId + "] đã được sync lên Redis. Hệ thống sẵn sàng chịu tải!")
+                .message("Đồng bộ dữ liệu lên Redis thành công")
+                .result("Học kỳ [" + semesterId + "] đã được sync toàn bộ (Capacity, Metadata, Rules). Hệ thống sẵn sàng chịu tải!")
                 .build();
     }
 }

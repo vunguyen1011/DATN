@@ -270,6 +270,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
         try {
             return objectMapper.readValue(json, com.example.datn.DTO.Response.ClassSectionCacheDTO.class);
         } catch (Exception e) {
+            log.error("Lỗi parse JSON từ Redis cho key {}: {}", key, e.getMessage());
             return null;
         }
     }
