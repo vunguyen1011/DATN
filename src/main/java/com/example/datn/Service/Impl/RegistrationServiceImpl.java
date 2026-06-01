@@ -91,7 +91,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
         validateClassBasics(theorySection, semesterId);
         ClassSection labSection = validateAndGetLabSection(request, theorySection);
 
-        List<EnrollmentResponse> currentEnrollments = getMyTimetable();
+        List<EnrollmentResponse> currentEnrollments = getMyTimetableInternal(student);
 
         validateDuplicateSubject(currentEnrollments, theorySection);
         checkPrerequisitesOptimized(student.getId(), theorySection.getSubject().getId());
@@ -218,11 +218,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
                 .build();
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public List<EnrollmentResponse> getMyTimetable() {
-        Student student = getCurrentStudent();
-
+    private List<EnrollmentResponse> getMyTimetableInternal(Student student) {
         // 1. Lấy Học kỳ hiện tại thay vì phụ thuộc vào Đợt đăng ký
         Semester currentSemester = semesterRepository.findByIsCurrentTrue()
                 .orElseThrow(
@@ -236,6 +232,12 @@ public class RegistrationServiceImpl implements IRegistrationService {
                 .stream()
                 .map(enrollmentMapper::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EnrollmentResponse> getMyTimetable() {
+        return getMyTimetableInternal(getCurrentStudent());
     }
 
     private void validateClassBasics(ClassSection theory, UUID currentSemesterId) {
@@ -284,8 +286,12 @@ public class RegistrationServiceImpl implements IRegistrationService {
             sectionIdsToFetch.add(lab.getId());
         current.forEach(en -> sectionIdsToFetch.add(en.getClassSection().getId()));
 
-        // Sử dụng 1 câu truy vấn gộp (Batch Query) duy nhất thay vì lặp qua từng ID
-        List<Schedule> allSchedules = scheduleRepository.findByClassSection_IdIn(sectionIdsToFetch);
+        // Tận dụng Cache: Dùng vòng lặp gọi hàm findByClassSection_Id (đã được cấu hình @Cacheable)
+        // thay vì dùng câu IN (bỏ qua cache)
+        List<Schedule> allSchedules = new ArrayList<>();
+        for (UUID id : sectionIdsToFetch) {
+            allSchedules.addAll(scheduleRepository.findByClassSection_Id(id));
+        }
 
         // Phân nhóm theo classSectionId trong RAM (không gọi DB nữa)
         Map<UUID, List<Schedule>> scheduleMap = allSchedules.stream()
