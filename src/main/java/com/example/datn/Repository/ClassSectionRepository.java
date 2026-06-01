@@ -42,7 +42,6 @@ public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID
 
         boolean existsBySubjectComponentId(UUID subjectComponentId);
 
-        @org.springframework.cache.annotation.Cacheable(value = "hasLabSection", key = "#parentSectionId")
         boolean existsByParentSectionId(UUID parentSectionId);
 
         List<ClassSection> findByParentSectionId(UUID parentSectionId);

@@ -51,6 +51,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
     private final AsyncEnrollmentPersister asyncEnrollmentPersister;
     private final IPeriodCohortService periodCohortService;
     private final RabbitMQProducer rabbitMQProducer;
+    private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
 
 
 
@@ -91,37 +92,37 @@ public class RegistrationServiceImpl implements IRegistrationService {
         validateClassBasics(theorySection, semesterId);
         ClassSection labSection = validateAndGetLabSection(request, theorySection);
 
-        List<EnrollmentResponse> currentEnrollments = getMyTimetableInternal(student);
-
-        validateDuplicateSubject(currentEnrollments, theorySection);
+        // O(1) in-memory check prerequisites via Redis
         checkPrerequisitesOptimized(student.getId(), theorySection.getSubject().getId());
-
-        validateSchedulesWithBatchQuery(theorySection, labSection, currentEnrollments);
 
         String theorySubjectName = theorySection.getSubject().getName();
         String labSubjectName = (labSection != null) ? labSection.getSubject().getName() : null;
 
-        // ── GIAI ĐOẠN 2: REDIS LUA SCRIPT ────────
+        // Fetch pre-computed Class Masks from Redis
+        String theoryMaskStr = redisTemplate.opsForValue().get("class_mask:" + theorySection.getId());
+        String labMaskStr = labSection != null ? redisTemplate.opsForValue().get("class_mask:" + labSection.getId()) : null;
+        UUID labId = labSection != null ? labSection.getId() : null;
+
+        // ── GIAI ĐOẠN 2: REDIS LUA SCRIPT (ATOMIC VALIDATION & ACQUIRE) ────────
         java.util.UUID subjectId = theorySection.getSubject().getId();
-        int theoryResult = redisService.tryAcquireSlot(theorySection.getId(), student.getId(), subjectId);
-        if (theoryResult == 0) {
+        int result = redisService.tryAcquireSlot(theorySection.getId(), labId, student.getId(), subjectId, theoryMaskStr, labMaskStr);
+        
+        if (result == 0) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Bạn đã đăng ký lớp học phần này rồi");
         }
-        if (theoryResult == -2) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Bạn đã đăng ký một lớp khác của môn học này rồi");
-        }
-        if (theoryResult == -1) {
+        if (result == -1) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp lý thuyết đã hết chỗ");
         }
-
-        if (labSection != null) {
-            int labResult = redisService.tryAcquireSlot(labSection.getId(), student.getId(), null);
-            if (labResult != 1) {
-                redisService.releaseSlot(theorySection.getId(), student.getId(), subjectId);
-                String msg = (labResult == 0) ? "Bạn đã đăng ký lớp thực hành này rồi" : "Lớp thực hành đã hết chỗ";
-                throw new AppException(ErrorCode.INVALID_REQUEST, msg);
-            }
+        if (result == -2) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Bạn đã đăng ký một lớp khác của môn học này rồi");
         }
+        if (result == -3) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Lịch học bị trùng với các môn đã đăng ký");
+        }
+        if (result == -4) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp thực hành đã hết chỗ");
+        }
+
         Enrollment theoryEnrollment = prepareEnrollment(student, theorySection);
         List<Enrollment> toSave = new ArrayList<>();
         toSave.add(theoryEnrollment);
@@ -139,7 +140,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
                 .map(EnrollmentSaveRequest::from)
                 .collect(Collectors.toList());
         rabbitMQProducer.sendMessage(saveRequests);
-            return responses;
+        return responses;
     }
 
     @Override
@@ -265,83 +266,9 @@ public class RegistrationServiceImpl implements IRegistrationService {
         return null;
     }
 
-    private void validateDuplicateSubject(List<EnrollmentResponse> current, ClassSection target) {
-        for (EnrollmentResponse en : current) {
-            if (en.getClassSection().getSubjectCode().equals(target.getSubject().getCode())) {
-                throw new AppException(ErrorCode.INVALID_REQUEST, "Bạn đã đăng ký môn học này rồi");
-            }
-        }
-    }
 
-    // Kiểm tra trùng lịch bằng 1 batch query duy nhất rồi so sánh trong RAM.
-    // Tránh các vấn đề của approach cũ:
-    // - scheduleRepository.countOverlappingSchedules() gọi nhiều lần = nhiều query
-    // - theory.getSchedules() = LazyInitializationException (ClassSection không có
-    // @OneToMany schedules)
-    private void validateSchedulesWithBatchQuery(ClassSection theory, ClassSection lab, List<EnrollmentResponse> current) {
-        // Tạp hợp tất cả ID cần lấy lịch trong 1 query batch
-        List<UUID> sectionIdsToFetch = new ArrayList<>();
-        sectionIdsToFetch.add(theory.getId());
-        if (lab != null)
-            sectionIdsToFetch.add(lab.getId());
-        current.forEach(en -> sectionIdsToFetch.add(en.getClassSection().getId()));
 
-        // Tận dụng Cache: Dùng vòng lặp gọi hàm findByClassSection_Id (đã được cấu hình @Cacheable)
-        // thay vì dùng câu IN (bỏ qua cache)
-        List<Schedule> allSchedules = new ArrayList<>();
-        for (UUID id : sectionIdsToFetch) {
-            allSchedules.addAll(scheduleRepository.findByClassSection_Id(id));
-        }
 
-        // Phân nhóm theo classSectionId trong RAM (không gọi DB nữa)
-        Map<UUID, List<Schedule>> scheduleMap = allSchedules.stream()
-                .collect(Collectors.groupingBy(s -> s.getClassSection().getId()));
-
-        List<Schedule> theorySchedules = scheduleMap.getOrDefault(theory.getId(), List.of());
-        List<Schedule> labSchedules = lab != null ? scheduleMap.getOrDefault(lab.getId(), List.of()) : List.of();
-        List<Schedule> newSchedules = new ArrayList<>(theorySchedules);
-        newSchedules.addAll(labSchedules);
-
-        List<Schedule> currentSchedules = current.stream()
-                .flatMap(en -> scheduleMap.getOrDefault(en.getClassSection().getId(), List.of()).stream())
-                .collect(Collectors.toList());
-
-        // So sánh in-memory — không chạm DB
-        if (lab != null && hasOverlap(theorySchedules, labSchedules)) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Trùng lịch giữa lý thuyết và thực hành");
-        }
-        if (hasOverlap(newSchedules, currentSchedules)) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Lịch học bị trùng với các môn đã đăng ký");
-        }
-    }
-
-    // ĐÃ TỐI ƯU: THUẬT TOÁN BITMASK ĐỂ SO SÁNH LỊCH HỌC TRONG 1 NANOGIÂY (O(1))
-    private int[] buildScheduleMask(List<Schedule> schedules) {
-        int[] mask = new int[9]; // index 2 -> 8 tương ứng với Thứ 2 -> Chủ Nhật
-        for (Schedule s : schedules) {
-            if (s.getDayOfWeek() == null || s.getStartPeriod() == null || s.getEndPeriod() == null) continue;
-            int day = s.getDayOfWeek();
-            int start = s.getStartPeriod();
-            int end = s.getEndPeriod();
-            // Tạo chuỗi bit tương ứng với các tiết học. Ví dụ tiết 1-3: bit 1, 2, 3 sẽ bật lên 1.
-            int periodMask = ((1 << (end - start + 1)) - 1) << start;
-            mask[day] |= periodMask;
-        }
-        return mask;
-    }
-
-    private boolean hasOverlap(List<Schedule> list1, List<Schedule> list2) {
-        int[] mask1 = buildScheduleMask(list1);
-        int[] mask2 = buildScheduleMask(list2);
-        
-        // Phép toán Bitwise AND (&) cực kỳ nhẹ cho CPU so với so sánh vòng lặp nồng nhau
-        for (int i = 2; i <= 8; i++) {
-            if ((mask1[i] & mask2[i]) != 0) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     // ĐÃ SỬA: TỰ CẤP PHÁT UUID VÀ BỎ HOÀN TOÀN TRUY VẤN DB TRONG prepareEnrollment
     private Enrollment prepareEnrollment(Student student, ClassSection section) {
@@ -364,16 +291,20 @@ public class RegistrationServiceImpl implements IRegistrationService {
     }
 
     private void checkPrerequisitesOptimized(UUID studentId, UUID subjectId) {
-        List<com.example.datn.DTO.Response.SubjectResponse> prerequisites = subjectService.getPrerequisites(subjectId);
-        if (prerequisites == null || prerequisites.isEmpty())
+        String prereqKey = "prerequisites:" + subjectId;
+        String passedKey = "passed_subjects:" + studentId;
+        
+        Set<String> prerequisites = redisTemplate.opsForSet().members(prereqKey);
+        if (prerequisites == null || prerequisites.isEmpty()) {
             return;
+        }
 
-        Set<UUID> passedSubjectIds = studentGradeService.getPassedSubjectIds(studentId);
-
-        for (com.example.datn.DTO.Response.SubjectResponse prereq : prerequisites) {
-            if (!passedSubjectIds.contains(prereq.getId())) {
+        for (String prereqId : prerequisites) {
+            Boolean passed = redisTemplate.opsForSet().isMember(passedKey, prereqId);
+            if (Boolean.FALSE.equals(passed)) {
+                // Ta chỉ hiện ID môn vì không lưu name trên Redis, hoặc có thể query thêm nếu cần.
                 throw new AppException(ErrorCode.INVALID_REQUEST,
-                        "Chưa đạt môn tiên quyết: " + prereq.getName());
+                        "Chưa đạt môn tiên quyết yêu cầu.");
             }
         }
     }

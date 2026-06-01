@@ -20,6 +20,15 @@ public class SystemController {
     private final CacheManager cacheManager;
     private final IRedisService redisService;
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
+    private final com.example.datn.Service.Interface.IWarmupCacheService warmupCacheService;
+
+    @Operation(summary = "Khởi tạo dữ liệu Đăng ký tín chỉ", description = "Tính toán sẵn bitmask, môn đã qua, môn tiên quyết và lưu vào Redis")
+    @org.springframework.web.bind.annotation.PostMapping("/warmup-cache")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<String> warmupCache() {
+        warmupCacheService.warmupAll();
+        return ResponseEntity.ok("Đã chạy tiến trình Warmup Cache thành công!");
+    }
 
     @Operation(summary = "Xóa cache của hệ thống", description = "Thực hiện xóa toàn bộ Cache Redis (chỉ xóa cache Spring, giữ lại Token/Session)")
     @DeleteMapping("/cache")

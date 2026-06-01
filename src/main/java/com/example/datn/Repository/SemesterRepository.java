@@ -19,6 +19,5 @@ public interface SemesterRepository extends JpaRepository<Semester, UUID> {
     List<Semester> findByNameContainingIgnoreCase(String keyword);
 
     // Tìm học kỳ hiện tại
-    @org.springframework.cache.annotation.Cacheable(value = "currentSemester")
     Optional<Semester> findByIsCurrentTrue();
 }

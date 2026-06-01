@@ -194,51 +194,108 @@ public class RedisService implements IRedisService {
     }
 
     @Override
-    public int tryAcquireSlot(java.util.UUID classSectionId, java.util.UUID studentId, java.util.UUID subjectId) {
-        String slotKey = "class_slot:" + classSectionId;
-        String setKey = "class_students:" + classSectionId;
+    public int tryAcquireSlot(java.util.UUID theoryId, java.util.UUID labId, java.util.UUID studentId, java.util.UUID subjectId, String theoryMask, String labMask) {
+        String theorySlotKey = "class_slot:" + theoryId;
+        String theorySetKey = "class_students:" + theoryId;
         
-        // subjectKey dùng để chặn sinh viên đăng ký nhiều lớp của cùng 1 môn
+        String labSlotKey = labId != null ? "class_slot:" + labId : "dummy_lab_slot";
+        String labSetKey = labId != null ? "class_students:" + labId : "dummy_lab_set";
+        
         String subjectKey = subjectId != null ? "student_subject:" + subjectId : "dummy_subject_key";
+        String studentMaskKey = "student_mask:" + studentId;
 
         String luaScript = 
-                "local slotKey = KEYS[1]\n" +
-                "local setKey = KEYS[2]\n" +
-                "local subjectKey = KEYS[3]\n" +
+                "local theorySlotKey = KEYS[1]\n" +
+                "local theorySetKey = KEYS[2]\n" +
+                "local labSlotKey = KEYS[3]\n" +
+                "local labSetKey = KEYS[4]\n" +
+                "local subjectKey = KEYS[5]\n" +
+                "local studentMaskKey = KEYS[6]\n" +
                 "local studentId = ARGV[1]\n" +
-                "local isTheory = ARGV[2]\n" + // "true" hoặc "false"
+                "local theoryMaskJson = ARGV[2]\n" +
+                "local labMaskJson = ARGV[3]\n" +
+                "local hasLab = ARGV[4]\n" + 
                 
-                // 1. Nếu đã đăng ký lớp này rồi thì bỏ qua
-                "if redis.call('SISMEMBER', setKey, studentId) == 1 then\n" +
+                // 1. Check if already enrolled in theory
+                "if redis.call('SISMEMBER', theorySetKey, studentId) == 1 then\n" +
                 "    return 0\n" +
                 "end\n" +
                 
-                // 2. Nếu là lớp lý thuyết, check xem đã đăng ký môn này ở lớp khác chưa
-                "if isTheory == 'true' then\n" +
-                "    if redis.call('SISMEMBER', subjectKey, studentId) == 1 then\n" +
-                "        return -2\n" + // -2: Đã đăng ký môn học này (trùng môn)
+                // 2. Check if already enrolled in another section of this subject
+                "if redis.call('SISMEMBER', subjectKey, studentId) == 1 then\n" +
+                "    return -2\n" +
+                "end\n" +
+                
+                // 3. Check Theory Slot
+                "local theoryCurrent = redis.call('GET', theorySlotKey)\n" +
+                "if not theoryCurrent or tonumber(theoryCurrent) <= 0 then\n" +
+                "    return -1\n" +
+                "end\n" +
+                
+                // 4. Check Lab Slot
+                "if hasLab == 'true' then\n" +
+                "    if redis.call('SISMEMBER', labSetKey, studentId) == 1 then\n" +
+                "        return 0\n" +
+                "    end\n" +
+                "    local labCurrent = redis.call('GET', labSlotKey)\n" +
+                "    if not labCurrent or tonumber(labCurrent) <= 0 then\n" +
+                "        return -4\n" +
                 "    end\n" +
                 "end\n" +
                 
-                // 3. Check số lượng slot còn lại
-                "local current = redis.call('GET', slotKey)\n" +
-                "if current and tonumber(current) > 0 then\n" +
-                "    redis.call('DECR', slotKey)\n" +
-                "    redis.call('SADD', setKey, studentId)\n" +
-                "    if isTheory == 'true' then\n" +
-                "        redis.call('SADD', subjectKey, studentId)\n" +
+                // 5. Check Mask Overlap
+                "local studentMaskStr = redis.call('GET', studentMaskKey)\n" +
+                "local studentMask = {}\n" +
+                "if studentMaskStr and studentMaskStr ~= '' then\n" +
+                "    studentMask = cjson.decode(studentMaskStr)\n" +
+                "end\n" +
+                
+                "local tMask = {}\n" +
+                "if theoryMaskJson and theoryMaskJson ~= '' then\n" +
+                "    tMask = cjson.decode(theoryMaskJson)\n" +
+                "end\n" +
+                
+                "local lMask = {}\n" +
+                "if hasLab == 'true' and labMaskJson and labMaskJson ~= '' then\n" +
+                "    lMask = cjson.decode(labMaskJson)\n" +
+                "end\n" +
+                
+                "for i=1, 9 do\n" +
+                "    local s = studentMask[i] or 0\n" +
+                "    local t = tMask[i] or 0\n" +
+                "    local l = lMask[i] or 0\n" +
+                "    if bit.band(s, t) ~= 0 or bit.band(s, l) ~= 0 or bit.band(t, l) ~= 0 then\n" +
+                "        return -3\n" + 
                 "    end\n" +
-                "    return 1\n" +
-                "else\n" +
-                "    return -1\n" + // -1: Hết chỗ
-                "end";
+                "end\n" +
+                
+                // 6. ALL CHECKS PASSED -> COMMIT
+                "redis.call('DECR', theorySlotKey)\n" +
+                "redis.call('SADD', theorySetKey, studentId)\n" +
+                "redis.call('SADD', subjectKey, studentId)\n" +
+                "if hasLab == 'true' then\n" +
+                "    redis.call('DECR', labSlotKey)\n" +
+                "    redis.call('SADD', labSetKey, studentId)\n" +
+                "end\n" +
+                
+                "for i=1, 9 do\n" +
+                "    local s = studentMask[i] or 0\n" +
+                "    local t = tMask[i] or 0\n" +
+                "    local l = lMask[i] or 0\n" +
+                "    studentMask[i] = bit.bor(s, bit.bor(t, l))\n" +
+                "end\n" +
+                "redis.call('SET', studentMaskKey, cjson.encode(studentMask))\n" +
+                
+                "return 1";
 
         DefaultRedisScript<Long> script = new org.springframework.data.redis.core.script.DefaultRedisScript<>();
         script.setScriptText(luaScript);
         script.setResultType(Long.class);
 
-        String isTheoryStr = subjectId != null ? "true" : "false";
-        Long result = redisTemplate.execute(script, java.util.Arrays.asList(slotKey, setKey, subjectKey), studentId.toString(), isTheoryStr);
+        String hasLabStr = labId != null ? "true" : "false";
+        java.util.List<String> keys = java.util.Arrays.asList(theorySlotKey, theorySetKey, labSlotKey, labSetKey, subjectKey, studentMaskKey);
+        
+        Long result = redisTemplate.execute(script, keys, studentId.toString(), theoryMask != null ? theoryMask : "", labMask != null ? labMask : "", hasLabStr);
         return result != null ? result.intValue() : -1;
     }
 
