@@ -30,6 +30,7 @@ public class PeriodCohortServiceImpl implements IPeriodCohortService {
     private final PeriodCohortRepository periodCohortRepository;
     private final RegistrationPeriodRepository registrationPeriodRepository;
     private final CohortRepository cohortRepository;
+    private final com.example.datn.Service.Interface.IWarmupCacheService warmupCacheService;
 
     @Override
     @Transactional
@@ -61,6 +62,7 @@ public class PeriodCohortServiceImpl implements IPeriodCohortService {
                 .build();
 
         periodCohort = periodCohortRepository.save(periodCohort);
+        warmupCacheService.warmupActiveSemesters();
         return mapToResponse(periodCohort);
     }
 
@@ -117,7 +119,9 @@ public class PeriodCohortServiceImpl implements IPeriodCohortService {
         periodCohort.setEndTime(request.getEndTime());
 
         // 3. Lưu lại
-        return mapToResponse(periodCohortRepository.save(periodCohort));
+        PeriodCohort saved = periodCohortRepository.save(periodCohort);
+        warmupCacheService.warmupActiveSemesters();
+        return mapToResponse(saved);
     }
     @Override
     @Transactional
@@ -127,6 +131,7 @@ public class PeriodCohortServiceImpl implements IPeriodCohortService {
             throw new AppException(ErrorCode.PERIOD_COHORT_NOT_FOUND);
         }
         periodCohortRepository.deleteById(id);
+        warmupCacheService.warmupActiveSemesters();
     }
 
     private PeriodCohortResponse mapToResponse(PeriodCohort periodCohort) {

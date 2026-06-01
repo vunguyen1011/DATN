@@ -27,13 +27,25 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.boot.CommandLineRunner;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class WarmupCacheService implements IWarmupCacheService {
+public class WarmupCacheService implements IWarmupCacheService, CommandLineRunner {
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    
+    @Override
+    public void run(String... args) throws Exception {
+        log.info("--- Auto-running Warmup Cache on Startup ---");
+        try {
+            warmupAll();
+        } catch (Exception e) {
+            log.error("Lỗi khi tự động Warmup Cache: ", e);
+        }
+    }
     
     private final ClassSectionRepository classSectionRepository;
     private final StudentRepository studentRepository;
@@ -163,7 +175,7 @@ public class WarmupCacheService implements IWarmupCacheService {
         log.info("Đã cache metadata cho {} lớp học phần.", sections.size());
     }
 
-    private void warmupActiveSemesters() {
+    public void warmupActiveSemesters() {
         log.info("Đang tính toán Active Semesters...");
         List<com.example.datn.Model.PeriodCohort> periodCohorts = periodCohortRepository.findAll();
         for (com.example.datn.Model.PeriodCohort pc : periodCohorts) {
