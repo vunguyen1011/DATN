@@ -68,7 +68,6 @@ public class WarmupCacheService implements IWarmupCacheService, CommandLineRunne
         warmupClassMasks();
         warmupStudentMasks();
         warmupClassMetadata();
-        warmupActiveSemesters();
         
         log.info("Hoàn tất Warmup Cache!");
     }
@@ -175,29 +174,7 @@ public class WarmupCacheService implements IWarmupCacheService, CommandLineRunne
         log.info("Đã cache metadata cho {} lớp học phần.", sections.size());
     }
 
-    public void warmupActiveSemesters() {
-        log.info("Đang tính toán Active Semesters...");
-        List<com.example.datn.Model.PeriodCohort> periodCohorts = periodCohortRepository.findAll();
-        for (com.example.datn.Model.PeriodCohort pc : periodCohorts) {
-            if (pc.getRegistrationPeriod() != null && Boolean.TRUE.equals(pc.getRegistrationPeriod().getIsActive())) {
-                if (pc.getRegistrationPeriod().getSemester() != null) {
-                    String value = pc.getRegistrationPeriod().getSemester().getId().toString() 
-                            + "|" + pc.getStartTime().toString() 
-                            + "|" + pc.getEndTime().toString();
-                    
-                    if (pc.getCohort() != null) {
-                        String key = "active_semester:" + pc.getCohort().getId();
-                        redisTemplate.opsForValue().set(key, value);
-                    } else {
-                        // Cấu hình áp dụng cho toàn trường (cohort = null)
-                        String key = "active_semester:ALL";
-                        redisTemplate.opsForValue().set(key, value);
-                    }
-                }
-            }
-        }
-        log.info("Đã cache active semester cho các cohort.");
-    }
+
 
     // Thuật toán mượn từ RegistrationServiceImpl
     private int[] buildScheduleMask(List<Schedule> schedules) {
