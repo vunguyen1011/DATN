@@ -86,11 +86,26 @@ public class RegistrationServiceImpl implements IRegistrationService {
         Student student = getCurrentStudent();
         
         // 1. LẤY THÔNG TIN HỌC KỲ TỪ REDIS (0 DB Query)
-        String activeSemesterIdStr = redisTemplate.opsForValue().get("active_semester:" + student.getCohort().getId());
-        if (activeSemesterIdStr == null) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Hiện tại không có đợt đăng ký nào đang mở cho khóa của bạn.");
+        String periodData = redisTemplate.opsForValue().get("active_semester:" + student.getCohort().getId());
+        
+        // Fallback: Nếu không có lịch riêng cho khóa này, lấy lịch chung (Toàn trường)
+        if (periodData == null) {
+            periodData = redisTemplate.opsForValue().get("active_semester:ALL");
         }
-        UUID semesterId = UUID.fromString(activeSemesterIdStr);
+
+        if (periodData == null) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Hiện tại không có đợt đăng ký nào được cấu hình cho khóa của bạn.");
+        }
+
+        String[] parts = periodData.split("\\|");
+        UUID semesterId = UUID.fromString(parts[0]);
+        LocalDateTime startTime = LocalDateTime.parse(parts[1]);
+        LocalDateTime endTime = LocalDateTime.parse(parts[2]);
+        LocalDateTime now = LocalDateTime.now();
+
+        if (now.isBefore(startTime) || now.isAfter(endTime)) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Ngoài thời gian đăng ký tín chỉ");
+        }
 
         // 2. LẤY METADATA LỚP TỪ REDIS (0 DB Query)
         com.example.datn.DTO.Response.ClassSectionCacheDTO theorySection = getFromRedisCache("class_metadata:" + request.getTheoryClassId());

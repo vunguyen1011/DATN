@@ -168,9 +168,19 @@ public class WarmupCacheService implements IWarmupCacheService {
         List<com.example.datn.Model.PeriodCohort> periodCohorts = periodCohortRepository.findAll();
         for (com.example.datn.Model.PeriodCohort pc : periodCohorts) {
             if (pc.getRegistrationPeriod() != null && Boolean.TRUE.equals(pc.getRegistrationPeriod().getIsActive())) {
-                if (pc.getCohort() != null && pc.getRegistrationPeriod().getSemester() != null) {
-                    String key = "active_semester:" + pc.getCohort().getId();
-                    redisTemplate.opsForValue().set(key, pc.getRegistrationPeriod().getSemester().getId().toString());
+                if (pc.getRegistrationPeriod().getSemester() != null) {
+                    String value = pc.getRegistrationPeriod().getSemester().getId().toString() 
+                            + "|" + pc.getStartTime().toString() 
+                            + "|" + pc.getEndTime().toString();
+                    
+                    if (pc.getCohort() != null) {
+                        String key = "active_semester:" + pc.getCohort().getId();
+                        redisTemplate.opsForValue().set(key, value);
+                    } else {
+                        // Cấu hình áp dụng cho toàn trường (cohort = null)
+                        String key = "active_semester:ALL";
+                        redisTemplate.opsForValue().set(key, value);
+                    }
                 }
             }
         }
