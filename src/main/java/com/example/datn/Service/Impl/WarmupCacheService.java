@@ -91,6 +91,13 @@ public class WarmupCacheService implements IWarmupCacheService, CommandLineRunne
         log.info("Đang tính toán Prerequisites...");
         List<Subject> subjects = subjectRepository.findAll();
         for (Subject subject : subjects) {
+<<<<<<< HEAD
+=======
+            // Bỏ qua các môn học đã bị xóa mềm (inactive) để tránh lỗi SUBJECT_NOT_FOUND
+            if (subject.getIsActive() == null || !subject.getIsActive()) {
+                continue;
+            }
+>>>>>>> ecf6dcd (fix  cache)
             List<com.example.datn.DTO.Response.SubjectResponse> prereqs = subjectService.getPrerequisites(subject.getId());
             String key = "prerequisites:" + subject.getId();
             redisTemplate.delete(key);
