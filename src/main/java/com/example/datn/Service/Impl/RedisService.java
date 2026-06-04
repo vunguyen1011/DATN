@@ -193,18 +193,7 @@ public class RedisService implements IRedisService {
         log.info("[SYNC] Đã đồng bộ {} lớp học phần của học kỳ {} lên Redis.", count, semesterId);
     }
 
-    @Override
-    public int tryAcquireSlot(java.util.UUID theoryId, java.util.UUID labId, java.util.UUID studentId, java.util.UUID subjectId, String theoryMask, String labMask) {
-        String theorySlotKey = "class_slot:" + theoryId;
-        String theorySetKey = "class_students:" + theoryId;
-        
-        String labSlotKey = labId != null ? "class_slot:" + labId : "dummy_lab_slot";
-        String labSetKey = labId != null ? "class_students:" + labId : "dummy_lab_set";
-        
-        String subjectKey = subjectId != null ? "student_subject:" + subjectId : "dummy_subject_key";
-        String studentMaskKey = "student_mask:" + studentId;
-
-        String luaScript = 
+    private static final String LUA_SCRIPT_TEXT = 
                 "local theorySlotKey = KEYS[1]\n" +
                 "local theorySetKey = KEYS[2]\n" +
                 "local labSlotKey = KEYS[3]\n" +
@@ -288,14 +277,28 @@ public class RedisService implements IRedisService {
                 
                 "return 1";
 
-        DefaultRedisScript<Long> script = new org.springframework.data.redis.core.script.DefaultRedisScript<>();
-        script.setScriptText(luaScript);
-        script.setResultType(Long.class);
+    private static final DefaultRedisScript<Long> ACQUIRE_SLOT_SCRIPT;
+    static {
+        ACQUIRE_SLOT_SCRIPT = new DefaultRedisScript<>();
+        ACQUIRE_SLOT_SCRIPT.setScriptText(LUA_SCRIPT_TEXT);
+        ACQUIRE_SLOT_SCRIPT.setResultType(Long.class);
+    }
+
+    @Override
+    public int tryAcquireSlot(java.util.UUID theoryId, java.util.UUID labId, java.util.UUID studentId, java.util.UUID subjectId, String theoryMask, String labMask) {
+        String theorySlotKey = "class_slot:" + theoryId;
+        String theorySetKey = "class_students:" + theoryId;
+        
+        String labSlotKey = labId != null ? "class_slot:" + labId : "dummy_lab_slot";
+        String labSetKey = labId != null ? "class_students:" + labId : "dummy_lab_set";
+        
+        String subjectKey = subjectId != null ? "student_subject:" + subjectId : "dummy_subject_key";
+        String studentMaskKey = "student_mask:" + studentId;
 
         String hasLabStr = labId != null ? "true" : "false";
         java.util.List<String> keys = java.util.Arrays.asList(theorySlotKey, theorySetKey, labSlotKey, labSetKey, subjectKey, studentMaskKey);
         
-        Long result = redisTemplate.execute(script, keys, studentId.toString(), theoryMask != null ? theoryMask : "", labMask != null ? labMask : "", hasLabStr);
+        Long result = redisTemplate.execute(ACQUIRE_SLOT_SCRIPT, keys, studentId.toString(), theoryMask != null ? theoryMask : "", labMask != null ? labMask : "", hasLabStr);
         return result != null ? result.intValue() : -1;
     }
 
