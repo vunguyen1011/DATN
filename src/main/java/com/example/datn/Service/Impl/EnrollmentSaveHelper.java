@@ -1,56 +1,53 @@
 package com.example.datn.Service.Impl;
 
 import com.example.datn.DTO.Request.EnrollmentSaveRequest;
-import com.example.datn.Repository.ClassSectionRepository;
-import com.example.datn.Repository.EnrollmentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
-import com.example.datn.Exception.AppException;
-import com.example.datn.Exception.ErrorCode;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class EnrollmentSaveHelper {
 
-    private final EnrollmentRepository enrollmentRepository;
-    private final ClassSectionRepository classSectionRepository;
+    private final FastBatchProcessor fastBatchProcessor;
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void saveBatch(List<EnrollmentSaveRequest> requests) {
+        if (requests == null || requests.isEmpty()) return;
+
+        List<EnrollmentSaveRequest> mutableRequests = new ArrayList<>(requests);
+        mutableRequests.sort(Comparator.comparing(EnrollmentSaveRequest::classSectionId));
+
+        try {
+            fastBatchProcessor.executeFastBatch(mutableRequests);
+        } catch (Exception e) {
+            log.warn("Fast batch failed: {}. Executing fallback rescue.", e.getMessage());
+            safeFallbackRescue(mutableRequests);
+        }
+    }
+
     public void saveOne(EnrollmentSaveRequest req) {
-        saveInternal(req);
+        try {
+            fastBatchProcessor.executeSingleSave(req);
+        } catch (Exception ex) {
+            log.error("Data sync failed for student {} in class {}. Error: {}",
+                    req.studentId(), req.classSectionId(), ex.getMessage());
+            throw ex;
+        }
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void saveBatch(java.util.List<EnrollmentSaveRequest> requests) {
+    private void safeFallbackRescue(List<EnrollmentSaveRequest> requests) {
         for (EnrollmentSaveRequest req : requests) {
-            saveInternal(req);
-        }
-    }
-
-    private void saveInternal(EnrollmentSaveRequest req) {
-        boolean isEnroll = req.status() == com.example.datn.ENUM.EnrollmentStatus.REGISTERED;
-        if (isEnroll) {
-            int updatedRows = classSectionRepository.tryIncrementEnrolledCount(req.classSectionId());
-            if (updatedRows == 0) {
-                // BẮT BUỘC ném AppException để Spring Rollback lại toàn bộ transaction
-                throw new AppException(ErrorCode.INVALID_REQUEST, "DB Rejection: Sĩ số đã đầy hoặc lớp không tồn tại " + req.classSectionId());
-            }
-        } else {
-            int updatedRows = classSectionRepository.tryDecrementEnrolledCount(req.classSectionId());
-            if (updatedRows == 0) {
-                log.warn("Không thể giảm sĩ số cho lớp {} (có thể sĩ số đã = 0)", req.classSectionId());
+            try {
+                fastBatchProcessor.executeSingleSave(req);
+            } catch (Exception ex) {
+                log.error("Data sync failed for student {} in class {}. Error: {}",
+                        req.studentId(), req.classSectionId(), ex.getMessage());
             }
         }
-        enrollmentRepository.upsertEnrollment(
-                req.enrollmentId(),
-                req.studentId(),
-                req.classSectionId(),
-                req.status().name(),   // enum → String cho native SQL
-                req.enrollmentDate()
-        );
     }
 }

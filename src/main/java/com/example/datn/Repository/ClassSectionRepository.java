@@ -25,7 +25,7 @@ public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID
         @Query("SELECT cs FROM ClassSection cs WHERE cs.id = :id")
         Optional<ClassSection> findByIdWithLock(@Param("id") UUID id);
 
-        @org.springframework.cache.annotation.Cacheable(value = "classSection", key = "#id")
+        @org.springframework.cache.annotation.Cacheable(value = "classSection", key = "#id", unless="#result == null")
         @EntityGraph(attributePaths = { "semester", "subject", "parentSection" })
         @Query("SELECT cs FROM ClassSection cs WHERE cs.id = :id")
         Optional<ClassSection> findByIdWithDetails(@Param("id") UUID id);

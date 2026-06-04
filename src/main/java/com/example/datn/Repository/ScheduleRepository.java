@@ -22,7 +22,7 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
                         org.springframework.data.domain.Pageable pageable);
 
         @org.springframework.cache.annotation.Cacheable(value = "classSectionSchedules", key = "#classSectionId")
-        @EntityGraph(attributePaths = { "classSection", "classSection.subject", "room", "lecturer" })
+        @EntityGraph(attributePaths = { "classSection", "classSection.subject", "classSection.subjectComponent", "classSection.subjectComponent.subject", "room", "lecturer" })
         List<Schedule> findByClassSection_Id(UUID classSectionId);
 
         @EntityGraph(attributePaths = { "classSection", "classSection.subject", "room", "lecturer" })
