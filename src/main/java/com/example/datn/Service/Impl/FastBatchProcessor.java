@@ -44,19 +44,38 @@ public class FastBatchProcessor {
             }
         }
 
-        String upsertSql = "INSERT INTO enrollments (id, student_id, class_section_id, status, enrollment_date) " +
-                "VALUES (?, ?, ?, ?::varchar, ?) " +
-                "ON CONFLICT (student_id, class_section_id) " +
-                "DO UPDATE SET status = EXCLUDED.status, enrollment_date = EXCLUDED.enrollment_date";
-
-        List<Object[]> upsertArgs = requests.stream()
-                .map(req -> new Object[]{
-                        req.enrollmentId(), req.studentId(), req.classSectionId(),
-                        req.newStatus().name(), req.enrollmentDate()
-                })
+        // Tách ra Delete và Upsert
+        List<EnrollmentSaveRequest> upsertReqs = requests.stream()
+                .filter(req -> req.newStatus() != EnrollmentStatus.CANCELLED)
+                .collect(Collectors.toList());
+        
+        List<EnrollmentSaveRequest> deleteReqs = requests.stream()
+                .filter(req -> req.newStatus() == EnrollmentStatus.CANCELLED)
                 .collect(Collectors.toList());
 
-        jdbcTemplate.batchUpdate(upsertSql, upsertArgs);
+        if (!deleteReqs.isEmpty()) {
+            String deleteSql = "DELETE FROM enrollments WHERE student_id = ? AND class_section_id = ?";
+            List<Object[]> deleteArgs = deleteReqs.stream()
+                    .map(req -> new Object[]{req.studentId(), req.classSectionId()})
+                    .collect(Collectors.toList());
+            jdbcTemplate.batchUpdate(deleteSql, deleteArgs);
+        }
+
+        if (!upsertReqs.isEmpty()) {
+            String upsertSql = "INSERT INTO enrollments (id, student_id, class_section_id, status, enrollment_date) " +
+                    "VALUES (?, ?, ?, ?::varchar, ?) " +
+                    "ON CONFLICT (student_id, class_section_id) " +
+                    "DO UPDATE SET status = EXCLUDED.status, enrollment_date = EXCLUDED.enrollment_date";
+
+            List<Object[]> upsertArgs = upsertReqs.stream()
+                    .map(req -> new Object[]{
+                            req.enrollmentId(), req.studentId(), req.classSectionId(),
+                            req.newStatus().name(), req.enrollmentDate()
+                    })
+                    .collect(Collectors.toList());
+
+            jdbcTemplate.batchUpdate(upsertSql, upsertArgs);
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

@@ -38,7 +38,7 @@ public interface IRedisService {
 
     int tryAcquireSlot(java.util.UUID theoryId, java.util.UUID labId, java.util.UUID studentId, java.util.UUID subjectId, String theoryMask, String labMask);
 
-    void releaseSlot(java.util.UUID classSectionId, java.util.UUID studentId, java.util.UUID subjectId);
+    void releaseSlot(java.util.UUID classSectionId, java.util.UUID studentId, java.util.UUID subjectId, String classMask);
 
     void clearRegistrationData();
 

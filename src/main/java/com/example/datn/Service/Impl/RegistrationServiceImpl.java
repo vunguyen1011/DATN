@@ -190,7 +190,8 @@ public class RegistrationServiceImpl implements IRegistrationService {
         // Hủy Lý thuyết và trả slot Redis
         theoryEnrollment.setStatus(EnrollmentStatus.CANCELLED);
         enrollmentsToCancel.add(theoryEnrollment);
-        redisService.releaseSlot(theoryClassSectionId, student.getId(), theorySection.getSubject().getId());
+        String theoryMaskStr = redisTemplate.opsForValue().get("class_mask:" + theoryClassSectionId);
+        redisService.releaseSlot(theoryClassSectionId, student.getId(), theorySection.getSubject().getId(), theoryMaskStr);
 
         // Hủy Thực hành đi kèm (nếu có) và trả slot Redis
         List<Enrollment> currentEnrollments = enrollmentRepository.findActiveEnrollmentsBySemester(
@@ -201,7 +202,8 @@ public class RegistrationServiceImpl implements IRegistrationService {
             if (sec.getParentSection() != null && sec.getParentSection().getId().equals(theoryClassSectionId)) {
                 en.setStatus(EnrollmentStatus.CANCELLED);
                 enrollmentsToCancel.add(en);
-                redisService.releaseSlot(sec.getId(), student.getId(), null);
+                String labMaskStr = redisTemplate.opsForValue().get("class_mask:" + sec.getId());
+                redisService.releaseSlot(sec.getId(), student.getId(), null, labMaskStr);
                 break;
             }
         }

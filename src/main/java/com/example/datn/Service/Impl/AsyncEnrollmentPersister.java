@@ -22,6 +22,7 @@ public class AsyncEnrollmentPersister {
     private final EnrollmentSaveHelper enrollmentSaveHelper;
     private final IRedisService redisService;
     private final EnrollmentCacheManager enrollmentCacheManager;
+    private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
 
     @Qualifier("dbSaveExecutor")
     private final Executor dbSaveExecutor;
@@ -58,7 +59,8 @@ public class AsyncEnrollmentPersister {
                 if (isEnroll) {
                     // Rollback toàn bộ slot trên Redis
                     for (EnrollmentSaveRequest req : requests) {
-                        redisService.releaseSlot(req.classSectionId(), req.studentId(), req.subjectId());
+                        String classMaskStr = redisTemplate.opsForValue().get("class_mask:" + req.classSectionId());
+                        redisService.releaseSlot(req.classSectionId(), req.studentId(), req.subjectId(), classMaskStr);
                     }
                 }
                 if (studentId != null) {
@@ -76,7 +78,8 @@ public class AsyncEnrollmentPersister {
             log.error("[Lỗi hệ thống] Không thể lưu batch Enrollment cho SV {}: {}", studentId, e.getMessage());
             if (isEnroll) {
                 for (EnrollmentSaveRequest req : requests) {
-                    redisService.releaseSlot(req.classSectionId(), req.studentId(), req.subjectId());
+                    String classMaskStr = redisTemplate.opsForValue().get("class_mask:" + req.classSectionId());
+                    redisService.releaseSlot(req.classSectionId(), req.studentId(), req.subjectId(), classMaskStr);
                 }
             }
             if (studentId != null) {
