@@ -3,6 +3,7 @@ package com.example.datn.Service.Impl;
 import com.example.datn.Config.EnrollmentCacheManager;
 import com.example.datn.DTO.Request.EnrollmentSaveRequest;
 import com.example.datn.DTO.Request.EnrollRequest;
+import com.example.datn.DTO.Response.ClassSectionCacheDTO;
 import com.example.datn.DTO.Response.EnrollmentResponse;
 import com.example.datn.DTO.Response.EnrollmentSimpleResponse;
 import com.example.datn.DTO.Response.RegistrationStatusResponse;
@@ -92,8 +93,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
         PeriodCohort activePeriod = getActivePeriodCohort(cohortId);
         UUID semesterId = activePeriod.getRegistrationPeriod().getSemester().getId();
 
-        // 2. LẤY METADATA LỚP TỪ REDIS (0 DB Query)
-        com.example.datn.DTO.Response.ClassSectionCacheDTO theorySection = getFromRedisCache("class_metadata:" + request.getTheoryClassId());
+   ClassSectionCacheDTO theorySection = getFromRedisCache("class_metadata:" + request.getTheoryClassId());
         if (theorySection == null) {
             throw new AppException(ErrorCode.NO_CLASS_SECTIONS_FOUND, "Không tìm thấy lớp lý thuyết");
         }
@@ -102,7 +102,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp học phần không thuộc học kỳ hiện hành");
         }
 
-        com.example.datn.DTO.Response.ClassSectionCacheDTO labSection = null;
+      ClassSectionCacheDTO labSection = null;
         if (request.getLabClassId() != null) {
             labSection = getFromRedisCache("class_metadata:" + request.getLabClassId());
             if (labSection == null) {
@@ -115,7 +115,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Môn học này yêu cầu chọn 1 ca thực hành");
         }
 
-        // O(1) in-memory check prerequisites via Redis
+
         checkPrerequisitesOptimized(student.getId(), theorySection.getSubjectId());
 
         String theorySubjectName = theorySection.getSubjectName();
@@ -266,11 +266,11 @@ public class RegistrationServiceImpl implements IRegistrationService {
         return getMyTimetableInternal(getCurrentStudent());
     }
 
-    private com.example.datn.DTO.Response.ClassSectionCacheDTO getFromRedisCache(String key) {
+    private ClassSectionCacheDTO getFromRedisCache(String key) {
         String json = redisTemplate.opsForValue().get(key);
         if (json == null || json.isEmpty()) return null;
         try {
-            return objectMapper.readValue(json, com.example.datn.DTO.Response.ClassSectionCacheDTO.class);
+            return objectMapper.readValue(json,ClassSectionCacheDTO.class);
         } catch (Exception e) {
             log.error("Lỗi parse JSON từ Redis cho key {}: {}", key, e.getMessage());
             return null;
@@ -303,11 +303,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
     }
 
 
-
-
-
-    // ĐÃ SỬA: TỰ CẤP PHÁT UUID VÀ BỎ HOÀN TOÀN TRUY VẤN DB TRONG prepareEnrollment
-    private Enrollment prepareEnrollment(Student student, com.example.datn.DTO.Response.ClassSectionCacheDTO dto) {
+    private Enrollment prepareEnrollment(Student student,ClassSectionCacheDTO dto) {
         ClassSection proxy = new ClassSection();
         proxy.setId(dto.getId());
         
@@ -338,20 +334,16 @@ public class RegistrationServiceImpl implements IRegistrationService {
                 .enrollmentDate(enrollment.getEnrollmentDate())
                 .build();
     }
-
     private void checkPrerequisitesOptimized(UUID studentId, UUID subjectId) {
         String prereqKey = "prerequisites:" + subjectId;
         String passedKey = "passed_subjects:" + studentId;
-        
         Set<String> prerequisites = redisTemplate.opsForSet().members(prereqKey);
         if (prerequisites == null || prerequisites.isEmpty()) {
             return;
         }
-
         for (String prereqId : prerequisites) {
             Boolean passed = redisTemplate.opsForSet().isMember(passedKey, prereqId);
             if (Boolean.FALSE.equals(passed)) {
-                // Ta chỉ hiện ID môn vì không lưu name trên Redis, hoặc có thể query thêm nếu cần.
                 throw new AppException(ErrorCode.INVALID_REQUEST,
                         "Chưa đạt môn tiên quyết yêu cầu.");
             }

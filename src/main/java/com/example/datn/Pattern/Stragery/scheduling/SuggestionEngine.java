@@ -34,6 +34,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SuggestionEngine {
 
+    @org.springframework.beans.factory.annotation.Value("${scheduling.rules.allow-cross-lunch:false}")
+    private boolean allowCrossLunch;
+
     private static final int[] WORKING_DAYS = { 2, 3, 4, 5, 6, 7 };
     private static final int MAX_PERIOD = 15;
 
@@ -78,10 +81,13 @@ public class SuggestionEngine {
         for (int day : WORKING_DAYS) {
             if (filterDayOfWeek != null && day != filterDayOfWeek)
                 continue;
-            for (int start = 1; start + periods - 1 <= MAX_PERIOD; start += periods) {
+            for (int start = 1; start + periods - 1 <= MAX_PERIOD; start++) {
                 if (filterStartPeriod != null && start != filterStartPeriod)
                     continue;
                 int end = start + periods - 1;
+
+                if (!allowCrossLunch && !isValidBlock(start, end))
+                    continue;
 
                 // Look-ahead capacity check
                 boolean capacityOk = checkCapacity(ctx, subjectId, day, start, end);
@@ -111,13 +117,22 @@ public class SuggestionEngine {
                         reasons.add("Phòng rộng hơn cần thiết");
                     }
 
-                    // 2. Time quality score (sáng sớm ưu tiên)
-                    if (start <= 5) {
+                    // 2. Time quality score
+                    if (start <= 6) {
                         score += 10;
                         reasons.add("Giờ dạy sáng (tiết " + start + "-" + end + ")");
-                    } else if (start <= 9) {
+                    } else if (start <= 12) {
                         score += 5;
                         reasons.add("Giờ dạy chiều (tiết " + start + "-" + end + ")");
+                    } else {
+                        score += 0;
+                        reasons.add("Giờ dạy tối (tiết " + start + "-" + end + ")");
+                    }
+
+                    // 2.5. Alignment bonus
+                    if (start == 1 || start == 7 || start == 13 || (start - 1) % periods == 0 || (start - 7) % periods == 0) {
+                        score += 10;
+                        reasons.add("Ca học chuẩn, không gây phân mảnh");
                     }
 
                     // 3. Fragmentation penalty: nếu slot tạo gap bất thường trong ngày
@@ -229,5 +244,10 @@ public class SuggestionEngine {
             case 8 -> "Chủ nhật";
             default -> "Không xác định";
         };
+    }
+
+    // Kiểm tra chéo ca trưa. Ca sáng tiết 1-6. Ca chiều bắt đầu tiết 7.
+    private boolean isValidBlock(int start, int end) {
+        return !(start <= 6 && end >= 7);
     }
 }

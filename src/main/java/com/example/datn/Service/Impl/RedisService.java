@@ -116,7 +116,7 @@ public class RedisService implements IRedisService {
                     "            for i=1, 9 do\n" +
                     "                local s = studentMask[i] or 0\n" +
                     "                local c = classMask[i] or 0\n" +
-                    "                studentMask[i] = bit.bxor(s, c)\n" +
+                    "                studentMask[i] = bit.band(s, bit.bnot(c))\n" +
                     "            end\n" +
                     "            redis.call('SET', studentMaskKey, cjson.encode(studentMask))\n" +
                     "        end\n" +

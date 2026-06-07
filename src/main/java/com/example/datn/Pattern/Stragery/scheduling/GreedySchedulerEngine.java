@@ -38,13 +38,6 @@
         @Value("${scheduling.rules.allow-cross-lunch:false}")
         private boolean allowCrossLunch;
 
-        private static final Map<Integer, List<Integer>> VALID_STARTS_CACHE = new ConcurrentHashMap<>(8);
-        static {
-            VALID_STARTS_CACHE.put(2, List.of(1, 7, 3, 9, 5, 11));
-            VALID_STARTS_CACHE.put(3, List.of(1, 7, 4, 10));
-            VALID_STARTS_CACHE.put(4, List.of(1, 7));
-        }
-
         private final SchedulingMatrixBuilder matrixBuilder;
         private final ScheduleRepository scheduleRepository;
         private final RoomRepository roomRepository;
@@ -252,10 +245,8 @@
             if (baseRooms.isEmpty()) {
                 return ERR_NO_ROOM;
             }
-            // Sinh ra danh sách các các thời điểm bắt đầu hợp lệ
-            List<Integer> validStarts = (periods <= 5)
-                    ? VALID_STARTS_CACHE.computeIfAbsent(periods, this::generateValidStartsFallback)
-                    : generateValidStartsFallback(periods);
+            // Sinh ra danh sách các thời điểm bắt đầu hợp lệ
+            List<Integer> validStarts = generateValidStarts(periods);
 
             int roomBusyFails = 0;
             int capacityLimitFails = 0;
@@ -272,7 +263,6 @@
                     int end = start + periods - 1;
                     if (end > MAX_PERIOD) continue;
 
-                    if (!allowCrossLunch && !isValidBlock(start, end)) continue;
                     // Kiểm tra giới hạn số lớp cùng môn học đã xếp vào slot này
                     if (subjectId != null && !checkCapacity(ctx, subjectId, day, start, end)) {
                         capacityLimitFails++;
@@ -359,10 +349,13 @@
                     .anyMatch(childSchedule -> checkTimeOverlap(childSchedule, slotDay, slotStart, slotEnd));
         }
 
-        private List<Integer> generateValidStartsFallback(int periods) {
+        private List<Integer> generateValidStarts(int periods) {
             List<Integer> all = new ArrayList<>();
-            for (int i = 1; i <= MAX_PERIOD - periods + 1; i++) all.add(i);
-            return Collections.unmodifiableList(all);
+            for (int i = 1; i <= MAX_PERIOD - periods + 1; i++) {
+                if (!allowCrossLunch && !isValidBlock(i, i + periods - 1)) continue;
+                all.add(i);
+            }
+            return all;
         }
             // Kiểm tra phòng có trống trong khoảng thời gian đã xét hay không
         private boolean isRoomFree(SchedulingContext ctx, UUID roomId, int day, int start, int end) {
@@ -386,9 +379,9 @@
             schedule.setStartPeriod(null);
             schedule.setEndPeriod(null);
         }
-        // Kiểm tra lịch có rơi vào block 1-5 và 6-10 hay không
+        // Kiểm tra chéo ca trưa. Ca sáng tiết 1-6. Ca chiều bắt đầu tiết 7.
         private boolean isValidBlock(int start, int end) {
-            return !(start <= 5 && end >= 6);
+            return !(start <= 6 && end >= 7);
         }
         // Tính số lượng phòng đủ điều cho 1 schedule
         private int getEligibleRoomCount(Schedule s, Map<UUID, List<Room>> roomsByType, List<Room> allRooms) {
