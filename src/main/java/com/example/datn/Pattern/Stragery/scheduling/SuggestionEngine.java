@@ -38,7 +38,8 @@ public class SuggestionEngine {
     private boolean allowCrossLunch;
 
     private static final int[] WORKING_DAYS = { 2, 3, 4, 5, 6, 7 };
-    private static final int MAX_PERIOD = 15;
+    // Môn bình thường chỉ được xếp đến tiết 13. Tiết 14-16 dành riêng cho E-Learning
+    private static final int MAX_PERIOD = 13;
 
     private final ScheduleRepository scheduleRepository;
     private final RoomRepository roomRepository;

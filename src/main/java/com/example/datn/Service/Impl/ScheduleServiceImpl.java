@@ -152,8 +152,16 @@ public class ScheduleServiceImpl implements IScheduleService {
         Integer startPeriod = request.getStartPeriod();
         Integer endPeriod = startPeriod + periods - 1;
 
-        if (endPeriod>15) {
+        if (endPeriod>16) {
             throw new AppException(ErrorCode.MAX_PERIODS_PER_DAY_EXCEEDED);
+        }
+
+        SubjectComponent comp = schedule.getClassSection().getSubjectComponent();
+        boolean isElearning = comp != null && comp.getRequiredRoomType() != null
+                && "f6a7b8c9-d0e1-2f3a-4b5c-6d7e8f9a0b1c".equals(comp.getRequiredRoomType().getId().toString());
+        
+        if (!isElearning && endPeriod >= 14) {
+            throw new AppException(ErrorCode.INVALID_SCHEDULE_TIME, "Tiết 14-16 chỉ dành riêng cho các môn E-Learning.");
         }
 
         schedule.setDayOfWeek(request.getDayOfWeek());

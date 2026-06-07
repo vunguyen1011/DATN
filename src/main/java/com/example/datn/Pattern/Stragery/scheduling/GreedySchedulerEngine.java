@@ -353,6 +353,8 @@
             List<Integer> all = new ArrayList<>();
             for (int i = 1; i <= MAX_PERIOD - periods + 1; i++) {
                 if (!allowCrossLunch && !isValidBlock(i, i + periods - 1)) continue;
+                // Các môn bình thường không được xếp vào tiết 14-16
+                if (i + periods - 1 >= 14) continue;
                 all.add(i);
             }
             return all;
