@@ -65,7 +65,7 @@ public class SuggestionEngine {
         // Lọc phòng phù hợp loại
         var reqType = comp != null ? comp.getRequiredRoomType() : null;
         List<Room> candidateRooms = roomRepository.findAll().stream()
-                .filter(r -> r.getCapacity() != null && r.getCapacity() >= capacity)
+                .filter(r -> r.getCapacity() == null || r.getCapacity() >= capacity)
                 .filter(r -> reqType == null || (r.getRoomType() != null && reqType.getId().equals(r.getRoomType().getId())))
                 .collect(Collectors.toList());
 
@@ -73,7 +73,7 @@ public class SuggestionEngine {
         if (candidateRooms.isEmpty()) {
             isFallbackMode = true;
             candidateRooms = roomRepository.findAll().stream()
-                    .filter(r -> r.getCapacity() != null && r.getCapacity() >= capacity)
+                    .filter(r -> r.getCapacity() == null || r.getCapacity() >= capacity)
                     .collect(Collectors.toList());
         }
 
@@ -92,8 +92,6 @@ public class SuggestionEngine {
 
                 // Look-ahead capacity check
                 boolean capacityOk = checkCapacity(ctx, subjectId, day, start, end);
-                if (!capacityOk)
-                    continue;
 
                 for (Room room : candidateRooms) {
                     // Kiểm tra phòng trống
@@ -106,8 +104,11 @@ public class SuggestionEngine {
                     int score = 0;
 
                     // 1. Room fit score
-                    int surplus = room.getCapacity() - capacity;
-                    if (surplus == 0) {
+                    int surplus = room.getCapacity() != null ? room.getCapacity() - capacity : 0;
+                    if (room.getCapacity() == null) {
+                        score += 10;
+                        reasons.add("Phòng không xác định sức chứa");
+                    } else if (surplus == 0) {
                         score += 20;
                         reasons.add("Phòng vừa đúng sức chứa");
                     } else if (surplus <= 10) {
@@ -148,6 +149,10 @@ public class SuggestionEngine {
                     if (concurrent < max / 2) {
                         score += 5;
                         reasons.add("Môn học còn nhiều khung giờ trống");
+                    }
+                    if (!capacityOk) {
+                        score -= 20;
+                        reasons.add("⚠ Trùng nhiều lớp cùng môn (vượt giới hạn song song)");
                     }
 
                     // 5. Fallback room type penalty
