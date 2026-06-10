@@ -25,10 +25,8 @@ public class Bucket4jConfig {
     public ProxyManager<String> proxyManager() {
         RedisClient redisClient = (RedisClient) lettuceConnectionFactory.getNativeClient();
         var redisConnection = redisClient.connect(RedisCodec.of(StringCodec.UTF8, ByteArrayCodec.INSTANCE));
-
         var expirationStrategy = ExpirationAfterWriteStrategy.basedOnTimeForRefillingBucketUpToMax(Duration.ofMinutes(1));
         var clientConfig = ClientSideConfig.getDefault().withExpirationAfterWriteStrategy(expirationStrategy);
-
         return LettuceBasedProxyManager.builderFor(redisConnection).withClientSideConfig(clientConfig).build();
     }
 }

@@ -82,9 +82,11 @@ public class ScheduleServiceImpl implements IScheduleService {
         Semester semester = semesterRepository.findById(semesterId)
                 .orElseThrow(() -> new AppException(ErrorCode.SEMESTER_NOT_FOUND));
 
-        List<ClassSection> openedSections = classSectionRepository.findBySemesterIdAndStatus(semesterId, SectionStatus.OPENED);
+        List<ClassSection> openedSections = classSectionRepository.findBySemesterIdAndStatus(semesterId,
+                SectionStatus.OPENED);
         if (!openedSections.isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể tự động xếp lịch vì học kỳ này đã có lớp học phần được mở (OPENED)");
+            throw new AppException(ErrorCode.INVALID_REQUEST,
+                    "Không thể tự động xếp lịch vì học kỳ này đã có lớp học phần được mở (OPENED)");
         }
 
         return greedySchedulerEngine.run(semester.getId());
@@ -97,9 +99,11 @@ public class ScheduleServiceImpl implements IScheduleService {
         Semester semester = semesterRepository.findById(semesterId)
                 .orElseThrow(() -> new AppException(ErrorCode.SEMESTER_NOT_FOUND));
 
-        List<ClassSection> openedSections = classSectionRepository.findBySemesterIdAndStatus(semesterId, SectionStatus.OPENED);
+        List<ClassSection> openedSections = classSectionRepository.findBySemesterIdAndStatus(semesterId,
+                SectionStatus.OPENED);
         if (!openedSections.isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể xóa lịch học vì học kỳ này đã có lớp học phần được mở (OPENED)");
+            throw new AppException(ErrorCode.INVALID_REQUEST,
+                    "Không thể xóa lịch học vì học kỳ này đã có lớp học phần được mở (OPENED)");
         }
 
         List<Schedule> schedules = scheduleRepository
@@ -132,7 +136,8 @@ public class ScheduleServiceImpl implements IScheduleService {
     }
 
     @Override
-    public List<SlotSuggestionResponse> suggestSlotsForSchedule(UUID scheduleId, int topN, Integer dayOfWeek, Integer startPeriod) {
+    public List<SlotSuggestionResponse> suggestSlotsForSchedule(UUID scheduleId, int topN, Integer dayOfWeek,
+            Integer startPeriod) {
         return suggestionEngine.suggest(scheduleId, topN, dayOfWeek, startPeriod);
     }
 
@@ -152,16 +157,17 @@ public class ScheduleServiceImpl implements IScheduleService {
         Integer startPeriod = request.getStartPeriod();
         Integer endPeriod = startPeriod + periods - 1;
 
-        if (endPeriod>16) {
+        if (endPeriod > 16) {
             throw new AppException(ErrorCode.MAX_PERIODS_PER_DAY_EXCEEDED);
         }
 
         SubjectComponent comp = schedule.getClassSection().getSubjectComponent();
         boolean isElearning = comp != null && comp.getRequiredRoomType() != null
                 && "f6a7b8c9-d0e1-2f3a-4b5c-6d7e8f9a0b1c".equals(comp.getRequiredRoomType().getId().toString());
-        
+
         if (!isElearning && endPeriod >= 14) {
-            throw new AppException(ErrorCode.INVALID_SCHEDULE_TIME, "Tiết 14-16 chỉ dành riêng cho các môn E-Learning.");
+            throw new AppException(ErrorCode.INVALID_SCHEDULE_TIME,
+                    "Tiết 14-16 chỉ dành riêng cho các môn E-Learning.");
         }
 
         schedule.setDayOfWeek(request.getDayOfWeek());
@@ -190,12 +196,12 @@ public class ScheduleServiceImpl implements IScheduleService {
         Schedule schedule = findScheduleById(scheduleId);
         checkLock(schedule);
         if (schedule.getClassSection() != null && schedule.getClassSection().getStatus() == SectionStatus.OPENED) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể hủy thời gian học của lớp học phần đã mở (OPENED)");
+            throw new AppException(ErrorCode.INVALID_REQUEST,
+                    "Không thể hủy thời gian học của lớp học phần đã mở (OPENED)");
         }
         if (schedule.getDayOfWeek() == null && schedule.getStartPeriod() == null && schedule.getEndPeriod() == null) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Lịch học chưa được xếp thời gian, không thể hủy bỏ");
         }
-        
 
         schedule.setDayOfWeek(null);
         schedule.setStartPeriod(null);
@@ -219,7 +225,8 @@ public class ScheduleServiceImpl implements IScheduleService {
             if (room.getCapacity() != null) {
                 int maxStudents = schedule.getClassSection().getCapacity();
                 if (maxStudents > room.getCapacity()) {
-                    throw new AppException(ErrorCode.ROOM_CAPACITY_EXCEEDED, "Sức chứa của phòng (" + room.getCapacity() + " sinh viên) không đủ cho lớp học phần này (" + maxStudents + " sinh viên)");
+                    throw new AppException(ErrorCode.ROOM_CAPACITY_EXCEEDED, "Sức chứa của phòng (" + room.getCapacity()
+                            + " sinh viên) không đủ cho lớp học phần này (" + maxStudents + " sinh viên)");
                 }
             }
 
@@ -241,7 +248,8 @@ public class ScheduleServiceImpl implements IScheduleService {
         Schedule schedule = findScheduleById(scheduleId);
         checkLock(schedule);
         if (schedule.getClassSection() != null && schedule.getClassSection().getStatus() == SectionStatus.OPENED) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể hủy phòng học của lớp học phần đã mở (OPENED)");
+            throw new AppException(ErrorCode.INVALID_REQUEST,
+                    "Không thể hủy phòng học của lớp học phần đã mở (OPENED)");
         }
         if (schedule.getRoom() == null) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Lịch học chưa được xếp phòng, không thể hủy bỏ");
