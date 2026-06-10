@@ -98,7 +98,7 @@ public class StudentService implements IStudentService {
 
             try {
                 com.lowagie.text.pdf.BaseFont bf = com.lowagie.text.pdf.BaseFont.createFont(
-                        "C:\\Windows\\Fonts\\arial.ttf", com.lowagie.text.pdf.BaseFont.IDENTITY_H,
+                        "/fonts/arial.ttf", com.lowagie.text.pdf.BaseFont.IDENTITY_H,
                         com.lowagie.text.pdf.BaseFont.EMBEDDED);
                 titleFont = new com.lowagie.text.Font(bf, 18, com.lowagie.text.Font.BOLD);
                 headerFont = new com.lowagie.text.Font(bf, 12, com.lowagie.text.Font.BOLD);
