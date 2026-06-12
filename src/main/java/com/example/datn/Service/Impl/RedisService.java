@@ -14,6 +14,9 @@ import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
 
 @Slf4j
 @Service
@@ -148,6 +151,7 @@ public class RedisService implements IRedisService {
     private final StringRedisTemplate redisTemplate;
     private final ClassSectionRepository classSectionRepository;
     private final com.example.datn.Repository.ScheduleRepository scheduleRepository;
+    private final com.example.datn.Repository.EnrollmentRepository enrollmentRepository;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     @Override
@@ -325,6 +329,17 @@ public class RedisService implements IRedisService {
                 redisTemplate.delete(subjectKey);
                 deletedSubjects.add(subjectKey);
             }
+            
+            // Lấy danh sách sinh viên đã đăng ký lớp này từ DB và đưa vào Redis Set
+            java.util.List<com.example.datn.Model.Enrollment> enrollments = enrollmentRepository.findByClassSection_IdAndStatus(
+                    section.getId(), com.example.datn.ENUM.EnrollmentStatus.REGISTERED, org.springframework.data.domain.Pageable.unpaged()).getContent();
+            if (!enrollments.isEmpty()) {
+                String[] studentIds = enrollments.stream()
+                        .map(e -> e.getStudent().getId().toString())
+                        .toArray(String[]::new);
+                redisTemplate.opsForSet().add(setKey, studentIds);
+                redisTemplate.opsForSet().add(subjectKey, studentIds);
+            }
             count++;
         }
         log.info("[SYNC] Đã đồng bộ {} lớp học phần của học kỳ {} lên Redis.", count, semesterId);
@@ -341,6 +356,22 @@ public class RedisService implements IRedisService {
             mask[day] |= periodMask;
         }
         return mask;
+    }
+
+    @Override
+    public String recalculateAndCacheClassMask(java.util.UUID classSectionId) {
+        String classMaskKey = "class_mask:" + classSectionId;
+        java.util.List<com.example.datn.Model.Schedule> schedules = scheduleRepository.findByClassSection_Id(classSectionId);
+        int[] mask = buildScheduleMask(schedules);
+        try {
+            String maskStr = objectMapper.writeValueAsString(mask);
+            redisTemplate.opsForValue().set(classMaskKey, maskStr);
+            log.info("Đã load lại class_mask từ DB cho lớp {}", classSectionId);
+            return maskStr;
+        } catch (Exception e) {
+            log.error("Lỗi parse mask fallback cho lớp {}", classSectionId, e);
+            return null;
+        }
     }
 
     @Override
@@ -400,5 +431,85 @@ public class RedisService implements IRedisService {
                 String.valueOf(windowInSeconds)
         );
         return result != null ? result : 0;
+    }
+
+    @Override
+    public void addPendingRegistration(java.util.UUID studentId, java.util.UUID classSectionId) {
+        String key = "pending_reg:" + studentId + ":" + classSectionId;
+        redisTemplate.opsForValue().set(key, "1", Duration.ofHours(24));
+    }
+
+    @Override
+    public void removePendingRegistration(java.util.UUID studentId, java.util.UUID classSectionId) {
+        String key = "pending_reg:" + studentId + ":" + classSectionId;
+        redisTemplate.delete(key);
+    }
+
+    @Override
+    public void expirePendingRegistration(java.util.UUID studentId, java.util.UUID classSectionId, Duration duration) {
+        String key = "pending_reg:" + studentId + ":" + classSectionId;
+        redisTemplate.expire(key, duration);
+    }
+
+    @Override
+    public java.util.Set<java.util.UUID> getPendingRegistrations(java.util.UUID studentId) {
+        Set<java.util.UUID> pendingClassIds = new HashSet<>();
+        String pattern = "pending_reg:" + studentId + ":*";
+
+        redisTemplate.execute((RedisConnection connection) -> {
+            ScanOptions options = ScanOptions.scanOptions().match(pattern).count(50).build();
+            try (Cursor<byte[]> cursor = connection.scan(options)) {
+                while (cursor.hasNext()) {
+                    String key = new String(cursor.next());
+                    String classIdStr = key.substring(key.lastIndexOf(":") + 1);
+                    pendingClassIds.add(java.util.UUID.fromString(classIdStr));
+                }
+            } catch (Exception e) {
+                log.error("Lỗi scan Redis keys cho sinh viên: {}", studentId, e);
+            }
+            return null;
+        });
+
+        return pendingClassIds;
+    }
+
+    @Override
+    public void addPendingCancellation(java.util.UUID studentId, java.util.UUID classSectionId) {
+        String key = "pending_cancel:" + studentId + ":" + classSectionId;
+        redisTemplate.opsForValue().set(key, "1", Duration.ofHours(24));
+    }
+
+    @Override
+    public void removePendingCancellation(java.util.UUID studentId, java.util.UUID classSectionId) {
+        String key = "pending_cancel:" + studentId + ":" + classSectionId;
+        redisTemplate.delete(key);
+    }
+
+    @Override
+    public void expirePendingCancellation(java.util.UUID studentId, java.util.UUID classSectionId, Duration duration) {
+        String key = "pending_cancel:" + studentId + ":" + classSectionId;
+        redisTemplate.expire(key, duration);
+    }
+
+    @Override
+    public java.util.Set<java.util.UUID> getPendingCancellations(java.util.UUID studentId) {
+        Set<java.util.UUID> pendingClassIds = new HashSet<>();
+        String pattern = "pending_cancel:" + studentId + ":*";
+
+        redisTemplate.execute((RedisConnection connection) -> {
+            ScanOptions options = ScanOptions.scanOptions().match(pattern).count(50).build();
+            try (Cursor<byte[]> cursor = connection.scan(options)) {
+                while (cursor.hasNext()) {
+                    String key = new String(cursor.next());
+                    String classIdStr = key.substring(key.lastIndexOf(":") + 1);
+                    pendingClassIds.add(java.util.UUID.fromString(classIdStr));
+                }
+            } catch (Exception e) {
+                log.error("Lỗi scan Redis keys pending_cancel cho sinh viên: {}", studentId, e);
+            }
+            return null;
+        });
+
+        return pendingClassIds;
     }
 }

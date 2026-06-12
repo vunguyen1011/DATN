@@ -41,13 +41,18 @@ public class EnrollmentSaveHelper {
     }
 
     private void safeFallbackRescue(List<EnrollmentSaveRequest> requests) {
+        int failedCount = 0;
         for (EnrollmentSaveRequest req : requests) {
             try {
                 fastBatchProcessor.executeSingleSave(req);
             } catch (Exception ex) {
                 log.error("Data sync failed for student {} in class {}. Error: {}",
                         req.studentId(), req.classSectionId(), ex.getMessage());
+                failedCount++;
             }
+        }
+        if (failedCount > 0) {
+            throw new RuntimeException("Có " + failedCount + " request lưu thất bại trong quá trình rescue. Chuyển sang DLQ.");
         }
     }
 }

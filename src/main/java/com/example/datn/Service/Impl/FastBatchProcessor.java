@@ -27,8 +27,8 @@ public class FastBatchProcessor {
                         Collectors.summingLong(this::calculateDelta)
                 ));
 
-        String updateSql = "UPDATE class_sections SET enrolled_count = enrolled_count + ? " +
-                "WHERE id = ? AND enrolled_count + ? >= 0 AND enrolled_count + ? <= capacity";
+        String updateSql = "UPDATE class_sections SET enrolled_count = enrolled_count + ?::int " +
+                "WHERE id = ?::uuid AND enrolled_count + ?::int >= 0 AND enrolled_count + ?::int <= capacity";
 
         List<Object[]> updateArgs = sectionDeltas.entrySet().stream()
                 .filter(entry -> entry.getValue() != 0)

@@ -41,6 +41,7 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                                                                        // inject trong constructor/Lombok)
     private final com.example.datn.Mapper.ClassSectionMapper classSectionMapper;
     private final com.example.datn.Repository.ScheduleRepository scheduleRepository;
+    private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
 
     private List<Subject> getAllSubjects() {
         return subjectRepository.findByIsActiveTrue(org.springframework.data.domain.Pageable.unpaged()).getContent();
@@ -430,7 +431,20 @@ public class ClassSectionServiceImpl implements IClassSectionService {
     public ClassSectionResponse getClassSectionById(UUID id) {
         ClassSection section = classSectionRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.SECTION_NOT_FOUND, "Không tìm thấy lớp học phần"));
-        return classSectionMapper.toResponse(section);
+        ClassSectionResponse response = classSectionMapper.toResponse(section);
+        try {
+            String slotStr = redisTemplate.opsForValue().get("class_slot:" + id);
+            if (slotStr != null) {
+                int availableSlots = Integer.parseInt(slotStr);
+                response.setEnrolledCount(Math.max(0, response.getCapacity() - availableSlots));
+            }
+        } catch (Exception ignored) {}
+        
+        List<Schedule> schedules = scheduleRepository.findByClassSection_Id(id);
+        if (!schedules.isEmpty()) {
+            response.setSchedules(schedules.stream().map(this::mapScheduleToResponse).collect(Collectors.toList()));
+        }
+        return response;
     }
 
     @Override
@@ -442,6 +456,16 @@ public class ClassSectionServiceImpl implements IClassSectionService {
                 .findBySubjectIdAndSemesterId(subjectId, currentSemester.getId()).stream()
                 .map(classSectionMapper::toResponse)
                 .collect(Collectors.toList());
+
+        for (com.example.datn.DTO.Response.ClassSectionResponse res : allResponses) {
+            try {
+                String slotStr = redisTemplate.opsForValue().get("class_slot:" + res.getId());
+                if (slotStr != null) {
+                    int availableSlots = Integer.parseInt(slotStr);
+                    res.setEnrolledCount(Math.max(0, res.getCapacity() - availableSlots));
+                }
+            } catch (Exception ignored) {}
+        }
 
         // Lấy danh sách ID để lôi hàng loạt lịch học ra 1 lần
         List<UUID> responseIds = allResponses.stream()

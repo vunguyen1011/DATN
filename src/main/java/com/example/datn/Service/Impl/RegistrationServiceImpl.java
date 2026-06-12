@@ -54,8 +54,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
     private final RabbitMQProducer rabbitMQProducer;
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
-
-
+    private final com.example.datn.Service.Interface.IClassSectionService classSectionService;
 
     private Student getCurrentStudent() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -91,6 +90,9 @@ public class RegistrationServiceImpl implements IRegistrationService {
         log.info("Bắt đầu đăng ký cho Student: {}, Cohort: {}", student.getId(), cohortId);
         
         PeriodCohort activePeriod = getActivePeriodCohort(cohortId);
+        if (activePeriod == null || activePeriod.getRegistrationPeriod() == null || activePeriod.getRegistrationPeriod().getSemester() == null) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Hiện không trong thời gian đăng ký tín chỉ hoặc cấu hình đợt đăng ký bị lỗi");
+        }
         UUID semesterId = activePeriod.getRegistrationPeriod().getSemester().getId();
 
    ClassSectionCacheDTO theorySection = getFromRedisCache("class_metadata:" + request.getTheoryClassId());
@@ -123,7 +125,17 @@ public class RegistrationServiceImpl implements IRegistrationService {
 
         // Fetch pre-computed Class Masks from Redis
         String theoryMaskStr = redisTemplate.opsForValue().get("class_mask:" + theorySection.getId());
-        String labMaskStr = labSection != null ? redisTemplate.opsForValue().get("class_mask:" + labSection.getId()) : null;
+        if (theoryMaskStr == null) {
+            theoryMaskStr = redisService.recalculateAndCacheClassMask(theorySection.getId());
+        }
+
+        String labMaskStr = null;
+        if (labSection != null) {
+            labMaskStr = redisTemplate.opsForValue().get("class_mask:" + labSection.getId());
+            if (labMaskStr == null) {
+                labMaskStr = redisService.recalculateAndCacheClassMask(labSection.getId());
+            }
+        }
         UUID labId = labSection != null ? labSection.getId() : null;
 
         // ── GIAI ĐOẠN 2: REDIS LUA SCRIPT (ATOMIC VALIDATION & ACQUIRE) ────────
@@ -162,7 +174,17 @@ public class RegistrationServiceImpl implements IRegistrationService {
         List<EnrollmentSaveRequest> saveRequests = toSave.stream()
                 .map(EnrollmentSaveRequest::from)
                 .collect(Collectors.toList());
-        rabbitMQProducer.sendMessage(saveRequests);
+        
+        // Thêm vào Redis Pending Buffer (Đảm bảo Consistency)
+        redisService.addPendingRegistration(student.getId(), theorySection.getId());
+        redisService.removePendingCancellation(student.getId(), theorySection.getId());
+        
+        if (labSection != null) {
+            redisService.addPendingRegistration(student.getId(), labSection.getId());
+            redisService.removePendingCancellation(student.getId(), labSection.getId());
+        }
+
+        rabbitMQProducer.sendMessage(saveRequests.toArray(new EnrollmentSaveRequest[0]));
         return responses;
     }
 
@@ -171,46 +193,90 @@ public class RegistrationServiceImpl implements IRegistrationService {
         Student student = getCurrentStudent();
         getActivePeriodCohort(student.getCohort().getId());
 
-        Enrollment theoryEnrollment = enrollmentRepository
-                .findByStudentIdAndClassSectionId(student.getId(), theoryClassSectionId)
-                .orElseThrow(() -> new AppException(ErrorCode.ENROLLMENT_NOT_FOUND, "Không tìm thấy dữ liệu đăng ký"));
+        ClassSection theorySection = classSectionRepository.findById(theoryClassSectionId)
+                .orElseThrow(() -> new AppException(ErrorCode.SECTION_NOT_FOUND, "Lớp học phần không tồn tại"));
 
-        if (theoryEnrollment.getStatus() != EnrollmentStatus.REGISTERED) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Lớp này chưa được đăng ký hoặc đã bị hủy");
-        }
-
-        ClassSection theorySection = theoryEnrollment.getClassSection();
         if (theorySection.getParentSection() != null) {
-            throw new AppException(ErrorCode.INVALID_REQUEST,
-                    "Vui lòng truyền ID của lớp lý thuyết để hủy toàn bộ môn học");
+            // Nếu sinh viên bấm hủy từ lớp thực hành, tự động điều hướng về lớp lý thuyết để hủy toàn bộ môn học
+            theoryClassSectionId = theorySection.getParentSection().getId();
+            theorySection = theorySection.getParentSection();
         }
 
-        List<Enrollment> enrollmentsToCancel = new ArrayList<>();
+        Set<UUID> pendingCancels = redisService.getPendingCancellations(student.getId());
+        if (pendingCancels.contains(theoryClassSectionId)) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Yêu cầu hủy đang được xử lý, vui lòng không thao tác lại");
+        }
 
-        // Hủy Lý thuyết và trả slot Redis
-        theoryEnrollment.setStatus(EnrollmentStatus.CANCELLED);
-        enrollmentsToCancel.add(theoryEnrollment);
-        String theoryMaskStr = redisTemplate.opsForValue().get("class_mask:" + theoryClassSectionId);
-        redisService.releaseSlot(theoryClassSectionId, student.getId(), theorySection.getSubject().getId(), theoryMaskStr);
+        Optional<Enrollment> theoryEnrollmentOpt = enrollmentRepository.findByStudentIdAndClassSectionId(student.getId(), theoryClassSectionId);
+        Set<UUID> pendingRegs = redisService.getPendingRegistrations(student.getId());
 
-        // Hủy Thực hành đi kèm (nếu có) và trả slot Redis
-        List<Enrollment> currentEnrollments = enrollmentRepository.findActiveEnrollmentsBySemester(
-                student.getId(), theorySection.getSemester().getId(), EnrollmentStatus.REGISTERED);
+        boolean existsInDb = theoryEnrollmentOpt.isPresent() && theoryEnrollmentOpt.get().getStatus() == EnrollmentStatus.REGISTERED;
+        boolean existsInPending = pendingRegs.contains(theoryClassSectionId);
 
-        for (Enrollment en : currentEnrollments) {
-            ClassSection sec = en.getClassSection();
-            if (sec.getParentSection() != null && sec.getParentSection().getId().equals(theoryClassSectionId)) {
-                en.setStatus(EnrollmentStatus.CANCELLED);
-                enrollmentsToCancel.add(en);
-                String labMaskStr = redisTemplate.opsForValue().get("class_mask:" + sec.getId());
-                redisService.releaseSlot(sec.getId(), student.getId(), null, labMaskStr);
-                break;
+        if (!existsInDb && !existsInPending) {
+            throw new AppException(ErrorCode.ENROLLMENT_NOT_FOUND, "Lớp này chưa được đăng ký hoặc đã bị hủy");
+        }
+
+        List<ClassSection> sectionsToCancel = new ArrayList<>();
+        sectionsToCancel.add(theorySection);
+
+        if (existsInDb) {
+            List<Enrollment> currentEnrollments = enrollmentRepository.findActiveEnrollmentsBySemester(
+                    student.getId(), theorySection.getSemester().getId(), EnrollmentStatus.REGISTERED);
+            for (Enrollment en : currentEnrollments) {
+                if (en.getClassSection().getParentSection() != null && en.getClassSection().getParentSection().getId().equals(theoryClassSectionId)) {
+                    sectionsToCancel.add(en.getClassSection());
+                }
             }
         }
-        List<EnrollmentSaveRequest> cancelRequests = enrollmentsToCancel.stream()
-                .map(EnrollmentSaveRequest::from)
-                .collect(Collectors.toList());
-        rabbitMQProducer.sendMessage(cancelRequests);
+
+        if (existsInPending) {
+            for (UUID pendingId : pendingRegs) {
+                boolean alreadyAdded = sectionsToCancel.stream().anyMatch(s -> s.getId().equals(pendingId));
+                if (!alreadyAdded) {
+                    ClassSection pendingSec = classSectionRepository.findById(pendingId).orElse(null);
+                    if (pendingSec != null && pendingSec.getParentSection() != null && pendingSec.getParentSection().getId().equals(theoryClassSectionId)) {
+                        sectionsToCancel.add(pendingSec);
+                    }
+                }
+            }
+        }
+
+        List<EnrollmentSaveRequest> cancelRequests = new ArrayList<>();
+
+        for (ClassSection sec : sectionsToCancel) {
+            String classMaskStr = redisTemplate.opsForValue().get("class_mask:" + sec.getId());
+            if (classMaskStr == null) {
+                classMaskStr = redisService.recalculateAndCacheClassMask(sec.getId());
+            }
+
+            redisService.releaseSlot(sec.getId(), student.getId(), sec.getParentSection() == null ? sec.getSubject().getId() : null, classMaskStr);
+            
+            // Đánh dấu pending cancel và xóa pending reg bị xung đột
+            redisService.addPendingCancellation(student.getId(), sec.getId());
+            redisService.removePendingRegistration(student.getId(), sec.getId());
+
+            UUID enrollId;
+            if (existsInDb && sec.getId().equals(theoryClassSectionId)) {
+                enrollId = theoryEnrollmentOpt.get().getId();
+            } else if (existsInDb) {
+                enrollId = enrollmentRepository.findByStudentIdAndClassSectionId(student.getId(), sec.getId())
+                        .map(Enrollment::getId)
+                        .orElse(UUID.randomUUID());
+            } else {
+                enrollId = UUID.randomUUID(); 
+            }
+
+            EnrollmentSaveRequest req = new EnrollmentSaveRequest(
+                    enrollId, student.getId(), sec.getId(), sec.getSemester().getId(), sec.getSubject().getId(),
+                    EnrollmentStatus.REGISTERED, EnrollmentStatus.CANCELLED, LocalDateTime.now()
+            );
+            cancelRequests.add(req);
+        }
+
+        if (!cancelRequests.isEmpty()) {
+            rabbitMQProducer.sendMessage(cancelRequests.toArray(new EnrollmentSaveRequest[0]));
+        }
     }
 
 
@@ -251,13 +317,46 @@ public class RegistrationServiceImpl implements IRegistrationService {
                         () -> new AppException(ErrorCode.CURRENT_SEMESTER_NOT_FOUND, "Không tìm thấy học kỳ hiện tại"));
 
         // 2. Trả về danh sách môn học sinh viên đã đăng ký trong học kỳ đó
-        return enrollmentRepository.findActiveEnrollmentsBySemester(
+        List<EnrollmentResponse> dbEnrollments = enrollmentRepository.findActiveEnrollmentsBySemester(
                 student.getId(),
                 currentSemester.getId(),
                 EnrollmentStatus.REGISTERED)
                 .stream()
                 .map(enrollmentMapper::toResponse)
                 .collect(Collectors.toList());
+
+        // 3. Xử lý Eventual Consistency (Merge với Redis Pending Buffer)
+        Set<UUID> pendingCancels = redisService.getPendingCancellations(student.getId());
+        Set<UUID> pendingRegs = redisService.getPendingRegistrations(student.getId());
+
+        List<EnrollmentResponse> finalResponses = dbEnrollments.stream()
+                .filter(res -> !pendingCancels.contains(res.getClassSection().getId()))
+                .collect(Collectors.toList());
+
+        Set<UUID> existingIds = finalResponses.stream()
+                .map(res -> res.getClassSection().getId())
+                .collect(Collectors.toSet());
+
+        for (UUID pendingId : pendingRegs) {
+            if (!existingIds.contains(pendingId) && !pendingCancels.contains(pendingId)) {
+                try {
+                    com.example.datn.DTO.Response.ClassSectionResponse classSection = classSectionService.getClassSectionById(pendingId);
+                    if (classSection.getSemesterId().equals(currentSemester.getId())) {
+                        EnrollmentResponse pendingRes = EnrollmentResponse.builder()
+                                .id(UUID.randomUUID())
+                                .classSection(classSection)
+                                .status(EnrollmentStatus.REGISTERED)
+                                .enrollmentDate(LocalDateTime.now())
+                                .build();
+                        finalResponses.add(pendingRes);
+                    }
+                } catch (Exception e) {
+                    log.warn("Không thể lấy thông tin chi tiết cho lớp pending: {}", pendingId, e);
+                }
+            }
+        }
+        finalResponses.sort(Comparator.comparing(res -> res.getClassSection().getSectionCode()));
+        return finalResponses;
     }
 
     @Override

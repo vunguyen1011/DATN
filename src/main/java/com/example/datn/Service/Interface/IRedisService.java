@@ -39,8 +39,20 @@ public interface IRedisService {
     int tryAcquireSlot(java.util.UUID theoryId, java.util.UUID labId, java.util.UUID studentId, java.util.UUID subjectId, String theoryMask, String labMask);
 
     void releaseSlot(java.util.UUID classSectionId, java.util.UUID studentId, java.util.UUID subjectId, String classMask);
+    
+    String recalculateAndCacheClassMask(java.util.UUID classSectionId);
 
     void clearRegistrationData();
 
     long incrementAndCheckRateLimit(String key, int windowInSeconds);
+
+    void addPendingRegistration(java.util.UUID studentId, java.util.UUID classSectionId);
+    void removePendingRegistration(java.util.UUID studentId, java.util.UUID classSectionId);
+    void expirePendingRegistration(java.util.UUID studentId, java.util.UUID classSectionId, java.time.Duration duration);
+    java.util.Set<java.util.UUID> getPendingRegistrations(java.util.UUID studentId);
+
+    void addPendingCancellation(java.util.UUID studentId, java.util.UUID classSectionId);
+    void removePendingCancellation(java.util.UUID studentId, java.util.UUID classSectionId);
+    void expirePendingCancellation(java.util.UUID studentId, java.util.UUID classSectionId, java.time.Duration duration);
+    java.util.Set<java.util.UUID> getPendingCancellations(java.util.UUID studentId);
 }

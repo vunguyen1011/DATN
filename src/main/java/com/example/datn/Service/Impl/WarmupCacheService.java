@@ -38,6 +38,7 @@ public class WarmupCacheService implements IWarmupCacheService, CommandLineRunne
     private final ObjectMapper objectMapper;
     
     @Override
+    @Transactional(readOnly = true)
     public void run(String... args) throws Exception {
         log.info("--- Auto-running Warmup Cache on Startup ---");
         try {
@@ -59,7 +60,6 @@ public class WarmupCacheService implements IWarmupCacheService, CommandLineRunne
     private final ISubjectService subjectService;
 
     @Override
-    @Transactional(readOnly = true)
     public void warmupAll() {
         log.info("Bắt đầu quá trình Warmup Cache (Endgame Architecture - Zero DB I/O)...");
         

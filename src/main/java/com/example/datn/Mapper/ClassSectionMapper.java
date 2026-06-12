@@ -25,6 +25,7 @@ public class ClassSectionMapper {
                 .minStudents(entity.getMinStudents())
                 .enrolledCount(entity.getEnrolledCount())
                 .status(entity.getStatus())
+                .credit(entity.getSubjectComponent() != null && entity.getSubjectComponent().getSubject() != null ? entity.getSubjectComponent().getSubject().getCredits() : null)
                 .build();
     }
 }
