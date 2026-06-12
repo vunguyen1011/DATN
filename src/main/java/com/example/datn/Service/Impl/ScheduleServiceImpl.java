@@ -82,12 +82,8 @@ public class ScheduleServiceImpl implements IScheduleService {
         Semester semester = semesterRepository.findById(semesterId)
                 .orElseThrow(() -> new AppException(ErrorCode.SEMESTER_NOT_FOUND));
 
-        List<ClassSection> openedSections = classSectionRepository.findBySemesterIdAndStatus(semesterId,
-                SectionStatus.OPENED);
-        if (!openedSections.isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST,
-                    "Không thể tự động xếp lịch vì học kỳ này đã có lớp học phần được mở (OPENED)");
-        }
+        // Đã gỡ bỏ rào chắn chặn xếp lịch khi có lớp OPENED.
+        // GreedySchedulerEngine sẽ tự động chỉ xếp các lịch chưa có phòng/giờ và chưa chốt (khác OPENED).
 
         return greedySchedulerEngine.run(semester.getId());
     }
@@ -103,7 +99,7 @@ public class ScheduleServiceImpl implements IScheduleService {
                 SectionStatus.OPENED);
         if (!openedSections.isEmpty()) {
             throw new AppException(ErrorCode.INVALID_REQUEST,
-                    "Không thể xóa lịch học vì học kỳ này đã có lớp học phần được mở (OPENED)");
+                    "Không thể xóa lịch học vì học kỳ này đã có lớp học phần được mở (OPENED). Việc xóa có thể làm đảo lộn lịch của các sinh viên đã đăng ký.");
         }
 
         List<Schedule> schedules = scheduleRepository
