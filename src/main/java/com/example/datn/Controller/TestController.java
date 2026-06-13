@@ -39,4 +39,14 @@
             supportService.generateStressTestData();
             return ResponseEntity.ok("Tạo dữ liệu stress test (30 phòng, 40 giảng viên, 600 lớp học phần) thành công!");
         }
+
+        @Operation(summary = "Tạo bảng điểm giả lập cho một sinh viên để test AI")
+        @PostMapping("/add-mock-grades/{studentCode}")
+        public ResponseEntity<String> addMockGrades(
+                @PathVariable String studentCode, 
+                @RequestParam(defaultValue = "5") int passedCount, 
+                @RequestParam(defaultValue = "2") int failedCount) {
+            String result = supportService.addMockGradesForStudent(studentCode, passedCount, failedCount);
+            return ResponseEntity.ok(result);
+        }
     }

@@ -14,7 +14,10 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.stream.Collectors;
+import com.example.datn.Repository.StudentGradeRepository;
+import com.example.datn.Repository.ProgramSubjectRepository;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -35,6 +38,8 @@ public class SupportService {
     private final TypeRoomRepository typeRoomRepository;
     private final SubjectRepository subjectRepository;
     private final SubjectComponentRepository subjectComponentRepository;
+    private final StudentGradeRepository studentGradeRepository;
+    private final ProgramSubjectRepository programSubjectRepository;
 
     public void createTokenCsvFile(int limit) {
         List<User> students = studentRepository.findAll()
@@ -382,5 +387,93 @@ public class SupportService {
         scheduleRepository.saveAll(schedulesToSave);
 
         log.info("[StressTest] Tạo dữ liệu test stress thành công! Tổng cộng: 30 phòng, 40 giảng viên, 600 lớp học phần (đã khởi tạo sẵn Schedule trống).");
+    }
+
+    @Transactional
+    public String addMockGradesForStudent(String studentCode, int passedCount, int failedCount) {
+        Student student = studentRepository.findByUser_Username(studentCode)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy sinh viên"));
+
+        Semester currentSemester = semesterRepository.findByIsCurrentTrue()
+                .orElseThrow(() -> new RuntimeException("Chưa có học kỳ hiện tại"));
+
+        // Tạo một học kỳ giả lập trong quá khứ để không bị nhầm lẫn với học kỳ hiện tại
+        Semester mockPastSemester = semesterRepository.findAll().stream()
+                .filter(s -> "Học kỳ giả lập AI".equals(s.getName()))
+                .findFirst()
+                .orElseGet(() -> semesterRepository.save(Semester.builder()
+                        .name("Học kỳ giả lập AI")
+                        .academicYear(currentSemester.getAcademicYear())
+                        .isCurrent(false)
+                        .startDate(java.time.LocalDate.now().minusMonths(6))
+                        .endDate(java.time.LocalDate.now().minusMonths(1))
+                        .build()));
+
+        List<ProgramSubject> programSubjects = programSubjectRepository.findSubjectsByCohortAndMajor(
+                student.getCohort().getId(),
+                student.getMajor().getId()
+        );
+
+        if (programSubjects.isEmpty()) {
+            return "Chương trình đào tạo của sinh viên này chưa có môn học nào.";
+        }
+
+        List<ProgramSubject> mutableList = new ArrayList<>(programSubjects);
+        Collections.shuffle(mutableList);
+        
+        int totalNeeded = passedCount + failedCount;
+        if (mutableList.size() < totalNeeded) {
+            totalNeeded = mutableList.size();
+        }
+
+        List<ProgramSubject> selectedSubjects = mutableList.subList(0, totalNeeded);
+        
+        for (int i = 0; i < totalNeeded; i++) {
+            Subject subject = selectedSubjects.get(i).getSubject();
+            boolean isPassed = i < passedCount;
+            
+            // Tìm SubjectComponent đầu tiên của môn học để gán vào ClassSection, tránh lỗi NOT NULL
+            SubjectComponent component = subjectComponentRepository.findBySubjectId(subject.getId()).stream()
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Môn học " + subject.getCode() + " không có cấu phần (SubjectComponent)."));
+
+            // Luôn tạo ClassSection giả lập cho kỳ học trong quá khứ
+            ClassSection mockSection = classSectionRepository.findAll().stream()
+                .filter(cs -> cs.getSectionCode().equals("MOCK_" + subject.getCode()) && cs.getSemester().getId().equals(mockPastSemester.getId()))
+                .findFirst()
+                .orElseGet(() -> classSectionRepository.save(ClassSection.builder()
+                        .sectionCode("MOCK_" + subject.getCode())
+                        .subject(subject)
+                        .subjectComponent(component)
+                        .semester(mockPastSemester)
+                        .capacity(40)
+                        .status(SectionStatus.OPENED)
+                        .build()));
+
+            Enrollment enrollment = enrollmentRepository.findByStudentIdAndClassSectionId(student.getId(), mockSection.getId())
+                    .orElseGet(() -> enrollmentRepository.save(Enrollment.builder()
+                            .student(student)
+                            .classSection(mockSection)
+                            .status(EnrollmentStatus.REGISTERED)
+                            .build()));
+
+            double midtermScore = isPassed ? 8.0 : 3.0;
+            double finalScore = isPassed ? 9.0 : 4.0;
+            double totalScore = (midtermScore * 0.4) + (finalScore * 0.6);
+
+            StudentGrade grade = studentGradeRepository.findByEnrollmentId(enrollment.getId())
+                    .orElseGet(() -> StudentGrade.builder()
+                            .enrollment(enrollment)
+                            .build());
+
+            grade.setMidtermScore(midtermScore);
+            grade.setFinalScore(finalScore);
+            grade.setTotalScore((double) Math.round(totalScore * 10) / 10);
+            grade.setIsPassed(isPassed);
+            
+            studentGradeRepository.save(grade);
+        }
+
+        return "Đã thêm " + passedCount + " môn qua (Passed) và " + failedCount + " môn trượt (Failed) cho sinh viên " + studentCode;
     }
 }
