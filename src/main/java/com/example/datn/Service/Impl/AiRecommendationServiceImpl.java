@@ -73,7 +73,7 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
             } catch (Exception e) {
                 log.error("Lỗi khi xử lý Recommendation", e);
                 // Return fallback if everything fails
-                return getFallbackRecommendations(Collections.emptyList(), "Lỗi hệ thống. Vui lòng thử lại sau.");
+                return getFallbackRecommendations(Collections.emptyList(), "Lỗi hệ thống. Vui lòng thử lại sau.", Collections.emptySet());
             }
         }
     }
@@ -153,11 +153,19 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
             rawAiResponse = geminiService.callGeminiApi(prompt);
             response = parseAndMapResponse(rawAiResponse, candidateSubjects);
             if (response.getRecommendedSubjects().isEmpty()) {
-                response = getFallbackRecommendations(candidateSubjects, "Hệ thống AI tạm thời không thể phân tích được gợi ý tối ưu. Đây là lộ trình mặc định cho bạn.");
+                Set<UUID> failedSubjectIds = gradingHistory.stream()
+                        .filter(sg -> !Boolean.TRUE.equals(sg.getIsPassed()) && sg.getTotalScore() != null)
+                        .map(sg -> sg.getEnrollment().getClassSection().getSubject().getId())
+                        .collect(Collectors.toSet());
+                response = getFallbackRecommendations(candidateSubjects, "Hệ thống AI tạm thời không thể phân tích được gợi ý tối ưu. Đây là lộ trình mặc định cho bạn.", failedSubjectIds);
             }
         } catch (Exception e) {
             log.error("AI Recommendation failed or blocked. Triggering fallback.", e);
-            response = getFallbackRecommendations(candidateSubjects, "Kết nối AI bận hoặc không khả dụng. Hệ thống chuyển sang gợi ý môn học theo lộ trình mặc định.");
+            Set<UUID> failedSubjectIds = gradingHistory.stream()
+                    .filter(sg -> !Boolean.TRUE.equals(sg.getIsPassed()) && sg.getTotalScore() != null)
+                    .map(sg -> sg.getEnrollment().getClassSection().getSubject().getId())
+                    .collect(Collectors.toSet());
+            response = getFallbackRecommendations(candidateSubjects, "Kết nối AI bận hoặc không khả dụng. Hệ thống chuyển sang gợi ý môn học theo lộ trình mặc định.", failedSubjectIds);
             rawAiResponse = "ERROR: " + e.getMessage();
         }
 
@@ -268,7 +276,7 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
         return true;
     }
 
-    private RecommendationResponse getFallbackRecommendations(List<ProgramSubject> candidateSubjects, String message) {
+    private RecommendationResponse getFallbackRecommendations(List<ProgramSubject> candidateSubjects, String message, Set<UUID> failedSubjectIds) {
         if (candidateSubjects == null || candidateSubjects.isEmpty()) {
             return RecommendationResponse.builder()
                     .explanation(message)
@@ -277,15 +285,29 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
         }
         
         List<RecommendationResponse.SubjectRecommendation> recommendations = candidateSubjects.stream()
-                .sorted(Comparator.comparing(ps -> ps.getSemester() != null ? ps.getSemester() : 99))
+                .sorted((ps1, ps2) -> {
+                    // Ưu tiên 1: Môn đã rớt (cần học lại ngay)
+                    boolean isFailed1 = failedSubjectIds.contains(ps1.getSubject().getId());
+                    boolean isFailed2 = failedSubjectIds.contains(ps2.getSubject().getId());
+                    if (isFailed1 && !isFailed2) return -1;
+                    if (!isFailed1 && isFailed2) return 1;
+                    
+                    // Ưu tiên 2: Xếp theo lộ trình học kỳ (từ thấp đến cao)
+                    int sem1 = ps1.getSemester() != null ? ps1.getSemester() : 99;
+                    int sem2 = ps2.getSemester() != null ? ps2.getSemester() : 99;
+                    return Integer.compare(sem1, sem2);
+                })
                 .limit(MAX_RECOMMENDATIONS)
-                .map(ps -> RecommendationResponse.SubjectRecommendation.builder()
+                .map(ps -> {
+                    boolean isFailed = failedSubjectIds.contains(ps.getSubject().getId());
+                    return RecommendationResponse.SubjectRecommendation.builder()
                         .subjectId(ps.getSubject().getId())
                         .subjectCode(ps.getSubject().getCode())
                         .subjectName(ps.getSubject().getName())
-                        .score(80)
-                        .reason("Môn học bắt buộc theo lộ trình học kỳ tiếp theo.")
-                        .build())
+                        .score(isFailed ? 90 : 80)
+                        .reason(isFailed ? "Môn học đã rớt, cần ưu tiên học lại để đảm bảo tiến độ." : "Môn học bắt buộc theo lộ trình học kỳ tiếp theo.")
+                        .build();
+                })
                 .collect(Collectors.toList());
 
         return RecommendationResponse.builder()
