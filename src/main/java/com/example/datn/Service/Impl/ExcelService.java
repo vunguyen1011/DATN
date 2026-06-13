@@ -43,7 +43,7 @@ public class ExcelService implements IExcelService {
     private final LecturerRepository lecturerRepository;
 
     private static final String[] HEADERS = {
-            "STT", "Mã sinh viên", "Họ và tên", "Giới tính", "Số điện thoại", "Địa chỉ", "Tên Lớp", "Mã Ngành", "Tên Khóa"
+            "STT", "Mã sinh viên", "Họ và tên", "Ngày sinh (dd/MM/yyyy)", "Giới tính", "Số điện thoại", "Địa chỉ", "Tên Lớp", "Mã Ngành", "Tên Khóa"
     };
     private static final String[] LECTURER_HEADERS = {
             "STT", "Mã giảng viên", "Họ và tên", "Ngày sinh (dd/MM/yyyy)", "Giới tính",
@@ -92,6 +92,10 @@ public class ExcelService implements IExcelService {
             unlockedTextStyle.setLocked(false);
             unlockedTextStyle.setDataFormat(workbook.createDataFormat().getFormat("@"));
 
+            CellStyle unlockedDateStyle = workbook.createCellStyle();
+            unlockedDateStyle.setLocked(false);
+            unlockedDateStyle.setDataFormat(workbook.createDataFormat().getFormat("mm/dd/yyyy"));
+
             CellStyle lockedSTTStyle = workbook.createCellStyle();
             lockedSTTStyle.setLocked(true);
             lockedSTTStyle.setAlignment(HorizontalAlignment.CENTER);
@@ -104,7 +108,8 @@ public class ExcelService implements IExcelService {
                 cell.setCellValue(HEADERS[i]);
                 cell.setCellStyle(headerStyle);
                 if (i == 0) sheet.setColumnWidth(i, 6 * 256);
-                else if (i == 5) sheet.setColumnWidth(i, 40 * 256);
+                else if (i == 6) sheet.setColumnWidth(i, 40 * 256);
+                else if (i == 3) sheet.setColumnWidth(i, 20 * 256);
                 else sheet.setColumnWidth(i, 18 * 256);
             }
 
@@ -115,8 +120,10 @@ public class ExcelService implements IExcelService {
                     if (j == 0) {
                         cell.setCellStyle(lockedSTTStyle);
                         cell.setCellValue(i);
-                    } else if (j == 1 || j == 4) {
+                    } else if (j == 1 || j == 5) {
                         cell.setCellStyle(unlockedTextStyle);
+                    } else if (j == 3) {
+                        cell.setCellStyle(unlockedDateStyle);
                     } else {
                         cell.setCellStyle(unlockedStyle);
                     }
@@ -124,10 +131,10 @@ public class ExcelService implements IExcelService {
             }
 
             DataValidationHelper helper = sheet.getDataValidationHelper();
-            addValidation(sheet, helper, "GenderList", 3);
-            addValidation(sheet, helper, "ClassList", 6);
-            addValidation(sheet, helper, "MajorList", 7);
-            addValidation(sheet, helper, "CohortList", 8);
+            addValidation(sheet, helper, "GenderList", 4);
+            addValidation(sheet, helper, "ClassList", 7);
+            addValidation(sheet, helper, "MajorList", 8);
+            addValidation(sheet, helper, "CohortList", 9);
 
             sheet.protectSheet("admin_datn_2026");
             workbook.write(response.getOutputStream());
@@ -179,15 +186,45 @@ public class ExcelService implements IExcelService {
                 }
 
                 String fullName = formatter.formatCellValue(row.getCell(2)).trim();
-                String genderStr = formatter.formatCellValue(row.getCell(3)).trim();
-                String phone = formatter.formatCellValue(row.getCell(4)).trim();
+                
+                LocalDate dateOfBirth = null;
+                Cell dobCell = row.getCell(3);
+                if (dobCell != null && dobCell.getCellType() != CellType.BLANK) {
+                    try {
+                        if (DateUtil.isCellDateFormatted(dobCell)) {
+                            dateOfBirth = dobCell.getLocalDateTimeCellValue().toLocalDate();
+                        } else if (dobCell.getCellType() == CellType.NUMERIC) {
+                            dateOfBirth = dobCell.getLocalDateTimeCellValue().toLocalDate();
+                        } else {
+                            String dobStr = formatter.formatCellValue(dobCell).replaceAll("[^0-9/\\\\-]", "").trim();
+
+                            if (!dobStr.isEmpty()) {
+                                java.time.format.DateTimeFormatter flexibleFormatter = new DateTimeFormatterBuilder()
+                                        .appendOptional(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                        .appendOptional(java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy"))
+                                        .appendOptional(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy"))
+                                        .appendOptional(java.time.format.DateTimeFormatter.ofPattern("d-M-yyyy"))
+                                        .toFormatter();
+
+                                dateOfBirth = LocalDate.parse(dobStr, flexibleFormatter);
+                            }
+                        }
+                    } catch (Exception e) {
+                        String errorValue = formatter.formatCellValue(dobCell);
+                        skippedStudents.add(studentCode + " (Sai format Ngày sinh: '" + errorValue + "')");
+                        continue;
+                    }
+                }
+
+                String genderStr = formatter.formatCellValue(row.getCell(4)).trim();
+                String phone = formatter.formatCellValue(row.getCell(5)).trim();
 
                 if (phone.length() == 9 && !phone.startsWith("0")) phone = "0" + phone;
 
-                String address = formatter.formatCellValue(row.getCell(5)).trim();
-                String className = formatter.formatCellValue(row.getCell(6)).trim();
-                String majorCode = formatter.formatCellValue(row.getCell(7)).trim();
-                String cohortName = formatter.formatCellValue(row.getCell(8)).trim();
+                String address = formatter.formatCellValue(row.getCell(6)).trim();
+                String className = formatter.formatCellValue(row.getCell(7)).trim();
+                String majorCode = formatter.formatCellValue(row.getCell(8)).trim();
+                String cohortName = formatter.formatCellValue(row.getCell(9)).trim();
 
                 Major major = majorMap.get(majorCode);
                 AdminClass adminClass = classMap.get(className);
@@ -212,6 +249,7 @@ public class ExcelService implements IExcelService {
                 Student newStudent = Student.builder()
                         .studentCode(studentCode)
                         .fullName(fullName)
+                        .dateOfBirth(dateOfBirth)
                         .gender(genderEnum)
                         .phone(phone)
                         .address(address)
