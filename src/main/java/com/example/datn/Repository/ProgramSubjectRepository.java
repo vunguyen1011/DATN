@@ -79,7 +79,7 @@ public interface ProgramSubjectRepository extends JpaRepository<ProgramSubject, 
             "WHERE ps.section.educationProgram.major.id = :majorId " +
             "AND pc.cohort.id = :cohortId " +
             "AND ps.isActive = true " +
-            "AND EXISTS (SELECT 1 FROM ClassSection cs WHERE cs.subject.id = ps.subject.id AND cs.semester.id = :semesterId AND cs.status = com.example.datn.ENUM.SectionStatus.OPENED) " +
+            "AND EXISTS (SELECT 1 FROM ClassSection cs WHERE cs.subject.id = ps.subject.id AND cs.semester.id = :semesterId AND cs.status IN (com.example.datn.ENUM.SectionStatus.OPENED, com.example.datn.ENUM.SectionStatus.PENDING)) " +
             "ORDER BY ps.semester ASC")
     List<ProgramSubject> findOpenedSubjectsByCohortAndMajor(
             @Param("cohortId") UUID cohortId,
@@ -92,7 +92,7 @@ public interface ProgramSubjectRepository extends JpaRepository<ProgramSubject, 
             "WHERE ps.section.educationProgram.major.id = :majorId " +
             "AND pc.cohort.id = :cohortId " +
             "AND ps.isActive = true " +
-            "AND EXISTS (SELECT 1 FROM ClassSection cs WHERE cs.subject.id = ps.subject.id AND cs.semester.id = :semesterId AND cs.status = com.example.datn.ENUM.SectionStatus.OPENED) " +
+            "AND EXISTS (SELECT 1 FROM ClassSection cs WHERE cs.subject.id = ps.subject.id AND cs.semester.id = :semesterId AND cs.status IN (com.example.datn.ENUM.SectionStatus.OPENED, com.example.datn.ENUM.SectionStatus.PENDING)) " +
             "AND (:keyword = '' OR LOWER(ps.subject.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(ps.subject.code) LIKE LOWER(CONCAT('%', :keyword, '%')))",
             countQuery = "SELECT count(ps) FROM ProgramSubject ps " +
                     "JOIN ps.subject sub " +
@@ -100,7 +100,7 @@ public interface ProgramSubjectRepository extends JpaRepository<ProgramSubject, 
                     "WHERE ps.section.educationProgram.major.id = :majorId " +
                     "AND pc.cohort.id = :cohortId " +
                     "AND ps.isActive = true " +
-                    "AND EXISTS (SELECT 1 FROM ClassSection cs WHERE cs.subject.id = sub.id AND cs.semester.id = :semesterId AND cs.status = com.example.datn.ENUM.SectionStatus.OPENED) " +
+                    "AND EXISTS (SELECT 1 FROM ClassSection cs WHERE cs.subject.id = sub.id AND cs.semester.id = :semesterId AND cs.status IN (com.example.datn.ENUM.SectionStatus.OPENED, com.example.datn.ENUM.SectionStatus.PENDING)) " +
                     "AND (:keyword = '' OR LOWER(sub.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(sub.code) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<ProgramSubject> searchOpenedSubjectsPaginated(
             @Param("cohortId") UUID cohortId,

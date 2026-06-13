@@ -46,11 +46,11 @@ public interface ClassSectionRepository extends JpaRepository<ClassSection, UUID
 
         List<ClassSection> findByParentSectionId(UUID parentSectionId);
 
-        @Query("SELECT DISTINCT cs.subject FROM ClassSection cs WHERE cs.semester.id = :semesterId AND cs.subject.isActive = true")
+        @Query("SELECT DISTINCT cs.subject FROM ClassSection cs WHERE cs.semester.id = :semesterId AND cs.status IN (com.example.datn.ENUM.SectionStatus.OPENED, com.example.datn.ENUM.SectionStatus.PENDING) AND cs.subject.isActive = true")
         List<Subject> findDistinctSubjectsBySemesterId(@Param("semesterId") UUID semesterId);
 
         @Query("SELECT DISTINCT cs.subject FROM ClassSection cs WHERE " +
-                        "(:semesterId IS NULL OR cs.semester.id = :semesterId) AND cs.subject.isActive = true AND " +
+                        "(:semesterId IS NULL OR cs.semester.id = :semesterId) AND cs.status IN (com.example.datn.ENUM.SectionStatus.OPENED, com.example.datn.ENUM.SectionStatus.PENDING) AND cs.subject.isActive = true AND " +
                         "(LOWER(cs.subject.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(cs.subject.code) LIKE LOWER(CONCAT('%', :keyword, '%')))")
         org.springframework.data.domain.Page<Subject> searchOpenedSubjects(
                         @Param("semesterId") UUID semesterId,
