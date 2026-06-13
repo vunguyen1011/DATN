@@ -36,6 +36,7 @@ public class UserProfileResponse {
         private String phone;
         private String address;
         private LocalDate dateOfBirth;
+        private String gender;
         private String degree;
         private String status;
         private UUID facultyId;
