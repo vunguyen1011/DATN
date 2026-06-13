@@ -7,6 +7,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.util.UUID;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "students")
@@ -47,6 +48,8 @@ public class Student {
     @Enumerated(EnumType.STRING)
     @Column(name = "gender", nullable = false)
     private Gender gender;
+    @Column(name = "date_of_birth")
+    private LocalDate dateOfBirth;
 
 
 }

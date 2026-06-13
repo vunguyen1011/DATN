@@ -12,6 +12,7 @@ public class StudentMapper {
                 .studentCode(student.getStudentCode())
                 .phone(student.getPhone())
                 .address(student.getAddress())
+                .dateOfBirth(student.getDateOfBirth())
                 .gender(student.getGender() != null ? student.getGender().name() : null)
                 .status(student.getStatus() != null ? student.getStatus().name() : null)
                 .cohortId(student.getCohort().getId())

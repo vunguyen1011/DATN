@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 import java.util.UUID;
+import java.time.LocalDate;
 
 @Data
 @Builder
@@ -34,6 +35,7 @@ public class UserProfileResponse {
         private String lecturerCode;
         private String phone;
         private String address;
+        private LocalDate dateOfBirth;
         private String degree;
         private String status;
         private UUID facultyId;
@@ -48,6 +50,7 @@ public class UserProfileResponse {
         private String studentCode;
         private String phone;
         private String address;
+        private LocalDate dateOfBirth;
         private String gender;
         private String status;
         private UUID cohortId;
