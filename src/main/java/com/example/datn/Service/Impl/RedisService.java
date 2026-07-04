@@ -512,4 +512,28 @@ public class RedisService implements IRedisService {
 
         return pendingClassIds;
     }
+
+    @Override
+    public void batchUpdatePendingRegistration(java.util.UUID studentId, java.util.UUID theoryId, java.util.UUID labId) {
+        redisTemplate.executePipelined((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
+            byte[] one = "1".getBytes();
+            long ttl = java.time.Duration.ofHours(24).getSeconds();
+
+            // Theory: SET pending_reg + DEL pending_cancel
+            byte[] regKey = ("pending_reg:" + studentId + ":" + theoryId).getBytes();
+            byte[] cancelKey = ("pending_cancel:" + studentId + ":" + theoryId).getBytes();
+            connection.stringCommands().setEx(regKey, ttl, one);
+            connection.keyCommands().del(cancelKey);
+
+            // Lab: SET pending_reg + DEL pending_cancel (nếu có)
+            if (labId != null) {
+                byte[] labRegKey = ("pending_reg:" + studentId + ":" + labId).getBytes();
+                byte[] labCancelKey = ("pending_cancel:" + studentId + ":" + labId).getBytes();
+                connection.stringCommands().setEx(labRegKey, ttl, one);
+                connection.keyCommands().del(labCancelKey);
+            }
+
+            return null;
+        });
+    }
 }

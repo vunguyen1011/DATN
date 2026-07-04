@@ -55,4 +55,6 @@ public interface IRedisService {
     void removePendingCancellation(java.util.UUID studentId, java.util.UUID classSectionId);
     void expirePendingCancellation(java.util.UUID studentId, java.util.UUID classSectionId, java.time.Duration duration);
     java.util.Set<java.util.UUID> getPendingCancellations(java.util.UUID studentId);
+
+    void batchUpdatePendingRegistration(java.util.UUID studentId, java.util.UUID theoryId, java.util.UUID labId);
 }

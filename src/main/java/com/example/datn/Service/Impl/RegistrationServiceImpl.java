@@ -55,6 +55,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     private final com.example.datn.Service.Interface.IClassSectionService classSectionService;
+    private final com.example.datn.Service.Impl.LocalCacheService localCacheService;
 
     private Student getCurrentStudent() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -95,7 +96,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
         }
         UUID semesterId = activePeriod.getRegistrationPeriod().getSemester().getId();
 
-   ClassSectionCacheDTO theorySection = getFromRedisCache("class_metadata:" + request.getTheoryClassId());
+   ClassSectionCacheDTO theorySection = localCacheService.getClassMetadata(request.getTheoryClassId());
         if (theorySection == null) {
             throw new AppException(ErrorCode.NO_CLASS_SECTIONS_FOUND, "Không tìm thấy lớp lý thuyết");
         }
@@ -106,7 +107,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
 
       ClassSectionCacheDTO labSection = null;
         if (request.getLabClassId() != null) {
-            labSection = getFromRedisCache("class_metadata:" + request.getLabClassId());
+            labSection = localCacheService.getClassMetadata(request.getLabClassId());
             if (labSection == null) {
                 throw new AppException(ErrorCode.NO_CLASS_SECTIONS_FOUND, "Không tìm thấy lớp thực hành");
             }
@@ -123,15 +124,15 @@ public class RegistrationServiceImpl implements IRegistrationService {
         String theorySubjectName = theorySection.getSubjectName();
         String labSubjectName = (labSection != null) ? labSection.getSubjectName() : null;
 
-        // Fetch pre-computed Class Masks from Redis
-        String theoryMaskStr = redisTemplate.opsForValue().get("class_mask:" + theorySection.getId());
+        // Fetch pre-computed Class Masks from Local Cache (thay vì Redis)
+        String theoryMaskStr = localCacheService.getClassMask(theorySection.getId());
         if (theoryMaskStr == null) {
             theoryMaskStr = redisService.recalculateAndCacheClassMask(theorySection.getId());
         }
 
         String labMaskStr = null;
         if (labSection != null) {
-            labMaskStr = redisTemplate.opsForValue().get("class_mask:" + labSection.getId());
+            labMaskStr = localCacheService.getClassMask(labSection.getId());
             if (labMaskStr == null) {
                 labMaskStr = redisService.recalculateAndCacheClassMask(labSection.getId());
             }
@@ -175,14 +176,8 @@ public class RegistrationServiceImpl implements IRegistrationService {
                 .map(EnrollmentSaveRequest::from)
                 .collect(Collectors.toList());
         
-        // Thêm vào Redis Pending Buffer (Đảm bảo Consistency)
-        redisService.addPendingRegistration(student.getId(), theorySection.getId());
-        redisService.removePendingCancellation(student.getId(), theorySection.getId());
-        
-        if (labSection != null) {
-            redisService.addPendingRegistration(student.getId(), labSection.getId());
-            redisService.removePendingCancellation(student.getId(), labSection.getId());
-        }
+        // Pending Buffer: gom 4 lệnh thành 1 Redis Pipeline
+        redisService.batchUpdatePendingRegistration(student.getId(), theorySection.getId(), labId);
 
         rabbitMQProducer.sendMessage(saveRequests.toArray(new EnrollmentSaveRequest[0]));
         return responses;
@@ -434,15 +429,14 @@ public class RegistrationServiceImpl implements IRegistrationService {
                 .build();
     }
     private void checkPrerequisitesOptimized(UUID studentId, UUID subjectId) {
-        String prereqKey = "prerequisites:" + subjectId;
-        String passedKey = "passed_subjects:" + studentId;
-        Set<String> prerequisites = redisTemplate.opsForSet().members(prereqKey);
-        if (prerequisites == null || prerequisites.isEmpty()) {
+        // ★ Đọc từ Local Cache (JVM HashMap O(1)) thay vì Redis SMEMBERS + SISMEMBER × N
+        Set<UUID> prerequisites = localCacheService.getPrerequisites(subjectId);
+        if (prerequisites.isEmpty()) {
             return;
         }
-        for (String prereqId : prerequisites) {
-            Boolean passed = redisTemplate.opsForSet().isMember(passedKey, prereqId);
-            if (Boolean.FALSE.equals(passed)) {
+        Set<UUID> passedSubjects = localCacheService.getPassedSubjects(studentId);
+        for (UUID prereqId : prerequisites) {
+            if (!passedSubjects.contains(prereqId)) {
                 throw new AppException(ErrorCode.INVALID_REQUEST,
                         "Chưa đạt môn tiên quyết yêu cầu.");
             }

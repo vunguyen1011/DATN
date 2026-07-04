@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Collections;
 import java.util.stream.Collectors;
 
 import org.springframework.boot.CommandLineRunner;
@@ -58,6 +59,7 @@ public class WarmupCacheService implements IWarmupCacheService, CommandLineRunne
     
     private final IStudentGradeService studentGradeService;
     private final ISubjectService subjectService;
+    private final LocalCacheService localCacheService;
 
     @Override
     public void warmupAll() {
@@ -69,6 +71,7 @@ public class WarmupCacheService implements IWarmupCacheService, CommandLineRunne
         warmupStudentMasks();
         warmupClassMetadata();
         
+        localCacheService.logStats();
         log.info("Hoàn tất Warmup Cache!");
     }
 
@@ -83,6 +86,7 @@ public class WarmupCacheService implements IWarmupCacheService, CommandLineRunne
                 String[] values = passed.stream().map(UUID::toString).toArray(String[]::new);
                 redisTemplate.opsForSet().add(key, values);
             }
+            localCacheService.putPassedSubjects(student.getId(), passed);
         }
         log.info("Đã cache điểm đã qua cho {} sinh viên.", students.size());
     }
@@ -103,6 +107,10 @@ public class WarmupCacheService implements IWarmupCacheService, CommandLineRunne
             if (prereqs != null && !prereqs.isEmpty()) {
                 String[] values = prereqs.stream().map(p -> p.getId().toString()).toArray(String[]::new);
                 redisTemplate.opsForSet().add(key, values);
+                Set<UUID> prereqIds = prereqs.stream().map(com.example.datn.DTO.Response.SubjectResponse::getId).collect(Collectors.toSet());
+                localCacheService.putPrerequisites(subject.getId(), prereqIds);
+            } else {
+                localCacheService.putPrerequisites(subject.getId(), Collections.emptySet());
             }
         }
         log.info("Đã cache môn tiên quyết cho {} môn học.", subjects.size());
@@ -119,7 +127,9 @@ public class WarmupCacheService implements IWarmupCacheService, CommandLineRunne
             int[] mask = buildScheduleMask(schedules);
             String key = "class_mask:" + section.getId();
             try {
-                redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(mask));
+                String maskStr = objectMapper.writeValueAsString(mask);
+                redisTemplate.opsForValue().set(key, maskStr);
+                localCacheService.putClassMask(section.getId(), maskStr);
             } catch (Exception e) {
                 log.error("Lỗi parse mask cho lớp {}", section.getId(), e);
             }
@@ -172,7 +182,9 @@ public class WarmupCacheService implements IWarmupCacheService, CommandLineRunne
                 .build();
             String key = "class_metadata:" + section.getId();
             try {
-                redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(dto));
+                String dtoStr = objectMapper.writeValueAsString(dto);
+                redisTemplate.opsForValue().set(key, dtoStr);
+                localCacheService.putClassMetadata(section.getId(), dto);
             } catch (Exception e) {
                 log.error("Lỗi parse metadata cho lớp {}", section.getId(), e);
             }
