@@ -70,6 +70,7 @@ public class WarmupCacheService implements IWarmupCacheService, CommandLineRunne
         warmupClassMasks();
         warmupStudentMasks();
         warmupClassMetadata();
+        warmupStudentUsernames();
         
         localCacheService.logStats();
         log.info("Hoàn tất Warmup Cache!");
@@ -206,5 +207,22 @@ public class WarmupCacheService implements IWarmupCacheService, CommandLineRunne
             mask[day] |= periodMask;
         }
         return mask;
+    }
+
+    private void warmupStudentUsernames() {
+        log.info("Đang nạp thông tin Student theo Username vào Local Cache...");
+        List<com.example.datn.Model.Student> students = studentRepository.findAll();
+        for (com.example.datn.Model.Student student : students) {
+            if (student.getUser() != null) {
+                com.example.datn.Model.Student lightweight = new com.example.datn.Model.Student();
+                lightweight.setId(student.getId());
+                if (student.getCohort() != null) {
+                    com.example.datn.Model.Cohort c = new com.example.datn.Model.Cohort();
+                    c.setId(student.getCohort().getId());
+                    lightweight.setCohort(c);
+                }
+                localCacheService.putStudentByUsername(student.getUser().getUsername(), lightweight);
+            }
+        }
     }
 }
