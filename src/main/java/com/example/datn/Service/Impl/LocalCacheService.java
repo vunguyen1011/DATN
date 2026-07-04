@@ -16,6 +16,7 @@ public class LocalCacheService {
     private final ConcurrentHashMap<UUID, String> classMaskCache = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, Set<UUID>> prerequisitesCache = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, Set<UUID>> passedSubjectsCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, com.example.datn.Model.Student> studentByUsernameCache = new ConcurrentHashMap<>();
 
     // --- Write Methods (Dùng lúc Warmup) ---
     public void putClassMetadata(UUID id, ClassSectionCacheDTO dto) { classMetadataCache.put(id, dto); }
@@ -33,6 +34,14 @@ public class LocalCacheService {
     
     public Set<UUID> getPassedSubjects(UUID studentId) { 
         return passedSubjectsCache.getOrDefault(studentId, Collections.emptySet()); 
+    }
+    
+    public com.example.datn.Model.Student getStudentByUsername(String username) {
+        return studentByUsernameCache.get(username);
+    }
+    
+    public void putStudentByUsername(String username, com.example.datn.Model.Student student) {
+        studentByUsernameCache.put(username, student);
     }
 
     public void logStats() {

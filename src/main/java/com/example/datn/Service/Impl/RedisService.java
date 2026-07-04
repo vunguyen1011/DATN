@@ -153,6 +153,7 @@ public class RedisService implements IRedisService {
     private final com.example.datn.Repository.ScheduleRepository scheduleRepository;
     private final com.example.datn.Repository.EnrollmentRepository enrollmentRepository;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    private final LocalCacheService localCacheService;
 
     @Override
     public void saveRefreshToken(String username, String refreshToken, Duration duration) {
@@ -366,6 +367,7 @@ public class RedisService implements IRedisService {
         try {
             String maskStr = objectMapper.writeValueAsString(mask);
             redisTemplate.opsForValue().set(classMaskKey, maskStr);
+            localCacheService.putClassMask(classSectionId, maskStr); // Lưu lại vào Local Cache
             log.info("Đã load lại class_mask từ DB cho lớp {}", classSectionId);
             return maskStr;
         } catch (Exception e) {

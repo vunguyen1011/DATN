@@ -73,8 +73,26 @@ public class RegistrationServiceImpl implements IRegistrationService {
             }
         }
         String username = authentication.getName();
-        return studentRepository.findByUser_Username(username)
+        
+        // Cache DB query to prevent Hikari Pool exhaustion under load
+        Student cachedStudent = localCacheService.getStudentByUsername(username);
+        if (cachedStudent != null) {
+            return cachedStudent;
+        }
+
+        Student student = studentRepository.findByUser_Username(username)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        
+        Student lightweightStudent = new Student();
+        lightweightStudent.setId(student.getId());
+        if (student.getCohort() != null) {
+            Cohort cohort = new Cohort();
+            cohort.setId(student.getCohort().getId());
+            lightweightStudent.setCohort(cohort);
+        }
+        
+        localCacheService.putStudentByUsername(username, lightweightStudent);
+        return lightweightStudent;
     }
 
     private PeriodCohort getActivePeriodCohort(UUID cohortId) {
